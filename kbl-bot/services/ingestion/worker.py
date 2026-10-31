@@ -21,6 +21,7 @@ from services.content.kbl_data import (
     build_highlights_from_games,
     compute_standings_from_games,
     get_default_player_rankings,
+    parse_daum_news_html,
 )
 from services.game.service import GameService, today_kst
 from services.provider.interface import SportsDataProvider
@@ -150,13 +151,7 @@ class IngestionWorker:
                 reverse=True,
             )
             await save_highlights_cache(build_highlights_from_games(recent_finished))
-
-            try:
-                news_items = await self._provider.get_news()
-                if news_items:
-                    await save_news_cache(news_items)
-            except Exception as n_exc:
-                logger.warning("Failed to sync news in worker", error=str(n_exc))
+            await save_news_cache(parse_daum_news_html("", recent_finished))
 
             self._last_window_sync_at = now_mono
             logger.info(

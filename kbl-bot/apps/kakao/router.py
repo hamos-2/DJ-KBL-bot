@@ -24,6 +24,7 @@ from apps.kakao.builder import (
     build_news_response,
     build_player_rankings_response,
     build_settings_response,
+    build_team_standings_response,
     build_today_games_response,
 )
 from apps.kakao.schemas import KakaoSkillPayload, KakaoSkillResponse

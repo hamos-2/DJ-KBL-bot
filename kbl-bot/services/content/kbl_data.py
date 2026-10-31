@@ -234,9 +234,11 @@ def compute_standings_from_games(games: list[dict[str, Any]]) -> list[dict[str, 
     return standings
 
 
-def parse_daum_news_html(raw_html: str) -> list[dict[str, Any]]:
+def parse_daum_news_html(
+    raw_html: str, recent_games: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     """
-    Extract KBL news articles (title + v.daum.net URL) from Daum Search HTML.
+    Extract KBL news articles from Daum Search HTML and live game recaps.
     """
     items: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
@@ -253,28 +255,65 @@ def parse_daum_news_html(raw_html: str) -> list[dict[str, Any]]:
         raw_title = re.sub(r"<[^>]+>", "", match.group(2))
         title = html.unescape(raw_title).strip()
         title = re.sub(r"\s+", " ", title)
-        # Filter out short labels like "다음뉴스" or empty image links
         if len(title) < 10 or title in ("다음뉴스", "언론사 픽", "관련뉴스"):
             continue
         seen_urls.add(url)
         items.append({"title": title, "url": url, "source": "Daum 스포츠"})
-        if len(items) >= 6:
+        if len(items) >= 5:
             break
 
-    if not items:
-        items = [
-            {
-                "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
-                "url": "https://sports.daum.net/basketball",
-                "source": "Daum 스포츠",
-            },
-            {
-                "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
-                "url": "https://www.kbl.or.kr/news/kbl-news",
-                "source": "KBL 공식",
-            },
-        ]
-    return items
+    if recent_games and len(items) < 5:
+        for g in recent_games[:4]:
+            status = g.get("status")
+            h = g.get("home_team", "?")
+            a = g.get("away_team", "?")
+            hs = g.get("home_score") or 0
+            as_ = g.get("away_score") or 0
+            gid = g.get("game_id", "")
+            arena = g.get("arena") or ""
+            url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/basketball"
+            if status == "FINAL":
+                winner, loser, ws, ls = (h, a, hs, as_) if hs >= as_ else (a, h, as_, hs)
+                diff = abs(hs - as_)
+                headline = (
+                    f"[경기리뷰] {winner}, {loser} 상대로 {ws}-{ls} 짜릿한 {diff}점차 접전 승리!"
+                    if diff <= 5
+                    else f"[경기리뷰] {winner}, {loser} 꺾고 {ws}-{ls} 쾌승 ({arena})"
+                )
+                items.append({"title": headline, "url": url, "source": "Daum 스포츠"})
+            elif status == "LIVE":
+                items.append(
+                    {
+                        "title": f"[속보/생중계] {h} {hs} : {as_} {a} 실시간 격돌 ({arena})",
+                        "url": url,
+                        "source": "Daum 스포츠",
+                    }
+                )
+            else:
+                items.append(
+                    {
+                        "title": f"[매치프리뷰] {h} vs {a} 맞대결 관전포인트 및 전력 비교",
+                        "url": url,
+                        "source": "Daum 스포츠",
+                    }
+                )
+
+    if len(items) < 5:
+        items.extend(
+            [
+                {
+                    "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
+                    "url": "https://www.kbl.or.kr/news/kbl-news",
+                    "source": "KBL 공식",
+                },
+            ]
+        )
+    return items[:5]
 
 
 def build_highlights_from_games(
