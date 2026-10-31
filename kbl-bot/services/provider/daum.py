@@ -257,10 +257,10 @@ class DaumSportsDataProvider(SportsDataProvider):
         try:
             resp = await client.get(_DAUM_SEARCH_URL, params=params)
             resp.raise_for_status()
-            return parse_daum_news_html(resp.text, recent_games=recent_games)
+            return parse_daum_news_html(resp.text, recent_games=recent_games, team=team)
         except Exception as exc:
             logger.warning("Failed to fetch Daum news, using fallback", error=str(exc))
-            return parse_daum_news_html("", recent_games=recent_games)
+            return parse_daum_news_html("", recent_games=recent_games, team=team)
 
     async def search_matchup_via_daum_portal(
         self, team_a: str, team_b: str | None = None

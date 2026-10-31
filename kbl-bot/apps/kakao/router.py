@@ -344,10 +344,20 @@ async def _dispatch_command(
         rankings = await game_service.get_player_rankings(category=cat)
         return build_player_rankings_response(rankings, category=cat)
 
-    # 6. News (뉴스)
-    if u_compact in ("뉴스", "kbl뉴스", "KBL뉴스", "농구뉴스", "최신뉴스"):
-        news_items = await game_service.get_latest_news(db)
-        return build_news_response(news_items, favorite_team=fav_team)
+    # 6. News (뉴스 / 팀별 맞춤 뉴스)
+    if (
+        "뉴스" in u_compact
+        or "소식" in u_compact
+        or "기사" in u_compact
+    ):
+        requested_team = None
+        for t in KBL_TEAMS:
+            if t in u_compact:
+                requested_team = t
+                break
+        target_team = requested_team or fav_team
+        news_items = await game_service.get_latest_news(db, team=target_team)
+        return build_news_response(news_items, favorite_team=target_team)
 
     # 7. Highlights (주요장면 / 하이라이트 / 영상)
     if u_compact in ("주요장면", "하이라이트", "영상", "명장면", "경기영상"):

@@ -288,13 +288,33 @@ class GameService:
             cached = get_default_player_rankings()
         return cached.get(category, cached.get("pts", []))
 
-    async def get_latest_news(self, db: AsyncSession | None = None) -> list[dict[str, Any]]:
-        """Return cached latest KBL news items from Redis (with fallback from recent DB games)."""
-        cached = await get_news_cache()
-        if cached:
-            return cached
-        recent = await self.get_recent_results(db, limit=4) if db is not None else []
-        return parse_daum_news_html("", recent)
+    async def get_latest_news(
+        self, db: AsyncSession | None = None, team: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return cached latest KBL news items from Redis (optionally tailored to a specific team)."""
+        cache_key = f"game:news:{team}" if team else "game:news:all"
+        try:
+            client = await get_redis()
+            raw = await client.get(cache_key)
+            if raw:
+                return json.loads(raw)
+        except Exception:
+            pass
+
+        recent = await self.get_recent_results(db, team=team, limit=4) if db is not None else []
+        get_news_fn = getattr(self._provider, "get_news", None)
+        if callable(get_news_fn):
+            items = await get_news_fn(team=team, recent_games=recent)
+        else:
+            items = parse_daum_news_html("", recent, team=team)
+
+        if items:
+            try:
+                client = await get_redis()
+                await client.set(cache_key, json.dumps(items), ex=1800)
+            except Exception:
+                pass
+        return items
 
     async def get_latest_highlights(self, db: AsyncSession) -> list[dict[str, Any]]:
         """Return cached latest KBL highlight clips from Redis (or build from recent DB games)."""

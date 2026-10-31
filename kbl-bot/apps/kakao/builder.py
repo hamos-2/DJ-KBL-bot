@@ -371,16 +371,26 @@ def build_news_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '뉴스' (Latest KBL basketball news headlines & links).
-    Clean single-bubble text output (#xx style).
+    Build clean single-bubble response for '뉴스' (Latest KBL basketball news headlines & links).
+    Tailored to user's favorite team if provided.
     """
-    title_suffix = f" ({favorite_team})" if favorite_team else ""
-    lines: list[str] = [f"📰 KBL 프로농구 최신 뉴스{title_suffix}\n"]
+    if favorite_team:
+        full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
+        header = f"📰 [{full_name}] 최신 뉴스"
+    else:
+        header = "📰 KBL 프로농구 최신 뉴스"
+
+    lines: list[str] = [f"{header}\n"]
 
     for idx, item in enumerate(news_items[:5], start=1):
         title = item.get("title", "프로농구 소식")
         url = item.get("url", "https://sports.daum.net/basketball")
         lines.append(f"{idx}. {title}\n   🔗 {url}\n")
+
+    if favorite_team:
+        lines.append("💡 다른 구단: 'SK 뉴스', 'KT 뉴스', 'DB 뉴스', 'LG 뉴스'")
+    else:
+        lines.append("(💡 하단 '설정'에서 응원팀 등록 시 맞춤 뉴스가 제공됩니다)")
 
     return build_simple_response(
         "\n".join(lines).strip(),

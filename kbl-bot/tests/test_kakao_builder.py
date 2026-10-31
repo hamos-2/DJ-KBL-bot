@@ -299,6 +299,26 @@ class TestProBasketballBotFeatures:
             assert "simpleText" in resp.template.outputs[0]
             assert len(resp.template.quickReplies) == 10
 
+    def test_team_specific_news_builder(self) -> None:
+        """build_news_response must customize headline and advice when favorite_team is provided."""
+        from apps.kakao.builder import build_news_response
+        team_resp = build_news_response(
+            [{"title": "DB 알바노 맹활약", "url": "https://sports.daum.net/basketball"}],
+            favorite_team="DB",
+        )
+        text = team_resp.template.outputs[0]["simpleText"]["text"]
+        assert "원주 DB" in text
+        assert "DB 알바노" in text
+        assert "다른 구단" in text
+
+        generic_resp = build_news_response(
+            [{"title": "KBL 전체 뉴스", "url": "https://sports.daum.net/basketball"}],
+            favorite_team=None,
+        )
+        gen_text = generic_resp.template.outputs[0]["simpleText"]["text"]
+        assert "KBL 프로농구 최신 뉴스" in gen_text
+        assert "응원팀 등록" in gen_text
+
     def test_deterministic_seed_consistency(self) -> None:
         """_deterministic_seed must return identical values across calls."""
         from core.cache.redis import _deterministic_seed

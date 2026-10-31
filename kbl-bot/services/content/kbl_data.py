@@ -235,10 +235,13 @@ def compute_standings_from_games(games: list[dict[str, Any]]) -> list[dict[str, 
 
 
 def parse_daum_news_html(
-    raw_html: str, recent_games: list[dict[str, Any]] | None = None
+    raw_html: str,
+    recent_games: list[dict[str, Any]] | None = None,
+    team: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Extract KBL news articles from Daum Search HTML and live game recaps.
+    Optionally tailored to a specific favorite team.
     """
     items: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
@@ -262,8 +265,31 @@ def parse_daum_news_html(
         if len(items) >= 5:
             break
 
+    # If team is specified, prioritize articles mentioning the team or its key players
+    if team and items:
+        full_name = TEAM_INFO.get(team, {}).get("full_name", team)
+        team_players = [p["name"] for p in KBL_PLAYERS if p.get("team") == team]
+        team_keywords = [team, full_name] + team_players
+
+        def _is_team_relevant(item: dict[str, Any]) -> bool:
+            tit = item.get("title", "")
+            return any(k in tit for k in team_keywords)
+
+        team_articles = [it for it in items if _is_team_relevant(it)]
+        other_articles = [it for it in items if not _is_team_relevant(it)]
+        items = (team_articles + other_articles)[:5]
+
     if recent_games and len(items) < 5:
-        for g in recent_games[:4]:
+        # Prioritize games involving the favorite team
+        candidate_games = recent_games
+        if team:
+            t_games = [g for g in recent_games if team in (g.get("home_team"), g.get("away_team"))]
+            o_games = [g for g in recent_games if team not in (g.get("home_team"), g.get("away_team"))]
+            candidate_games = t_games + o_games
+
+        for g in candidate_games[:4]:
+            if len(items) >= 5:
+                break
             status = g.get("status")
             h = g.get("home_team", "?")
             a = g.get("away_team", "?")
@@ -272,47 +298,89 @@ def parse_daum_news_html(
             gid = g.get("game_id", "")
             arena = g.get("arena") or ""
             url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/basketball"
-            if status == "FINAL":
-                winner, loser, ws, ls = (h, a, hs, as_) if hs >= as_ else (a, h, as_, hs)
-                diff = abs(hs - as_)
-                headline = (
-                    f"[경기리뷰] {winner}, {loser} 상대로 {ws}-{ls} 짜릿한 {diff}점차 접전 승리!"
-                    if diff <= 5
-                    else f"[경기리뷰] {winner}, {loser} 꺾고 {ws}-{ls} 쾌승 ({arena})"
-                )
+
+            if team and team in (h, a):
+                is_home = (h == team)
+                my_score = hs if is_home else as_
+                opp_score = as_ if is_home else hs
+                opp = a if is_home else h
+                diff = abs(my_score - opp_score)
+
+                if status == "FINAL":
+                    if my_score > opp_score:
+                        headline = f"[승전보] {team}, {opp} 꺾고 {my_score}-{opp_score} 승리! ({arena})"
+                    else:
+                        headline = f"[경기리뷰] {team}, {opp}전 {diff}점차 아쉬운 석패 ({arena})"
+                elif status == "LIVE":
+                    headline = f"[속보/LIVE] {team} vs {opp} {my_score}:{opp_score} 실시간 격돌 중 ({arena})"
+                else:
+                    headline = f"[매치프리뷰] {team} vs {opp} 맞대결 관전포인트 및 전력 비교"
                 items.append({"title": headline, "url": url, "source": "Daum 스포츠"})
-            elif status == "LIVE":
-                items.append(
-                    {
-                        "title": f"[속보/생중계] {h} {hs} : {as_} {a} 실시간 격돌 ({arena})",
-                        "url": url,
-                        "source": "Daum 스포츠",
-                    }
-                )
             else:
-                items.append(
-                    {
-                        "title": f"[매치프리뷰] {h} vs {a} 맞대결 관전포인트 및 전력 비교",
-                        "url": url,
-                        "source": "Daum 스포츠",
-                    }
-                )
+                if status == "FINAL":
+                    winner, loser, ws, ls = (h, a, hs, as_) if hs >= as_ else (a, h, as_, hs)
+                    diff = abs(hs - as_)
+                    headline = (
+                        f"[경기리뷰] {winner}, {loser} 상대로 {ws}-{ls} 짜릿한 {diff}점차 접전 승리!"
+                        if diff <= 5
+                        else f"[경기리뷰] {winner}, {loser} 꺾고 {ws}-{ls} 쾌승 ({arena})"
+                    )
+                    items.append({"title": headline, "url": url, "source": "Daum 스포츠"})
+                elif status == "LIVE":
+                    items.append(
+                        {
+                            "title": f"[속보/생중계] {h} {hs} : {as_} {a} 실시간 격돌 ({arena})",
+                            "url": url,
+                            "source": "Daum 스포츠",
+                        }
+                    )
+                else:
+                    items.append(
+                        {
+                            "title": f"[매치프리뷰] {h} vs {a} 맞대결 관전포인트 및 전력 비교",
+                            "url": url,
+                            "source": "Daum 스포츠",
+                        }
+                    )
 
     if len(items) < 5:
-        items.extend(
-            [
-                {
-                    "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
-                    "url": "https://sports.daum.net/basketball",
-                    "source": "Daum 스포츠",
-                },
-                {
-                    "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
-                    "url": "https://www.kbl.or.kr/news/kbl-news",
-                    "source": "KBL 공식",
-                },
-            ]
-        )
+        if team:
+            full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+            club_url = TEAM_INFO.get(team, {}).get("club_url", "https://sports.daum.net/basketball")
+            items.extend(
+                [
+                    {
+                        "title": f"{full} 구단 소식 및 공식 영상 모아보기",
+                        "url": club_url,
+                        "source": "구단 공식",
+                    },
+                    {
+                        "title": f"[{team}] 선수단 주요 기록 및 정규리그 팀 순위표",
+                        "url": "https://sports.daum.net/basketball",
+                        "source": "Daum 스포츠",
+                    },
+                    {
+                        "title": "KBL 프로농구 전체 최신 뉴스 및 라운드 결산",
+                        "url": "https://sports.daum.net/basketball",
+                        "source": "Daum 스포츠",
+                    },
+                ]
+            )
+        else:
+            items.extend(
+                [
+                    {
+                        "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
+                        "url": "https://sports.daum.net/basketball",
+                        "source": "Daum 스포츠",
+                    },
+                    {
+                        "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
+                        "url": "https://www.kbl.or.kr/news/kbl-news",
+                        "source": "KBL 공식",
+                    },
+                ]
+            )
     return items[:5]
 
 
