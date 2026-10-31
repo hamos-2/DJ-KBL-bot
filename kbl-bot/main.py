@@ -3,9 +3,10 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from sqlalchemy import text
 
 from apps.kakao.builder import build_error_response
@@ -154,13 +155,46 @@ async def kakao_unhandled_exception_handler(
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
 @app.get("/health", tags=["internal"])
 async def internal_health() -> JSONResponse:
     """Internal HTTP health probe for Docker / load balancer."""
     return JSONResponse(content={"status": "ok", "service": "kbl-bot"})
 
 
+@app.get("/robots.txt", tags=["seo"])
+async def robots_txt() -> Response:
+    """Serve robots.txt for search engines."""
+    robots_file = STATIC_DIR / "robots.txt"
+    if robots_file.is_file():
+        return PlainTextResponse(content=robots_file.read_text(encoding="utf-8"))
+    return PlainTextResponse(content="User-agent: *\nAllow: /\n")
+
+
+@app.get("/sitemap.xml", tags=["seo"])
+async def sitemap_xml() -> Response:
+    """Serve sitemap.xml for search engines."""
+    sitemap_file = STATIC_DIR / "sitemap.xml"
+    if sitemap_file.is_file():
+        return Response(content=sitemap_file.read_text(encoding="utf-8"), media_type="application/xml")
+    return Response(
+        content='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://hamos-2.github.io/DJ-KBL-bot/</loc></url></urlset>',
+        media_type="application/xml",
+    )
+
+
 @app.get("/", tags=["internal"])
-async def root() -> JSONResponse:
-    """Root endpoint — returns service identity."""
+async def root(request: Request) -> Response:
+    """
+    Root endpoint — returns SEO landing page for browsers & Googlebot,
+    or service JSON for API clients.
+    """
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept or "*/*" in accept or not accept:
+        index_file = STATIC_DIR / "index.html"
+        if index_file.is_file():
+            return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+
     return JSONResponse(content={"service": "KBL Bot API", "version": "1.1.0"})

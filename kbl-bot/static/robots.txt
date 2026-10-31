@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hamos-2.github.io/DJ-KBL-bot/sitemap.xml

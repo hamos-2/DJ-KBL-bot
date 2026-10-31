@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KBL봇 - 카카오톡 프로농구 실시간 스코어·일정·순위 알림 챗봇</title>
+  <meta name="description" content="카카오톡에서 별도 앱 설치 없이 KBL 프로농구 실시간 경기 점수, 10개 구단 정규리그 순위표, 오늘 경기 일정, 관심선수 기록, 하이라이트 영상을 원클릭으로 확인하세요. 100% 무료 KBL봇!">
+  <meta name="keywords" content="KBL봇, 프로농구 챗봇, KBL 카톡봇, 프로농구 카카오톡, KBL 실시간 스코어, KBL 일정, 농구 경기 일정, KBL 순위, KBL 선수순위, 프로농구 순위, 농구봇">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://hamos-2.github.io/DJ-KBL-bot/">
+
+  <!-- Open Graph / Kakao / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hamos-2.github.io/DJ-KBL-bot/">
+  <meta property="og:title" content="KBL봇 - 카카오톡 프로농구 실시간 스코어·일정·순위 알림 챗봇">
+  <meta property="og:description" content="포털 검색 없이 카톡에서 KBL 실시간 점수, 오늘 경기 일정, 10개 구단 순위표를 바로 확인하세요. 100% 무료!">
+  <meta property="og:image" content="https://nstatic.dcinside.com/dc/w/images/descrip_img.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="KBL봇 - 카카오톡 프로농구 실시간 스코어·일정·순위 챗봇">
+  <meta name="twitter:description" content="카카오톡에서 바로 보는 KBL 실시간 점수, 일정, 팀순위. 무료 카톡 농구봇!">
+
+  <!-- Schema.org JSON-LD for Google Rich Results -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "KBL봇 (KBL 프로농구 카카오톡 챗봇)",
+    "operatingSystem": "KakaoTalk, iOS, Android, Web",
+    "applicationCategory": "SportsApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "KRW"
+    },
+    "description": "카카오톡으로 이용하는 대한민국 KBL 프로농구 실시간 점수, 일정, 구단 순위표, 개인 순위, 맞춤 뉴스 챗봇 서비스.",
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "ratingCount": "128"
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "KBL봇은 유료인가요?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "아닙니다. KBL봇은 100% 무료 서비스이며, 별도의 유료 결제나 회원가입 없이 카카오톡 친구 추가만으로 바로 이용할 수 있습니다."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "카카오톡에서 어떻게 사용하나요?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "카카오톡 상단 돋보기 검색창에 'KBL봇'을 검색하여 채널을 추가한 후 1:1 채팅방에서 하단 메뉴 버튼을 누르면 실시간 점수, 일정, 순위표를 바로 확인할 수 있습니다."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "실시간 경기 스코어는 얼마나 자주 갱신되나요?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "진행 중인 경기는 쿼터 상황 및 점수가 실시간 초단위로 갱신되어 지연 없이 현장 스코어를 확인할 수 있습니다."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      --primary: #ff6b00;
+      --primary-dark: #e05e00;
+      --bg: #0f1117;
+      --surface: #1a1e29;
+      --surface-border: #2a3142;
+      --text: #f0f3f8;
+      --text-muted: #9ba3b4;
+      --kakao: #fee500;
+      --kakao-text: #191919;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", Roboto, "Noto Sans KR", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      padding: 1.5rem 1rem;
+      border-bottom: 1px solid var(--surface-border);
+      background: rgba(15, 17, 23, 0.85);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 1.35rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #fff;
+      text-decoration: none;
+    }
+    .logo span { color: var(--primary); }
+    .hero {
+      max-width: 900px;
+      margin: 3.5rem auto 2.5rem;
+      padding: 0 1.25rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.9rem;
+      background: rgba(255, 107, 0, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(255, 107, 0, 0.3);
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-size: 2.4rem;
+      line-height: 1.25;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    h1 span {
+      background: linear-gradient(135deg, #ff8a00, #ff5000);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin: 0 auto 2rem;
+    }
+    .cta-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.85rem;
+      margin-bottom: 3rem;
+    }
+    .btn-kakao {
+      background-color: var(--kakao);
+      color: var(--kakao-text);
+      font-weight: 700;
+      padding: 0.95rem 1.8rem;
+      border-radius: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.05rem;
+      box-shadow: 0 4px 14px rgba(254, 229, 0, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-kakao:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(254, 229, 0, 0.35);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: #fff;
+      font-weight: 600;
+      padding: 0.95rem 1.6rem;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 1.05rem;
+      transition: all 0.15s ease;
+    }
+    .btn-secondary:hover {
+      border-color: var(--primary);
+    }
+
+    /* Mockup Chat Box */
+    .mockup-container {
+      max-width: 440px;
+      margin: 0 auto 4rem;
+      background: #20242f;
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 1.25rem;
+      text-align: left;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .mockup-header {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-bubble {
+      background: #2a303f;
+      border-radius: 14px;
+      padding: 1rem 1.15rem;
+      font-size: 0.92rem;
+      margin-top: 1rem;
+      white-space: pre-line;
+      line-height: 1.55;
+    }
+    .chat-bubble strong { color: var(--primary); }
+
+    /* Features Grid */
+    .features {
+      max-width: 1000px;
+      margin: 0 auto 4rem;
+      padding: 0 1.25rem;
+    }
+    .section-title {
+      text-align: center;
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-bottom: 2rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 1.6rem;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 107, 0, 0.5);
+    }
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 0.8rem;
+    }
+    .card h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    /* Teams section */
+    .teams-section {
+      max-width: 1000px;
+      margin: 0 auto 4rem;
+      padding: 0 1.25rem;
+      text-align: center;
+    }
+    .team-chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-top: 1.2rem;
+    }
+    .team-chip {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    /* FAQ Section */
+    .faq-section {
+      max-width: 800px;
+      margin: 0 auto 5rem;
+      padding: 0 1.25rem;
+    }
+    .faq-item {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      padding: 1.25rem 1.4rem;
+    }
+    .faq-q {
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 0.4rem;
+      color: #fff;
+    }
+    .faq-a {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 2.5rem 1rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    footer a { color: var(--primary); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="nav-container">
+      <a href="#" class="logo">🏀 KBL<span>봇</span></a>
+      <a href="https://pf.kakao.com/_pxgeWX" class="btn-kakao" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        카톡 채널추가
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="badge">🔥 2026-27 KBL 프로농구 시즌 공식 지원</div>
+      <h1>카카오톡으로 보는<br><span>KBL 실시간 스코어 & 일정봇</span></h1>
+      <p>포털 검색이나 별도 앱 설치 없이, 카톡에서 1초 만에 오늘 경기 일정, 실시간 점수, 10개 구단 순위표, 선수 기록을 확인하세요.</p>
+      
+      <div class="cta-group">
+        <a href="https://pf.kakao.com/_pxgeWX" class="btn-kakao" target="_blank" rel="noopener">
+          💬 카카오톡 채널 추가하기
+        </a>
+        <a href="https://pf.kakao.com/_pxgeWX/chat" class="btn-secondary" target="_blank" rel="noopener">
+          ⚡ 1:1 채팅 바로가기
+        </a>
+      </div>
+
+      <!-- Live Chat Mockup -->
+      <div class="mockup-container">
+        <div class="mockup-header">
+          <span>🏀 KBL봇 카카오톡 채팅 화면</span>
+          <span>● LIVE</span>
+        </div>
+        <div class="chat-bubble">
+          <strong>🏆 2026-27 KBL 정규리그 순위</strong>
+
+          🥇 1. 삼성  9승 0패 (1.000)  선두
+          🥈 2. SK  4승 1패 (.800)  3.0차
+          🥉 3. 정관장  6승 4패 (.600)  3.5차
+          4. 가스공사  5승 5패 (.500)  4.5차
+          5. DB  5승 5패 (.500)  4.5차
+          6. LG  4승 5패 (.444)  5.0차
+          ┈┈┈┈ 6강 PO 진출선 ┈┈┈┈
+          7. 소노  4승 6패 (.400)  5.5차
+          8. KT  4승 6패 (.400)  5.5차
+          9. 모비스  3승 7패 (.300)  6.5차
+          10. KCC  3승 8패 (.273)  7.0차
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features">
+      <h2 class="section-title">KBL 농구팬을 위한 핵심 기능</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>실시간 점수 & 쿼터 상황</h3>
+          <p>경기 중 포털을 켤 필요 없이 실시간 스코어와 쿼터별 남은 시간 및 접전 상황을 빠르게 전달합니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📅</div>
+          <h3>오늘 경기 & 주간 일정</h3>
+          <p>오늘 매치업 시간, 경기장, 중계 방송사 정보 및 다가오는 7일간의 주간 일정을 날짜별로 깔끔하게 정리해 보여드립니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏆</div>
+          <h3>10개 구단 정규리그 순위</h3>
+          <p>모바일 화면에 최적화된 1줄 순위표와 6강 플레이오프 진출 마지노선, 승률, 게임차를 한눈에 파악할 수 있습니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⭐</div>
+          <h3>관심선수 & 개인 순위</h3>
+          <p>득점, 리바운드, 어시스트, 3점슛, 스틸 개인 랭킹과 내가 등록한 관심선수들의 시즌 상세 기록을 추적합니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📰</div>
+          <h3>응원팀 맞춤 뉴스 & 영상</h3>
+          <p>원주 DB, 서울 SK 등 내 응원팀을 지정하면 구단 최신 경기리뷰, 승전보, 하이라이트 영상을 최우선으로 배달합니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📣</div>
+          <h3>실시간 승부예측 & 응원</h3>
+          <p>오늘 경기 팬 투표 배틀과 승부예측에 참여하여 예측 포인트를 쌓고 다른 농구팬들과 실시간으로 소통하세요.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Supported Teams -->
+    <section class="teams-section">
+      <h2 class="section-title">KBL 10개 구단 전 구단 완벽 지원</h2>
+      <p style="color: var(--text-muted);">어떤 팀을 응원하셔도 맞춤 일정과 구단별 뉴스를 지원합니다.</p>
+      <div class="team-chips">
+        <span class="team-chip">원주 DB 프로미</span>
+        <span class="team-chip">서울 SK 나이츠</span>
+        <span class="team-chip">창원 LG 세이커스</span>
+        <span class="team-chip">수원 KT 소닉붐</span>
+        <span class="team-chip">울산 현대모비스 피버스</span>
+        <span class="team-chip">부산 KCC 이지스</span>
+        <span class="team-chip">대구 한국가스공사 페가수스</span>
+        <span class="team-chip">안양 정관장 레드부스터스</span>
+        <span class="team-chip">고양 소노 스카이거너스</span>
+        <span class="team-chip">서울 삼성 썬더스</span>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq-section">
+      <h2 class="section-title">자주 묻는 질문 (FAQ)</h2>
+      <div class="faq-item">
+        <div class="faq-q">Q. KBL봇은 무료인가요?</div>
+        <div class="faq-a">네, 100% 무료 서비스입니다. 광고나 별도의 유료 결제 없이 카카오톡 친구 추가만으로 모든 기능을 영구적으로 무료 이용하실 수 있습니다.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. 어떻게 이용하나요?</div>
+        <div class="faq-a">카카오톡 검색창(돋보기)에서 <strong>KBL봇</strong>을 검색하거나, 본 페이지의 [카카오톡 채널 추가하기] 버튼을 누른 뒤 채팅방 하단의 10개 메뉴를 클릭하시면 바로 시작됩니다.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. 내 응원팀만 골라서 볼 수 있나요?</div>
+        <div class="faq-a">네! 채팅창에서 '#응원팀 DB' 또는 하단 '설정' 메뉴에서 내 응원팀을 선택하시면, 일정·뉴스·하이라이트가 해당 구단 맞춤으로 자동 구성됩니다.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2026 KBL봇 (KBL 프로농구 카카오톡 챗봇) | 카카오톡 채널: <a href="https://pf.kakao.com/_pxgeWX">@KBL봇</a></p>
+    <p style="margin-top: 0.5rem; color: #64748b;">본 서비스는 비공식 팬메이드 스포츠 챗봇 서비스입니다.</p>
+  </footer>
+
+</body>
+</html>
