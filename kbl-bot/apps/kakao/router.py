@@ -209,6 +209,15 @@ async def _dispatch_command(
                     ),
                     None,
                 )
+                if target_game is None:
+                    upcoming_team_games = await game_service.get_kbl_schedule(
+                        db, days=7, team=norm_pick, limit=1
+                    )
+                    if upcoming_team_games:
+                        target_game = upcoming_team_games[0]
+                        if all(g.get("game_id") != target_game.get("game_id") for g in today_games):
+                            today_games = [target_game] + today_games
+
                 if target_game:
                     vote_res = await vote_team_cheer(
                         user_hmac,
@@ -222,7 +231,7 @@ async def _dispatch_command(
                         f"(내 포인트: {vote_res['user_points']}P)"
                     )
                 else:
-                    vote_notice = f"오늘 [{norm_pick}] 경기가 없어 응원 목록을 표시합니다."
+                    vote_notice = f"예정된 [{norm_pick}] 경기가 없어 응원 목록을 표시합니다."
 
         cheer_list = []
         user_points = 0
@@ -251,6 +260,13 @@ async def _dispatch_command(
 
         arg = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
         if arg:
+            if arg in ("초기화", "전체삭제", "비우기"):
+                prefs["favorite_players"] = []
+                await save_user_preferences(user_hmac, prefs)
+                return build_favorite_players_response(
+                    [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다."
+                )
+
             is_delete = arg.startswith("삭제") or arg.startswith("해제")
             clean_name = re.sub(r"^(삭제|해제|추가|등록)\s*", "", arg).strip()
             matched = search_kbl_players(clean_name)
@@ -301,7 +317,7 @@ async def _dispatch_command(
 
     # 6. News (뉴스)
     if u_compact in ("뉴스", "kbl뉴스", "KBL뉴스", "농구뉴스", "최신뉴스"):
-        news_items = await game_service.get_latest_news()
+        news_items = await game_service.get_latest_news(db)
         return build_news_response(news_items, favorite_team=fav_team)
 
     # 7. Highlights (주요장면 / 하이라이트 / 영상)

@@ -1,5 +1,6 @@
 """Async Redis client factory, snapshot caching, cheering counters, and atomic lock helpers."""
 
+import hashlib
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -25,6 +26,53 @@ if redis.call("get", KEYS[1]) == ARGV[1] then
 else
     return 0
 end
+"""
+
+# Atomic vote cheering Lua script:
+# KEYS[1] = user_vote_key, KEYS[2] = home_key, KEYS[3] = away_key, KEYS[4] = points_key
+# ARGV[1] = selected_team, ARGV[2] = home_team, ARGV[3] = away_team, ARGV[4] = ttl_seconds
+_VOTE_CHEER_LUA = """
+local prev = redis.call("get", KEYS[1])
+local already_voted = 0
+if prev then
+    already_voted = 1
+end
+
+local selected = ARGV[1]
+local home_team = ARGV[2]
+local away_team = ARGV[3]
+local ttl = tonumber(ARGV[4])
+
+if prev ~= selected then
+    if prev == home_team then
+        local cur = tonumber(redis.call("get", KEYS[2]) or "0")
+        if cur > 0 then
+            redis.call("decr", KEYS[2])
+        end
+    elseif prev == away_team then
+        local cur = tonumber(redis.call("get", KEYS[3]) or "0")
+        if cur > 0 then
+            redis.call("decr", KEYS[3])
+        end
+    end
+
+    if selected == home_team then
+        redis.call("incr", KEYS[2])
+    elseif selected == away_team then
+        redis.call("incr", KEYS[3])
+    end
+
+    redis.call("set", KEYS[1], selected, "EX", ttl)
+    if already_voted == 0 then
+        redis.call("incrby", KEYS[4], 10)
+    end
+end
+
+local h_votes = tonumber(redis.call("get", KEYS[2]) or "0")
+local a_votes = tonumber(redis.call("get", KEYS[3]) or "0")
+local pts = tonumber(redis.call("get", KEYS[4]) or "0")
+
+return {already_voted, prev or "", selected, h_votes, a_votes, pts}
 """
 
 _redis_client: Redis | None = None
@@ -119,6 +167,31 @@ async def get_game_snapshot(game_id: str) -> dict[str, Any] | None:
     stale = _is_stale(data.get("updated_at", ""))
     data["stale"] = stale
     return data
+
+
+async def get_game_snapshots_bulk(game_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """
+    Retrieve multiple game snapshots in a single Redis MGET round-trip.
+
+    Args:
+        game_ids: List of provider game identifier strings.
+
+    Returns:
+        Mapping of ``game_id -> snapshot dict`` for all found snapshots.
+    """
+    if not game_ids:
+        return {}
+    client = await get_redis()
+    keys = [_snapshot_key(str(gid)) for gid in game_ids]
+    raw_list = await client.mget(keys)
+    out: dict[str, dict[str, Any]] = {}
+    for gid, raw in zip(game_ids, raw_list):
+        if raw is None:
+            continue
+        data: dict[str, Any] = json.loads(raw)
+        data["stale"] = _is_stale(data.get("updated_at", ""))
+        out[str(gid)] = data
+    return out
 
 
 async def save_matchup_cache(
@@ -238,52 +311,54 @@ async def save_user_preferences(user_hmac: str, prefs: dict[str, Any]) -> None:
 # Cheering & Match Prediction counters (응원하기 / 승부예측)
 # ---------------------------------------------------------------------------
 
+def _deterministic_seed(key_str: str) -> int:
+    """Return a deterministic integer in [45, 124] using SHA-256."""
+    digest = hashlib.sha256(key_str.encode("utf-8")).digest()
+    return (int.from_bytes(digest[:4], "big") % 80) + 45
+
+
 async def vote_team_cheer(
     user_hmac: str, game_id: str, team: str, home_team: str, away_team: str
 ) -> dict[str, Any]:
     """
-    Record a user's team cheer/prediction for *game_id* and update counters.
+    Atomically record a user's team cheer/prediction for *game_id* and update counters.
 
     Returns:
         Dict with ``already_voted``, ``previous_team``, ``selected_team``,
         ``home_votes``, ``away_votes``, ``user_points``.
     """
+    # Ensure initial seed exists before atomic vote update
+    await get_game_cheers(game_id, home_team, away_team)
+
     client = await get_redis()
     user_vote_key = f"{_CHEER_USER_PREFIX}{user_hmac}:{game_id}"
     home_key = f"{_CHEER_COUNT_PREFIX}{game_id}:{home_team}"
     away_key = f"{_CHEER_COUNT_PREFIX}{game_id}:{away_team}"
     points_key = f"{_USER_POINTS_PREFIX}{user_hmac}"
 
-    prev_team = await client.get(user_vote_key)
-    already_voted = prev_team is not None
-
-    if prev_team != team:
-        if prev_team == home_team:
-            cur = int(await client.get(home_key) or 0)
-            if cur > 0:
-                await client.decr(home_key)
-        elif prev_team == away_team:
-            cur = int(await client.get(away_key) or 0)
-            if cur > 0:
-                await client.decr(away_key)
-
-        if team == home_team:
-            await client.incr(home_key)
-        elif team == away_team:
-            await client.incr(away_key)
-
-        await client.set(user_vote_key, team, ex=7 * 86400)
-        if not already_voted:
-            await client.incrby(points_key, 10)
-
-    home_votes = int(await client.get(home_key) or 0)
-    away_votes = int(await client.get(away_key) or 0)
-    points = int(await client.get(points_key) or 0)
+    res = await client.eval(
+        _VOTE_CHEER_LUA,
+        4,
+        user_vote_key,
+        home_key,
+        away_key,
+        points_key,
+        team,
+        home_team,
+        away_team,
+        str(7 * 86400),
+    )
+    already_voted = bool(int(res[0]))
+    prev_team = res[1] if res[1] else None
+    selected_team = str(res[2])
+    home_votes = int(res[3])
+    away_votes = int(res[4])
+    points = int(res[5])
 
     return {
         "already_voted": already_voted,
         "previous_team": prev_team,
-        "selected_team": team,
+        "selected_team": selected_team,
         "home_votes": home_votes,
         "away_votes": away_votes,
         "user_points": points,
@@ -298,17 +373,17 @@ async def get_game_cheers(
     home_key = f"{_CHEER_COUNT_PREFIX}{game_id}:{home_team}"
     away_key = f"{_CHEER_COUNT_PREFIX}{game_id}:{away_team}"
 
-    raw_h = await client.get(home_key)
-    raw_a = await client.get(away_key)
+    raw_h, raw_a = await client.mget([home_key, away_key])
 
     # Seed deterministic initial fan votes so the UI looks lively on first view
     if raw_h is None and raw_a is None:
-        seed_h = (hash(f"{game_id}:{home_team}") % 80) + 45
-        seed_a = (hash(f"{game_id}:{away_team}") % 80) + 45
+        seed_h = _deterministic_seed(f"{game_id}:{home_team}")
+        seed_a = _deterministic_seed(f"{game_id}:{away_team}")
         await client.set(home_key, str(seed_h), ex=7 * 86400, nx=True)
         await client.set(away_key, str(seed_a), ex=7 * 86400, nx=True)
-        home_votes = int(await client.get(home_key) or seed_h)
-        away_votes = int(await client.get(away_key) or seed_a)
+        r_h, r_a = await client.mget([home_key, away_key])
+        home_votes = int(r_h or seed_h)
+        away_votes = int(r_a or seed_a)
     else:
         home_votes = int(raw_h or 0)
         away_votes = int(raw_a or 0)
@@ -316,8 +391,11 @@ async def get_game_cheers(
     user_pick = None
     user_points = 0
     if user_hmac:
-        user_pick = await client.get(f"{_CHEER_USER_PREFIX}{user_hmac}:{game_id}")
-        user_points = int(await client.get(f"{_USER_POINTS_PREFIX}{user_hmac}") or 0)
+        u_pick, u_pts = await client.mget(
+            [f"{_CHEER_USER_PREFIX}{user_hmac}:{game_id}", f"{_USER_POINTS_PREFIX}{user_hmac}"]
+        )
+        user_pick = u_pick
+        user_points = int(u_pts or 0)
 
     total = max(1, home_votes + away_votes)
     home_pct = round(home_votes * 100 / total)

@@ -151,7 +151,12 @@ class IngestionWorker:
                 reverse=True,
             )
             await save_highlights_cache(build_highlights_from_games(recent_finished))
-            await save_news_cache(parse_daum_news_html("", recent_finished))
+            get_news_fn = getattr(self._provider, "get_news", None)
+            if callable(get_news_fn):
+                news_items = await get_news_fn(recent_games=recent_finished)
+            else:
+                news_items = parse_daum_news_html("", recent_finished)
+            await save_news_cache(news_items)
 
             self._last_window_sync_at = now_mono
             logger.info(

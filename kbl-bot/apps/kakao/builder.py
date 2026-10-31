@@ -248,7 +248,23 @@ def build_my_schedule_response(
     today_text = today_resp.template.outputs[0]["simpleText"]["text"]
     lines.append(today_text)
 
-    return build_simple_response("\n".join(lines), quick_replies=MAIN_MENU_QUICK_REPLIES)
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines)}},
+        {
+            "textCard": {
+                "title": "📅 내 응원팀 & 오늘 경기 바로가기",
+                "description": "예매 페이지 이동, 오늘 경기 승부예측 응원하기, 응원팀 변경을 이용할 수 있습니다.",
+                "buttons": [
+                    _link_btn("🎟 KBL 티켓 예매", "https://www.kbl.or.kr/ticket"),
+                    _msg_btn("📣 응원하기 투표", "응원하기"),
+                    _msg_btn("❤️ 응원팀 설정", "설정"),
+                ],
+            }
+        },
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
 
 
 def build_kbl_schedule_response(games: list[dict[str, Any]]) -> KakaoSkillResponse:
@@ -337,7 +353,23 @@ def build_game_results_response(
         lines.append(f"   🕒 {dt_str} | 📍 {arena}")
         lines.append(f"   📊 기록/리캡: {game_url}\n")
 
-    return build_simple_response("\n".join(lines).strip(), quick_replies=MAIN_MENU_QUICK_REPLIES)
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines).strip()}},
+        {
+            "textCard": {
+                "title": "📊 KBL 경기 결과 & 공식 박스스코어",
+                "description": "구단별 상세 쿼터 점수·선수별 기록·순위 변동을 확인할 수 있습니다.",
+                "buttons": [
+                    _link_btn("📊 Daum 결과/기록", "https://sports.daum.net/schedule/kbl"),
+                    _msg_btn("🏆 팀순위 보기", "팀순위"),
+                    _msg_btn("🎬 주요장면 보기", "주요장면"),
+                ],
+            }
+        },
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
 
 
 def build_news_response(
@@ -355,8 +387,22 @@ def build_news_response(
         url = item.get("url", "https://sports.daum.net/basketball")
         lines.append(f"{idx}. {title}\n   🔗 {url}\n")
 
-    lines.append("🌐 Daum 농구 뉴스 홈: https://sports.daum.net/basketball")
-    return build_simple_response("\n".join(lines).strip(), quick_replies=MAIN_MENU_QUICK_REPLIES)
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines).strip()}},
+        {
+            "textCard": {
+                "title": "📰 KBL 실시간 뉴스 & 속보 센터",
+                "description": "Daum 스포츠와 KBL 공식 홈페이지에서 최신 구단 소식과 인터뷰를 확인하세요.",
+                "buttons": [
+                    _link_btn("📰 Daum 농구 뉴스", "https://sports.daum.net/basketball"),
+                    _link_btn("🏀 KBL 공식 뉴스", "https://www.kbl.or.kr/news/kbl-news"),
+                ],
+            }
+        },
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
 
 
 def build_highlights_response(highlights: list[dict[str, Any]]) -> KakaoSkillResponse:
@@ -372,7 +418,22 @@ def build_highlights_response(highlights: list[dict[str, Any]]) -> KakaoSkillRes
         arena_str = f" ({arena})" if arena else ""
         lines.append(f"▶️ {idx}. {title}{arena_str}\n   🔗 {url}\n")
 
-    return build_simple_response("\n".join(lines).strip(), quick_replies=MAIN_MENU_QUICK_REPLIES)
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines).strip()}},
+        {
+            "textCard": {
+                "title": "🎬 KBL 경기별 하이라이트 & 명장면 영상",
+                "description": "Daum 스포츠 영상센터와 KBL TV 공식 유튜브에서 전체 영상을 시청하세요.",
+                "buttons": [
+                    _link_btn("🎬 Daum 영상센터", "https://sports.daum.net/video/kbl"),
+                    _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@KBLTV/videos"),
+                ],
+            }
+        },
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
 
 
 def build_team_standings_response(
@@ -401,8 +462,23 @@ def build_team_standings_response(
             f"{rank}위 {star}{team} | {wins}승 {losses}패 | {wpct:.3f} | {gb} | {streak}"
         )
 
-    lines.append("\n📊 상세 순위표: https://sports.daum.net/record/kbl/team")
-    return build_simple_response("\n".join(lines), quick_replies=MAIN_MENU_QUICK_REPLIES)
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines)}},
+        {
+            "textCard": {
+                "title": "📊 KBL 정규리그 상세 팀 기록실",
+                "description": "구단별 공수 지표·상대전적·선수 개인 순위를 바로 확인해보세요.",
+                "buttons": [
+                    _link_btn("📊 상세 순위표", "https://sports.daum.net/record/kbl/team"),
+                    _msg_btn("🏅 선수순위 보기", "선수순위"),
+                    _msg_btn("❤️ 내 응원팀 설정", "설정"),
+                ],
+            }
+        },
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
 
 
 def build_player_rankings_response(

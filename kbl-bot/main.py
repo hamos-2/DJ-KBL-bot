@@ -106,6 +106,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     _logger.info("Shutting down KBL Bot")
     await worker.stop()
+    aclose_fn = getattr(provider, "aclose", None)
+    if callable(aclose_fn):
+        await aclose_fn()
     await close_redis()
     await dispose_engine()
     _logger.info("Shutdown complete")

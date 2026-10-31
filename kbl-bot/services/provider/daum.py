@@ -70,16 +70,25 @@ class DaumSportsDataProvider(SportsDataProvider):
         self._timeout = timeout_seconds
         self._verify_ssl = verify_ssl
         self._transport = transport
+        self._client: httpx.AsyncClient | None = None
 
-    def _make_client(self) -> httpx.AsyncClient:
-        """Return a fresh httpx.AsyncClient configured with Daum headers."""
-        return httpx.AsyncClient(
-            headers=_DEFAULT_HEADERS,
-            timeout=self._timeout,
-            verify=self._verify_ssl,
-            follow_redirects=True,
-            transport=self._transport,
-        )
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return a shared, connection-pooled httpx.AsyncClient configured with Daum headers."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=_DEFAULT_HEADERS,
+                timeout=self._timeout,
+                verify=self._verify_ssl,
+                follow_redirects=True,
+                transport=self._transport,
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the shared HTTP client if open."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def get_schedule(
         self, for_date: date, team_id: str | None = None
@@ -160,13 +169,13 @@ class DaumSportsDataProvider(SportsDataProvider):
         url = f"{_DAUM_ARMS_BASE}/SPORTS_GAME"
         params = {"gameId": str(game_id)}
 
-        async with self._make_client() as client:
-            try:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                payload = resp.json()
-            except Exception as exc:
-                raise ProviderError(f"Failed to fetch game {game_id} from Daum: {exc}") from exc
+        client = self._get_client()
+        try:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            raise ProviderError(f"Failed to fetch game {game_id} from Daum: {exc}") from exc
 
         doc = (payload or {}).get("document")
         if not doc or not doc.get("gameId"):
@@ -200,13 +209,13 @@ class DaumSportsDataProvider(SportsDataProvider):
         url = f"{_DAUM_ARMS_BASE}/SPORTS_TEAM_RANK"
         params = {"leagueCode": "kbl", "seasonKey": season_key}
 
-        async with self._make_client() as client:
-            try:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                payload = resp.json()
-            except Exception as exc:
-                raise ProviderError(f"Failed to fetch standings from Daum: {exc}") from exc
+        client = self._get_client()
+        try:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            raise ProviderError(f"Failed to fetch standings from Daum: {exc}") from exc
 
         raw_list = ((payload or {}).get("document") or {}).get("list") or []
         standings: list[dict[str, Any]] = []
@@ -233,21 +242,25 @@ class DaumSportsDataProvider(SportsDataProvider):
             standings = compute_standings_from_games(games)
         return standings
 
-    async def get_news(self, team: str | None = None) -> list[dict[str, Any]]:
+    async def get_news(
+        self,
+        team: str | None = None,
+        recent_games: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
         """
-        Fetch latest KBL news articles from Daum Search.
+        Fetch latest KBL news articles from Daum Search, enriched with recent game recaps.
         """
         from services.content.kbl_data import parse_daum_news_html
         query = f"프로농구 {team}" if team else "KBL 프로농구"
         params = {"w": "news", "q": query}
-        async with self._make_client() as client:
-            try:
-                resp = await client.get(_DAUM_SEARCH_URL, params=params)
-                resp.raise_for_status()
-                return parse_daum_news_html(resp.text)
-            except Exception as exc:
-                logger.warning("Failed to fetch Daum news, using fallback", error=str(exc))
-                return parse_daum_news_html("")
+        client = self._get_client()
+        try:
+            resp = await client.get(_DAUM_SEARCH_URL, params=params)
+            resp.raise_for_status()
+            return parse_daum_news_html(resp.text, recent_games=recent_games)
+        except Exception as exc:
+            logger.warning("Failed to fetch Daum news, using fallback", error=str(exc))
+            return parse_daum_news_html("", recent_games=recent_games)
 
     async def search_matchup_via_daum_portal(
         self, team_a: str, team_b: str | None = None
@@ -266,13 +279,13 @@ class DaumSportsDataProvider(SportsDataProvider):
         query = f"{team_a} vs {team_b} 프로농구" if team_b else f"{team_a} 프로농구 일정"
         params = {"w": "tot", "q": query}
 
-        async with self._make_client() as client:
-            try:
-                resp = await client.get(_DAUM_SEARCH_URL, params=params)
-                resp.raise_for_status()
-                html = resp.text
-            except Exception as exc:
-                raise ProviderError(f"Daum portal search failed: {exc}") from exc
+        client = self._get_client()
+        try:
+            resp = await client.get(_DAUM_SEARCH_URL, params=params)
+            resp.raise_for_status()
+            html = resp.text
+        except Exception as exc:
+            raise ProviderError(f"Daum portal search failed: {exc}") from exc
 
         match_ids = list(dict.fromkeys(re.findall(r"sports\.daum\.net/match/(\d+)", html)))
         results: list[dict[str, Any]] = []
@@ -299,10 +312,10 @@ class DaumSportsDataProvider(SportsDataProvider):
             "toDate": to_date,
             "pageSize": "200",
         }
-        async with self._make_client() as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            payload = resp.json()
+        client = self._get_client()
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        payload = resp.json()
 
         doc = (payload or {}).get("document") or {}
         return doc.get("list") or []
@@ -317,10 +330,10 @@ class DaumSportsDataProvider(SportsDataProvider):
             "fromDate": from_date,
             "toDate": to_date,
         }
-        async with self._make_client() as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            payload = resp.json()
+        client = self._get_client()
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        payload = resp.json()
 
         return (payload or {}).get("list") or []
 

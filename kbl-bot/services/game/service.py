@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.cache.redis import (
     get_game_snapshot,
+    get_game_snapshots_bulk,
     get_highlights_cache,
     get_matchup_cache,
     get_news_cache,
@@ -99,13 +100,13 @@ class GameService:
             .order_by(Game.start_time.asc())
         )
         result = await db.execute(stmt)
-        db_games = result.scalars().all()
+        db_games = list(result.scalars().all())
+        snap_map = await get_game_snapshots_bulk([g.provider_id for g in db_games])
 
         games_out: list[dict[str, Any]] = []
         for g in db_games:
             item = self._game_to_dict(g)
-            # Overlay latest Redis snapshot if available
-            snapshot = await get_game_snapshot(g.provider_id)
+            snapshot = snap_map.get(g.provider_id)
             if snapshot is not None:
                 item.update(snapshot)
             games_out.append(item)
@@ -155,8 +156,9 @@ class GameService:
         """
         cached = await get_matchup_cache(team_a, team_b)
         if cached is not None:
+            snap_map = await get_game_snapshots_bulk([str(item["game_id"]) for item in cached])
             for item in cached:
-                snap = await get_game_snapshot(item["game_id"])
+                snap = snap_map.get(str(item["game_id"]))
                 if snap is not None:
                     item.update(snap)
             return cached[:limit]
@@ -192,10 +194,11 @@ class GameService:
             res = await db.execute(recent_stmt)
             rows = list(res.scalars().all())
 
+        snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         games_out: list[dict[str, Any]] = []
         for g in rows:
             item = self._game_to_dict(g)
-            snap = await get_game_snapshot(g.provider_id)
+            snap = snap_map.get(g.provider_id)
             if snap is not None:
                 item.update(snap)
             games_out.append(item)
@@ -225,10 +228,11 @@ class GameService:
 
         res = await db.execute(stmt)
         rows = list(res.scalars().all())
+        snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         out: list[dict[str, Any]] = []
         for g in rows:
             item = self._game_to_dict(g)
-            snap = await get_game_snapshot(g.provider_id)
+            snap = snap_map.get(g.provider_id)
             if snap is not None:
                 item.update(snap)
             out.append(item)
@@ -250,10 +254,11 @@ class GameService:
 
         res = await db.execute(stmt)
         rows = list(res.scalars().all())
+        snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         out: list[dict[str, Any]] = []
         for g in rows:
             item = self._game_to_dict(g)
-            snap = await get_game_snapshot(g.provider_id)
+            snap = snap_map.get(g.provider_id)
             if snap is not None:
                 item.update(snap)
             out.append(item)
@@ -283,12 +288,13 @@ class GameService:
             cached = get_default_player_rankings()
         return cached.get(category, cached.get("pts", []))
 
-    async def get_latest_news(self) -> list[dict[str, Any]]:
-        """Return cached latest KBL news items from Redis (with fallback)."""
+    async def get_latest_news(self, db: AsyncSession | None = None) -> list[dict[str, Any]]:
+        """Return cached latest KBL news items from Redis (with fallback from recent DB games)."""
         cached = await get_news_cache()
         if cached:
             return cached
-        return parse_daum_news_html("")
+        recent = await self.get_recent_results(db, limit=4) if db is not None else []
+        return parse_daum_news_html("", recent)
 
     async def get_latest_highlights(self, db: AsyncSession) -> list[dict[str, Any]]:
         """Return cached latest KBL highlight clips from Redis (or build from recent DB games)."""

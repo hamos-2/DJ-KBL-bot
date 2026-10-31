@@ -266,3 +266,45 @@ class TestProBasketballBotFeatures:
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
         assert len(set_resp.template.quickReplies) == 10
 
+    def test_rich_action_cards_on_results_news_highlights_standings(self) -> None:
+        """All content builders must include interactive textCard buttons and 10 fixed quickReplies."""
+        from apps.kakao.builder import (
+            build_game_results_response,
+            build_highlights_response,
+            build_my_schedule_response,
+            build_news_response,
+            build_team_standings_response,
+        )
+        sample_games = [
+            {
+                "game_id": "80109227",
+                "home_team": "KT",
+                "away_team": "LG",
+                "home_score": 88,
+                "away_score": 82,
+                "status": "FINAL",
+                "arena": "수원",
+                "start_time": "2026-10-31T05:00:00Z",
+            }
+        ]
+        for resp in [
+            build_my_schedule_response(sample_games, sample_games, favorite_team="KT"),
+            build_game_results_response(sample_games, favorite_team="KT"),
+            build_news_response([{"title": "KT 승리", "url": "https://sports.daum.net/basketball"}], favorite_team="KT"),
+            build_highlights_response([{"title": "하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}]),
+            build_team_standings_response([{"rank": 1, "team": "KT", "wins": 5, "losses": 1, "wpct": 0.833, "gb": "0.0", "streak": "3연승"}], favorite_team="KT"),
+        ]:
+            assert len(resp.template.outputs) == 2
+            assert "textCard" in resp.template.outputs[1]
+            assert len(resp.template.outputs[1]["textCard"]["buttons"]) >= 2
+            assert len(resp.template.quickReplies) == 10
+
+    def test_deterministic_seed_consistency(self) -> None:
+        """_deterministic_seed must return identical values across calls."""
+        from core.cache.redis import _deterministic_seed
+        s1 = _deterministic_seed("80109227:KT")
+        s2 = _deterministic_seed("80109227:KT")
+        assert s1 == s2
+        assert 45 <= s1 < 125
+
+
