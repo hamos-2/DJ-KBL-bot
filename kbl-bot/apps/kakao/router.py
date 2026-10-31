@@ -574,24 +574,40 @@ async def match_search(
 @router.post("/live-score")
 async def live_score(
     payload: KakaoSkillPayload,
+    db: Annotated[AsyncSession, Depends(get_db)],
     game_service: Annotated[GameService, Depends(_get_game_service)],
+    user_service: Annotated[UserService, Depends(_get_user_service)],
     x_kakao_skill_secret: Annotated[str | None, Header()] = None,
 ) -> JSONResponse:
     """
-    Return the Redis-cached live score for the active game.
+    Return the Redis-cached live score for the active game or today's games.
 
-    Reads ONLY from Redis — never calls the provider directly.
+    Reads ONLY from Redis / DB — never calls the external provider directly.
     Always returns HTTP 200.
     """
     if not _verify_skill_secret(x_kakao_skill_secret):
         return _json_200(build_error_response("인증되지 않은 스킬 요청입니다."))
 
-    game_id = str(payload.action.params.get("game_id", "MOCK-LIVE-001"))
+    kakao_user_key = payload.user_request.user.id
+    raw_id = payload.action.params.get("game_id")
     try:
-        snapshot = await game_service.get_live_snapshot(game_id)
+        user, _ = await user_service.get_or_create(db, kakao_user_key)
+        fav_team = user.favorite_team
+
+        target_id = str(raw_id) if raw_id else None
+        if not target_id or target_id == "MOCK-LIVE-001":
+            today_g = await game_service.get_today_games(db)
+            live_g = next((g for g in today_g if g.get("status") == "LIVE"), None)
+            fav_g = next((g for g in today_g if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))), None)
+            target = live_g or fav_g or (today_g[0] if today_g else None)
+            if target:
+                return _json_200(build_live_score_response(target))
+            return _json_200(build_today_games_response([], favorite_team=fav_team))
+
+        snapshot = await game_service.get_live_snapshot(target_id)
         return _json_200(build_live_score_response(snapshot))
     except GameNotFoundError as exc:
-        logger.warning("Live snapshot not found", game_id=game_id)
+        logger.warning("Live snapshot not found", game_id=raw_id)
         return _json_200(build_error_response(exc.user_message))
     except KBLBotError as exc:
         logger.warning("Domain error in live-score", error=str(exc))
