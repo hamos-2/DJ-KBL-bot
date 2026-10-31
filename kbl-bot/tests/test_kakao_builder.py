@@ -253,6 +253,16 @@ class TestProBasketballBotFeatures:
         )
         assert "정관장 60%" in cheer_resp.template.outputs[0]["simpleText"]["text"]
 
+        set_main = build_settings_response("KT", ["허훈"], {"game_start": True, "game_end": False, "clutch": False})
+        carousel_items = set_main.template.outputs[0]["carousel"]["items"]
+        btn_labels = [b["label"] for card in carousel_items for b in card["buttons"]]
+        assert "❤️ 응원팀 변경" in btn_labels
+        assert "시작알림 OFF" in btn_labels
+        assert "종료알림 ON" in btn_labels
+        assert "클러치알림 ON" in btn_labels
+        qr_labels = [q.label for q in set_main.template.quickReplies]
+        assert qr_labels == ["일정", "KBL 일정", "결과", "뉴스", "주요장면", "관심선수", "팀순위", "선수순위", "응원하기", "설정"]
+
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
         assert len(set_resp.template.quickReplies) == 10
 
