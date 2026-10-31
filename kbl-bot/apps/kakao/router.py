@@ -114,8 +114,25 @@ async def _dispatch_command(
     user_hmac = user.kakao_user_key_hmac
     fav_team = user.favorite_team
 
-    # 0. Home / Menu / Welcome
-    if u_compact in ("홈", "메뉴", "처음으로", "도움말", "시작", "프로농구봇"):
+    # 0. Home / Menu / Welcome (including Welcome Block / welcome_event / greeting)
+    if u_compact.lower() in (
+        "홈",
+        "메뉴",
+        "처음으로",
+        "도움말",
+        "시작",
+        "프로농구봇",
+        "kbl봇",
+        "웰컴",
+        "웰컴블록",
+        "welcome",
+        "welcome_event",
+        "안녕",
+        "안녕하세요",
+        "반가워",
+        "반갑습니다",
+        "하이",
+    ):
         prefs = await get_user_preferences(user_hmac)
         return build_home_menu_response(fav_team, prefs.get("favorite_players", []))
 
@@ -382,6 +399,9 @@ async def today_games(
 
     kakao_user_key = payload.user_request.user.id
     utterance = payload.user_request.utterance.strip()
+    block_name = str(payload.user_request.block.get("name") or "")
+    if "웰컴" in block_name or payload.user_request.block.get("id") == "6ae5fa740100875ffb65fcb0":
+        utterance = "웰컴"
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
         resp = await _dispatch_command(

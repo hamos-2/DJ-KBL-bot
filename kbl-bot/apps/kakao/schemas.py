@@ -20,6 +20,7 @@ class KakaoUserRequest(BaseModel):
 
     user: KakaoUser
     utterance: str = Field(default="", description="User utterance text (e.g. '#KT vs LG')")
+    block: dict[str, Any] = Field(default_factory=dict, description="Triggered OpenBuilder block metadata")
 
 
 class KakaoAction(BaseModel):

@@ -116,7 +116,7 @@ def build_home_menu_response(
         else "⭐ 관심선수: 미설정 ('관심선수'에서 선수를 등록해보세요!)"
     )
     text = (
-        "🏀 프로농구봇 (KBL 공식 데이터·Daum 스포츠 연동)\n\n"
+        "🏀 안녕하세요! KBL 프로농구봇입니다.\n\n"
         f"{team_label}\n"
         f"{players_label}\n\n"
         "📌 [이용 가능 메뉴]\n"
@@ -132,7 +132,23 @@ def build_home_menu_response(
         "• 설정 : 응원팀·관심선수·알림 ON/OFF 설정\n\n"
         "💡 하단 메뉴 버튼을 누르거나 '#KT vs LG'처럼 검색해보세요!"
     )
-    return build_simple_response(text, quick_replies=MAIN_MENU_QUICK_REPLIES)
+    action_card = {
+        "textCard": {
+            "title": "🚀 프로농구봇 빠른 시작",
+            "description": "원하시는 기능을 선택하거나 하단 10개 메뉴 버튼을 눌러보세요.",
+            "buttons": [
+                _msg_btn("❤️ 응원팀 설정", "#응원팀 변경"),
+                _msg_btn("📅 오늘 경기 일정", "일정"),
+                _msg_btn("🏆 구단 순위표", "팀순위"),
+            ],
+        }
+    }
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"simpleText": {"text": text}}, action_card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
+    )
 
 
 def build_today_games_response(
