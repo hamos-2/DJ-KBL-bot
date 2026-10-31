@@ -149,7 +149,11 @@ async def _dispatch_command(
             submode="team_select",
         )
 
-    if u.startswith("#알림") or u_compact in ("알림설정", "알림"):
+    if (
+        u.startswith("#알림")
+        or u_compact in ("알림설정", "알림")
+        or ("알림" in u_compact and any(k in u_compact for k in ("시작", "종료", "클러치", "접전", "on", "off", "ON", "OFF")))
+    ):
         prefs = await get_user_preferences(user_hmac)
         notifs = prefs.setdefault("notifications", {})
         notice_msg = None
@@ -184,13 +188,17 @@ async def _dispatch_command(
         )
 
     # 2. Cheering & Match Prediction (응원하기 / 승부예측 / #응원)
-    if u.startswith("#응원") or u_compact in ("응원하기", "응원", "승부예측", "예측", "투표"):
+    if (
+        u.startswith("#응원")
+        or (u.startswith("응원") and not u.startswith("응원팀"))
+        or u_compact in ("응원하기", "응원", "승부예측", "예측", "투표")
+    ):
         today_games = await game_service.get_today_games(db)
         if not today_games:
             today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
 
         vote_notice = None
-        if u.startswith("#응원") and not u.startswith("#응원팀"):
+        if (u.startswith("#응원") or u.startswith("응원")) and not u.startswith("#응원팀") and not u.startswith("응원팀") and u_compact not in ("응원하기", "응원"):
             raw_pick = re.sub(r"^#?응원(하기)?\s*", "", u).strip()
             norm_pick = normalize_team_name(raw_pick)
             if norm_pick in KBL_TEAMS:
