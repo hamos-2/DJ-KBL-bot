@@ -298,7 +298,8 @@ async def _dispatch_command(
     )
 
     clean_sub = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
-    clean_no_action = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|검색)+\s*", "", u).strip()
+    clean_target = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u)
+    clean_target = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색)+\s*", "", clean_target).strip()
 
     # Helper to find player by name or nickname
     def _find_player(query_str: str) -> dict | None:
@@ -311,7 +312,7 @@ async def _dispatch_command(
                 return p
         return None
 
-    matched_player = _find_player(clean_sub) if clean_sub else _find_player(clean_no_action)
+    matched_player = _find_player(clean_target)
 
     if is_fav_menu or has_player_prefix or matched_player is not None:
         prefs = await get_user_preferences(user_hmac)
