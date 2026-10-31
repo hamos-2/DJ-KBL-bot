@@ -137,7 +137,7 @@ def build_home_menu_response(
             "title": "🚀 프로농구봇 빠른 시작",
             "description": "원하시는 기능을 선택하거나 하단 10개 메뉴 버튼을 눌러보세요.",
             "buttons": [
-                _msg_btn("❤️ 응원팀 설정", "#응원팀 변경"),
+                _msg_btn("❤️ 응원팀 설정", "응원팀 설정"),
                 _msg_btn("📅 오늘 경기 일정", "일정"),
                 _msg_btn("🏆 구단 순위표", "팀순위"),
             ],

@@ -137,7 +137,19 @@ async def _dispatch_command(
         return build_home_menu_response(fav_team, prefs.get("favorite_players", []))
 
     # 1. Settings & Onboarding (#응원팀, #알림, 설정)
-    if u_compact in ("#응원팀변경", "응원팀변경", "응원팀선택"):
+    if u_compact in (
+        "#응원팀변경",
+        "응원팀변경",
+        "응원팀선택",
+        "#응원팀설정",
+        "응원팀설정",
+        "#응원팀",
+        "응원팀",
+        "구단선택",
+        "구단설정",
+        "팀선택",
+        "팀설정",
+    ):
         prefs = await get_user_preferences(user_hmac)
         return build_settings_response(
             fav_team,
@@ -146,8 +158,8 @@ async def _dispatch_command(
             submode="team_select",
         )
 
-    if u.startswith("#응원팀") or u.startswith("응원팀 "):
-        raw_t = re.sub(r"^#?응원팀(설정|변경)?\s*", "", u).strip()
+    if u.startswith("#응원팀") or u.startswith("응원팀"):
+        raw_t = re.sub(r"^#?응원팀(설정|변경|선택)?\s*", "", u).strip()
         norm_t = normalize_team_name(raw_t)
         prefs = await get_user_preferences(user_hmac)
         if norm_t in KBL_TEAMS:
@@ -196,7 +208,7 @@ async def _dispatch_command(
             notice=notice_msg,
         )
 
-    if u_compact in ("설정", "내설정", "환경설정", "응원팀설정"):
+    if u_compact in ("설정", "내설정", "환경설정"):
         prefs = await get_user_preferences(user_hmac)
         return build_settings_response(
             fav_team,
