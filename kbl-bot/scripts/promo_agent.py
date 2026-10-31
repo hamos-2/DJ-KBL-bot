@@ -134,8 +134,10 @@ async def send_cdp_cmd(ws, msg_id: int, method: str, params: dict | None = None)
 
 async def post_to_dcinside(gallery_id: str, title: str, html_body: str, password: str = "kbl2026!") -> str:
     """Post the promotional article to DC Inside gallery via Chrome CDP."""
-    write_url = f"https://gall.dcinside.com/board/write/?id={gallery_id}"
-    list_url = f"https://gall.dcinside.com/board/lists/?id={gallery_id}"
+    is_minor = gallery_id in ("basketballkorea",) or "mgallery" in gallery_id
+    base_prefix = "mgallery/board" if is_minor else "board"
+    write_url = f"https://gall.dcinside.com/{base_prefix}/write/?id={gallery_id}"
+    list_url = f"https://gall.dcinside.com/{base_prefix}/lists/?id={gallery_id}"
 
     req = urllib.request.Request(f"{CDP_URL}/json/new?{write_url}", method="PUT")
     tab = json.loads(urllib.request.urlopen(req).read().decode())
@@ -256,7 +258,7 @@ async def post_to_dcinside(gallery_id: str, title: str, html_body: str, password
     for num, raw_tit in matches[:15]:
         clean_tit = re.sub(r"<[^>]+>", "", raw_tit).strip()
         if (title[:12] in clean_tit) or ("KBL" in clean_tit and "봇" in clean_tit) or ("야구봇" in clean_tit):
-            return f"https://gall.dcinside.com/board/view/?id={gallery_id}&no={num}"
+            return f"https://gall.dcinside.com/{base_prefix}/view/?id={gallery_id}&no={num}"
     return list_url
 
 
