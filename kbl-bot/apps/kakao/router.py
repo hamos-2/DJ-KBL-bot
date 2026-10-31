@@ -359,10 +359,22 @@ async def _dispatch_command(
         news_items = await game_service.get_latest_news(db, team=target_team)
         return build_news_response(news_items, favorite_team=target_team)
 
-    # 7. Highlights (주요장면 / 하이라이트 / 영상)
-    if u_compact in ("주요장면", "하이라이트", "영상", "명장면", "경기영상"):
-        highlights = await game_service.get_latest_highlights(db)
-        return build_highlights_response(highlights)
+    # 7. Highlights (주요장면 / 하이라이트 / 영상 / 팀별 맞춤 하이라이트)
+    if (
+        "주요장면" in u_compact
+        or "하이라이트" in u_compact
+        or "영상" in u_compact
+        or "명장면" in u_compact
+        or "클립" in u_compact
+    ):
+        requested_team = None
+        for t in KBL_TEAMS:
+            if t in u_compact:
+                requested_team = t
+                break
+        target_team = requested_team or fav_team
+        highlights = await game_service.get_latest_highlights(db, team=target_team)
+        return build_highlights_response(highlights, favorite_team=target_team)
 
     # 8. Game Results (결과 / 경기 결과)
     if u_compact in ("결과", "경기결과", "최근결과", "어제경기"):

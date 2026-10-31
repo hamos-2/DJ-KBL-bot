@@ -385,14 +385,24 @@ def parse_daum_news_html(
 
 
 def build_highlights_from_games(
-    recent_games: list[dict[str, Any]], raw_html: str = ""
+    recent_games: list[dict[str, Any]],
+    raw_html: str = "",
+    team: str | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Build KBL highlight video links from recent live/finished games and Daum vclip search.
+    Build KBL highlight video links from recent live/finished games and official channels.
+    Optionally tailored to user's favorite team.
     """
     items: list[dict[str, Any]] = []
 
-    for g in recent_games[:4]:
+    # Prioritize games involving the favorite team
+    candidate_games = recent_games
+    if team:
+        t_games = [g for g in recent_games if team in (g.get("home_team"), g.get("away_team"))]
+        o_games = [g for g in recent_games if team not in (g.get("home_team"), g.get("away_team"))]
+        candidate_games = t_games + o_games
+
+    for g in candidate_games[:4]:
         status = g.get("status")
         if status in ("FINAL", "LIVE"):
             h = g.get("home_team", "?")
@@ -400,22 +410,50 @@ def build_highlights_from_games(
             hs = g.get("home_score", 0)
             as_ = g.get("away_score", 0)
             gid = g.get("game_id", "")
-            tag = "주요장면/하이라이트" if status == "FINAL" else "실시간 중계/주요장면"
+            arena = g.get("arena") or ""
+
+            if team and team in (h, a):
+                opp = a if h == team else h
+                tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
+                title = f"[{tag}] {team} vs {opp} 명장면 & 주요 클립 ({h} {hs}:{as_} {a})"
+            else:
+                tag = "주요장면/하이라이트" if status == "FINAL" else "실시간 중계/주요장면"
+                title = f"[{tag}] {h} {hs} : {as_} {a}"
+
             items.append(
                 {
-                    "title": f"[{tag}] {h} {hs} : {as_} {a}",
+                    "title": title,
                     "url": f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/video/kbl",
-                    "arena": g.get("arena") or "",
+                    "arena": arena,
                 }
             )
 
-    items.append(
-        {
-            "title": "🎬 Daum 스포츠 KBL 전체 하이라이트 & 명장면 모음",
-            "url": "https://sports.daum.net/video/kbl",
-            "arena": "Daum 스포츠 영상센터",
-        }
-    )
+    if team:
+        full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+        club_url = TEAM_INFO.get(team, {}).get("club_url", "https://sports.daum.net/video/kbl")
+        items.append(
+            {
+                "title": f"🎬 {full} 공식 하이라이트 & 선수단 영상",
+                "url": club_url,
+                "arena": "구단 공식 채널",
+            }
+        )
+        items.append(
+            {
+                "title": f"📺 Daum 스포츠 {team} 경기 영상 & 인터뷰 클립",
+                "url": "https://sports.daum.net/video/kbl",
+                "arena": "Daum 스포츠",
+            }
+        )
+    else:
+        items.append(
+            {
+                "title": "🎬 Daum 스포츠 KBL 전체 하이라이트 & 명장면 모음",
+                "url": "https://sports.daum.net/video/kbl",
+                "arena": "Daum 스포츠 영상센터",
+            }
+        )
+
     items.append(
         {
             "title": "📺 KBL TV 공식 유튜브 전체 경기 하이라이트",

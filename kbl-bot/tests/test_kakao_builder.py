@@ -319,6 +319,26 @@ class TestProBasketballBotFeatures:
         assert "KBL 프로농구 최신 뉴스" in gen_text
         assert "응원팀 등록" in gen_text
 
+    def test_team_specific_highlights_builder(self) -> None:
+        """build_highlights_response must customize header and advice when favorite_team is provided."""
+        from apps.kakao.builder import build_highlights_response
+        team_resp = build_highlights_response(
+            [{"title": "SK 워니 덩크슛", "url": "https://sports.daum.net/video/kbl", "arena": "잠실"}],
+            favorite_team="SK",
+        )
+        text = team_resp.template.outputs[0]["simpleText"]["text"]
+        assert "서울 SK" in text
+        assert "SK 워니" in text
+        assert "다른 구단" in text
+
+        gen_resp = build_highlights_response(
+            [{"title": "전체 하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}],
+            favorite_team=None,
+        )
+        gen_text = gen_resp.template.outputs[0]["simpleText"]["text"]
+        assert "KBL 프로농구 주요장면" in gen_text
+        assert "응원팀 등록" in gen_text
+
     def test_deterministic_seed_consistency(self) -> None:
         """_deterministic_seed must return identical values across calls."""
         from core.cache.redis import _deterministic_seed

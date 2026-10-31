@@ -316,13 +316,29 @@ class GameService:
                 pass
         return items
 
-    async def get_latest_highlights(self, db: AsyncSession) -> list[dict[str, Any]]:
-        """Return cached latest KBL highlight clips from Redis (or build from recent DB games)."""
-        cached = await get_highlights_cache()
-        if cached:
-            return cached
-        recent = await self.get_recent_results(db, limit=4)
-        return build_highlights_from_games(recent)
+    async def get_latest_highlights(
+        self, db: AsyncSession, team: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return cached latest KBL highlight clips from Redis (optionally tailored to a specific team)."""
+        cache_key = f"game:highlights:{team}" if team else "game:highlights:all"
+        try:
+            client = await get_redis()
+            raw = await client.get(cache_key)
+            if raw:
+                return json.loads(raw)
+        except Exception:
+            pass
+
+        recent = await self.get_recent_results(db, team=team, limit=6)
+        items = build_highlights_from_games(recent, team=team)
+
+        if items:
+            try:
+                client = await get_redis()
+                await client.set(cache_key, json.dumps(items), ex=1800)
+            except Exception:
+                pass
+        return items
 
     # ------------------------------------------------------------------
     # Ingestion Path (Called ONLY by background IngestionWorker)

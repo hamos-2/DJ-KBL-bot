@@ -398,12 +398,21 @@ def build_news_response(
     )
 
 
-def build_highlights_response(highlights: list[dict[str, Any]]) -> KakaoSkillResponse:
+def build_highlights_response(
+    highlights: list[dict[str, Any]],
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
     """
-    Build response for '주요장면' (KBL game highlights & video clips).
-    Clean single-bubble text output (#xx style).
+    Build clean single-bubble response for '주요장면' (KBL game highlights & video clips).
+    Tailored to user's favorite team if provided.
     """
-    lines: list[str] = ["🎬 KBL 프로농구 주요장면 & 하이라이트\n"]
+    if favorite_team:
+        full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
+        header = f"🎬 [{full_name}] 주요장면 & 하이라이트"
+    else:
+        header = "🎬 KBL 프로농구 주요장면 & 하이라이트"
+
+    lines: list[str] = [f"{header}\n"]
 
     for idx, item in enumerate(highlights[:5], start=1):
         title = item.get("title", "KBL 경기 하이라이트")
@@ -411,6 +420,11 @@ def build_highlights_response(highlights: list[dict[str, Any]]) -> KakaoSkillRes
         arena = item.get("arena") or ""
         arena_str = f" ({arena})" if arena else ""
         lines.append(f"▶️ {idx}. {title}{arena_str}\n   🔗 {url}\n")
+
+    if favorite_team:
+        lines.append("💡 다른 구단: 'SK 주요장면', 'KT 하이라이트', 'DB 영상', 'LG 명장면'")
+    else:
+        lines.append("(💡 하단 '설정'에서 응원팀 등록 시 맞춤 주요장면이 제공됩니다)")
 
     return build_simple_response(
         "\n".join(lines).strip(),
