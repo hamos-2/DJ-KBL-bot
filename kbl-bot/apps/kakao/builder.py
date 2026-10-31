@@ -106,12 +106,13 @@ def build_today_games_response(games: list[dict[str, Any]]) -> KakaoSkillRespons
         if status == "LIVE":
             h_score = g.get("home_score", 0)
             a_score = g.get("away_score", 0)
-            period = g.get("period", "?")
-            clock = g.get("game_clock", "")
+            period = g.get("period") or "?"
+            clock = g.get("game_clock") or ""
+            clock_str = f" {clock}" if clock else ""
             stale_mark = " ⚠️" if g.get("stale") else ""
             lines.append(
                 f"{emoji} {home} {h_score} - {a_score} {away}"
-                f"  ({period}쿼터 {clock}){stale_mark}{arena_suffix}"
+                f"  ({period}쿼터{clock_str}){stale_mark}{arena_suffix}"
             )
         elif status == "FINAL":
             h_score = g.get("home_score", 0)
@@ -171,9 +172,10 @@ def build_matchup_search_response(
         if status == "LIVE":
             h_score = g.get("home_score", 0)
             a_score = g.get("away_score", 0)
-            period = g.get("period", "?")
+            period = g.get("period") or "?"
             clock = g.get("game_clock") or ""
-            lines.append(f"{emoji} [진행중] {home} {h_score} - {a_score} {away} ({period}쿼터 {clock})")
+            clock_str = f" {clock}" if clock else ""
+            lines.append(f"{emoji} [진행중] {home} {h_score} - {a_score} {away} ({period}쿼터{clock_str})")
         elif status == "FINAL":
             h_score = g.get("home_score", 0)
             a_score = g.get("away_score", 0)
