@@ -437,32 +437,38 @@ def build_team_standings_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build compact response for '팀순위' (10-team KBL regular season standings).
-    Clean single-bubble text output (#xx style).
+    Build ultra-compact response for '팀순위' (10-team KBL regular season standings).
+    Optimized for mobile single-bubble with zero line wraps.
     """
     lines: list[str] = [
         "🏆 2026-27 KBL 정규리그 순위\n",
     ]
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
 
+    team_alias = {
+        "한국가스공사": "가스공사",
+        "대구한국가스공사": "가스공사",
+        "현대모비스": "모비스",
+        "울산현대모비스": "모비스",
+    }
+
     for idx, s in enumerate(standings[:10], start=1):
         rank = s.get("rank", idx)
-        team = s.get("team", "?")
+        raw_team = s.get("team", "?")
+        team = team_alias.get(raw_team, raw_team)
         wins = s.get("wins", 0)
         losses = s.get("losses", 0)
         wpct = float(s.get("wpct") or 0.0)
         gb = s.get("gb", "0.0")
         gb_str = "선두" if str(gb) in ("0", "0.0", "-") else f"{gb}차"
-        streak = s.get("streak", "-")
-        streak_str = f" ｜ {streak}" if streak and streak != "-" else ""
-        fav = "⭐" if favorite_team and team == favorite_team else ""
+        fav = "⭐" if favorite_team and raw_team == favorite_team else ""
 
         wpct_str = f"{wpct:.3f}".lstrip("0") if wpct < 1.0 else "1.000"
         prefix = f"{medals.get(rank, '')} {rank}." if rank in medals else f"{rank}."
-        lines.append(f"{prefix} {fav}{team} {wins}승 {losses}패 ({wpct_str}) {gb_str}{streak_str}")
+        lines.append(f"{prefix} {fav}{team}  {wins}승 {losses}패 ({wpct_str})  {gb_str}")
 
         if rank == 6:
-            lines.append("┈┈┈┈ 6강 PO 진출 마지노선 ┈┈┈┈")
+            lines.append("┈┈┈┈ 6강 PO 진출선 ┈┈┈┈")
 
     return build_simple_response(
         "\n".join(lines).strip(),
