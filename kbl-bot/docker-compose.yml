@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kbl_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kbl_bot}
+      POSTGRES_USER: ${POSTGRES_USER:-kbl_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kbl_pass}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kbl_user} -d ${POSTGRES_DB:-kbl_bot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - kbl_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: kbl_redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - kbl_net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kbl_api
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - kbl_net
+
+  # Production Cloudflare Named Tunnel (requires CLOUDFLARE_TUNNEL_TOKEN in .env)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: kbl_cloudflared
+    profiles: ["prod"]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - kbl_net
+
+  # Instant Zero-Config Quick Tunnel (no domain/account required, generates *.trycloudflare.com)
+  cloudflared-quick:
+    image: cloudflare/cloudflared:latest
+    container_name: kbl_cloudflared_quick
+    profiles: ["quick"]
+    command: tunnel --no-autoupdate --url http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - kbl_net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  kbl_net:
+    driver: bridge
