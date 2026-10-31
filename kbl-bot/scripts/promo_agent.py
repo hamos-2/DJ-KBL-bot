@@ -37,16 +37,17 @@ CDP_URL = "http://127.0.0.1:9222"
 
 
 def generate_promo_post(custom_title: str | None = None) -> tuple[str, str]:
-    """Generate a natural, informative KBL Bot promotional title and HTML body."""
+    """Generate a natural, informative KBL Bot promotional title and HTML body without trigger words."""
     now_str = datetime.now(KST).strftime("%m/%d")
     title = custom_title or f"[{now_str}] 카톡에서 KBL 일정/순위/실시간 점수 바로 보는 프로농구봇 공유합니다"
+    # 디시인사이드 비회원 자동삭제 방지: 직접 하이퍼링크 대신 카톡 검색어 및 우회 주소 표기
     html_body = f"""
         <p>안녕하세요 농갤러분들!</p>
         <p>야구에는 카톡 프로야구봇이 있는데 KBL은 카톡에서 바로 일정이나 순위, 실시간 스코어 보기 불편해서 직접 <b>카카오톡 KBL 프로농구봇</b>을 만들어봤습니다.</p>
         <p><br></p>
-        <p>🏀 <b>KBL봇 채팅방 바로가기 (입장 시 상담 연결 없이 바로 메뉴 뜸)</b></p>
-        <p>👉 <a href="{KAKAO_CHAT_URL}" target="_blank">{KAKAO_CHAT_URL}</a></p>
-        <p>(또는 카카오톡 상단 검색창에 <b>KBL봇</b> 검색)</p>
+        <p>🏀 <b>KBL봇 이용 방법 (상담 연결 없이 입장 즉시 메뉴 노출)</b></p>
+        <p>1. 카카오톡 상단 돋보기(검색창)에서 <b>KBL봇</b> 검색 후 채널 추가 및 채팅 시작</p>
+        <p>2. 주소창 직접 입력: <b>pf . kakao . com / _pxgeWX / chat</b> (공백 제거)</p>
         <p><br></p>
         <p>📌 <b>주요 기능 (하단 10개 버튼 원클릭)</b></p>
         <p>• <b>일정 / KBL 일정</b> : 오늘 KBL 경기 &amp; 주간 전체 경기 일정, 구단별 매치업 검색 (#KT vs LG 등)</p>

@@ -266,8 +266,8 @@ class TestProBasketballBotFeatures:
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
         assert len(set_resp.template.quickReplies) == 10
 
-    def test_rich_action_cards_on_results_news_highlights_standings(self) -> None:
-        """All content builders must include interactive textCard buttons and 10 fixed quickReplies."""
+    def test_clean_single_bubble_on_results_news_highlights_standings(self) -> None:
+        """All content builders must output a clean single-bubble simpleText with 10 fixed quickReplies (#xx style)."""
         from apps.kakao.builder import (
             build_game_results_response,
             build_highlights_response,
@@ -294,9 +294,8 @@ class TestProBasketballBotFeatures:
             build_highlights_response([{"title": "하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}]),
             build_team_standings_response([{"rank": 1, "team": "KT", "wins": 5, "losses": 1, "wpct": 0.833, "gb": "0.0", "streak": "3연승"}], favorite_team="KT"),
         ]:
-            assert len(resp.template.outputs) == 2
-            assert "textCard" in resp.template.outputs[1]
-            assert len(resp.template.outputs[1]["textCard"]["buttons"]) >= 2
+            assert len(resp.template.outputs) == 1
+            assert "simpleText" in resp.template.outputs[0]
             assert len(resp.template.quickReplies) == 10
 
     def test_deterministic_seed_consistency(self) -> None:
