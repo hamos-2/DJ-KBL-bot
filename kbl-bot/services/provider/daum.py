@@ -225,7 +225,29 @@ class DaumSportsDataProvider(SportsDataProvider):
                     "season": season_key,
                 }
             )
+        if not standings:
+            from services.content.kbl_data import compute_standings_from_games
+            today_d = datetime.now(_KST).date()
+            season_start = date(today_d.year if today_d.month >= 9 else today_d.year - 1, 10, 1)
+            games = await self.get_schedule_range(season_start, today_d)
+            standings = compute_standings_from_games(games)
         return standings
+
+    async def get_news(self, team: str | None = None) -> list[dict[str, Any]]:
+        """
+        Fetch latest KBL news articles from Daum Search.
+        """
+        from services.content.kbl_data import parse_daum_news_html
+        query = f"프로농구 {team}" if team else "KBL 프로농구"
+        params = {"w": "news", "q": query}
+        async with self._make_client() as client:
+            try:
+                resp = await client.get(_DAUM_SEARCH_URL, params=params)
+                resp.raise_for_status()
+                return parse_daum_news_html(resp.text)
+            except Exception as exc:
+                logger.warning("Failed to fetch Daum news, using fallback", error=str(exc))
+                return parse_daum_news_html("")
 
     async def search_matchup_via_daum_portal(
         self, team_a: str, team_b: str | None = None

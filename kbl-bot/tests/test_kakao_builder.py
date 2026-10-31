@@ -205,3 +205,54 @@ class TestBuildHealthResponse:
         assert isinstance(
             build_health_response(False, False, False), KakaoSkillResponse
         )
+
+
+class TestProBasketballBotFeatures:
+    """Tests for the 10 core Pro Basketball Bot features (프로야구봇 KBL version)."""
+
+    def test_all_10_quick_replies_present(self) -> None:
+        """MAIN_MENU_QUICK_REPLIES must include all 10 core menus."""
+        from apps.kakao.builder import MAIN_MENU_QUICK_REPLIES
+        labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
+        expected = [
+            "일정", "KBL 일정", "결과", "뉴스", "주요장면",
+            "관심선수", "팀순위", "선수순위", "응원하기", "설정",
+        ]
+        assert labels == expected
+
+    def test_team_standings_builder(self) -> None:
+        """build_team_standings_response must render 10-team table and star favorite team."""
+        from apps.kakao.builder import build_team_standings_response
+        from services.content.kbl_data import compute_standings_from_games
+        games = [
+            {"home_team": "KT", "away_team": "LG", "home_score": 85, "away_score": 77, "status": "FINAL", "start_time": "2026-10-25T05:00:00Z"},
+        ]
+        standings = compute_standings_from_games(games)
+        assert len(standings) == 10
+        resp = build_team_standings_response(standings, favorite_team="KT")
+        text = resp.template.outputs[0]["simpleText"]["text"]
+        assert "1위 ⭐KT" in text
+
+    def test_player_rankings_builder(self) -> None:
+        """build_player_rankings_response must render leaderboards and category quick-replies."""
+        from apps.kakao.builder import build_player_rankings_response
+        from services.content.kbl_data import get_default_player_rankings
+        ranks = get_default_player_rankings()["pts"]
+        resp = build_player_rankings_response(ranks, category="pts")
+        text = resp.template.outputs[0]["simpleText"]["text"]
+        assert "자밀 워니" in text
+        assert "득점(PTS)" in text
+
+    def test_cheering_and_settings_builders(self) -> None:
+        """build_cheering_response and build_settings_response must render interactive buttons."""
+        from apps.kakao.builder import build_cheering_response, build_settings_response
+        cheer_resp = build_cheering_response(
+            [{"game_id": "1", "home_team": "정관장", "away_team": "KT", "home_votes": 60, "away_votes": 40, "home_pct": 60, "away_pct": 40, "user_pick": "KT"}],
+            notice="KT 응원 완료",
+            user_points=20,
+        )
+        assert "정관장 60%" in cheer_resp.template.outputs[0]["simpleText"]["text"]
+
+        set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
+        assert len(set_resp.template.quickReplies) == 10
+

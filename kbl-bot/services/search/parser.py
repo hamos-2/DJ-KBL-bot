@@ -52,6 +52,8 @@ KBL_TEAM_ALIASES: Final[dict[str, tuple[str, ...]]] = {
     ),
 }
 
+KBL_TEAMS: Final[tuple[str, ...]] = tuple(KBL_TEAM_ALIASES.keys())
+
 # Build reverse lookup (longest alias first to avoid partial shadowing)
 _ALIAS_TO_CANONICAL: list[tuple[str, str]] = sorted(
     [

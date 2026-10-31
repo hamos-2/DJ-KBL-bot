@@ -122,3 +122,18 @@ class UserService:
         return self._crypto.decrypt(
             user.encrypted_kakao_user_key, aad=user.kakao_user_key_hmac
         )
+
+    def get_hmac(self, kakao_user_key: str) -> str:
+        """Return the HMAC-SHA256 digest of *kakao_user_key*."""
+        return self._crypto.hmac_sha256(kakao_user_key)
+
+    async def set_favorite_team(
+        self, db: AsyncSession, kakao_user_key: str, favorite_team: Optional[str]
+    ) -> User:
+        """Update the user's favorite KBL team."""
+        user, _ = await self.get_or_create(db, kakao_user_key)
+        user.favorite_team = favorite_team
+        user.updated_at = datetime.now(UTC)
+        await db.flush()
+        return user
+

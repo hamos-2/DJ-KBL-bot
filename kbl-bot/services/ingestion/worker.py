@@ -9,10 +9,19 @@ from core.cache.redis import (
     acquire_ingest_lock,
     release_ingest_lock,
     save_game_snapshot,
+    save_highlights_cache,
+    save_news_cache,
+    save_player_rankings_cache,
+    save_standings_cache,
 )
 from core.db.session import get_session_factory
 from core.exceptions import ProviderError
 from core.logging import get_logger
+from services.content.kbl_data import (
+    build_highlights_from_games,
+    compute_standings_from_games,
+    get_default_player_rankings,
+)
 from services.game.service import GameService, today_kst
 from services.provider.interface import SportsDataProvider
 
@@ -118,7 +127,7 @@ class IngestionWorker:
             return
 
         today = today_kst()
-        start_d = today - timedelta(days=14)
+        start_d = today - timedelta(days=30)
         end_d = today + timedelta(days=self._lookahead_days)
 
         try:
@@ -129,9 +138,29 @@ class IngestionWorker:
                     await GameService.upsert_game(db, g)
                     await save_game_snapshot(str(g["game_id"]), g)
                 await db.commit()
+
+            # Compute & cache team standings, player rankings, news, highlights
+            standings = compute_standings_from_games(games)
+            await save_standings_cache(standings)
+            await save_player_rankings_cache(get_default_player_rankings())
+
+            recent_finished = sorted(
+                [g for g in games if g.get("status") in ("FINAL", "LIVE")],
+                key=lambda x: str(x.get("start_time") or ""),
+                reverse=True,
+            )
+            await save_highlights_cache(build_highlights_from_games(recent_finished))
+
+            try:
+                news_items = await self._provider.get_news()
+                if news_items:
+                    await save_news_cache(news_items)
+            except Exception as n_exc:
+                logger.warning("Failed to sync news in worker", error=str(n_exc))
+
             self._last_window_sync_at = now_mono
             logger.info(
-                "Synced upcoming schedule window",
+                "Synced upcoming schedule window & content caches",
                 start_date=str(start_d),
                 end_date=str(end_d),
                 count=len(games),

@@ -9,13 +9,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.cache.redis import (
     get_game_snapshot,
+    get_highlights_cache,
     get_matchup_cache,
+    get_news_cache,
+    get_player_rankings_cache,
+    get_standings_cache,
     save_game_snapshot,
     save_matchup_cache,
+    save_standings_cache,
 )
 from core.db.models import Game
 from core.exceptions import GameNotFoundError
 from core.logging import get_logger
+from services.content.kbl_data import (
+    build_highlights_from_games,
+    compute_standings_from_games,
+    get_default_player_rankings,
+    parse_daum_news_html,
+)
 from services.provider.interface import SportsDataProvider
 
 logger = get_logger("service.game")
@@ -193,6 +204,99 @@ class GameService:
             await save_matchup_cache(team_a, team_b, games_out)
 
         return games_out
+
+    async def get_kbl_schedule(
+        self,
+        db: AsyncSession,
+        days: int = 7,
+        team: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Return upcoming KBL schedule from today to ``today + days`` from PostgreSQL + Redis.
+        """
+        start_utc, _ = kst_day_bounds_utc(today_kst())
+        _, end_utc = kst_day_bounds_utc(today_kst() + timedelta(days=days))
+
+        stmt = select(Game).where(Game.start_time >= start_utc, Game.start_time < end_utc)
+        if team:
+            stmt = stmt.where(or_(Game.home_team == team, Game.away_team == team))
+        stmt = stmt.order_by(Game.start_time.asc()).limit(limit)
+
+        res = await db.execute(stmt)
+        rows = list(res.scalars().all())
+        out: list[dict[str, Any]] = []
+        for g in rows:
+            item = self._game_to_dict(g)
+            snap = await get_game_snapshot(g.provider_id)
+            if snap is not None:
+                item.update(snap)
+            out.append(item)
+        return out
+
+    async def get_recent_results(
+        self,
+        db: AsyncSession,
+        team: str | None = None,
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        """
+        Return recently finished (or currently live) KBL games from PostgreSQL + Redis.
+        """
+        stmt = select(Game).where(Game.status.in_(["FINAL", "LIVE"]))
+        if team:
+            stmt = stmt.where(or_(Game.home_team == team, Game.away_team == team))
+        stmt = stmt.order_by(Game.start_time.desc()).limit(limit)
+
+        res = await db.execute(stmt)
+        rows = list(res.scalars().all())
+        out: list[dict[str, Any]] = []
+        for g in rows:
+            item = self._game_to_dict(g)
+            snap = await get_game_snapshot(g.provider_id)
+            if snap is not None:
+                item.update(snap)
+            out.append(item)
+        return out
+
+    async def get_team_standings(self, db: AsyncSession) -> list[dict[str, Any]]:
+        """
+        Return 10-team KBL standings from Redis cache, or compute from DB games if cache misses.
+        """
+        cached = await get_standings_cache()
+        if cached:
+            return cached
+
+        stmt = select(Game).where(Game.status == "FINAL").order_by(Game.start_time.asc())
+        res = await db.execute(stmt)
+        rows = [self._game_to_dict(g) for g in res.scalars().all()]
+        standings = compute_standings_from_games(rows)
+        await save_standings_cache(standings)
+        return standings
+
+    async def get_player_rankings(self, category: str = "pts") -> list[dict[str, Any]]:
+        """
+        Return top KBL player rankings for *category* (``pts``, ``reb``, ``ast``, ``tpm``, ``stl``).
+        """
+        cached = await get_player_rankings_cache()
+        if not cached:
+            cached = get_default_player_rankings()
+        return cached.get(category, cached.get("pts", []))
+
+    async def get_latest_news(self) -> list[dict[str, Any]]:
+        """Return cached latest KBL news items from Redis (with fallback)."""
+        cached = await get_news_cache()
+        if cached:
+            return cached
+        return parse_daum_news_html("")
+
+    async def get_latest_highlights(self, db: AsyncSession) -> list[dict[str, Any]]:
+        """Return cached latest KBL highlight clips from Redis (or build from recent DB games)."""
+        cached = await get_highlights_cache()
+        if cached:
+            return cached
+        recent = await self.get_recent_results(db, limit=4)
+        return build_highlights_from_games(recent)
 
     # ------------------------------------------------------------------
     # Ingestion Path (Called ONLY by background IngestionWorker)
