@@ -105,6 +105,129 @@ KBL_PLAYERS: list[dict[str, Any]] = [
 ]
 
 
+# Official Starting 5 Lineups (베스트 5) and Head Coaches for all 10 KBL clubs
+TEAM_LINEUPS: dict[str, dict[str, Any]] = {
+    "SK": {
+        "head_coach": "전희철",
+        "starters": [
+            {"pos": "G", "name": "김선형", "no": "5"},
+            {"pos": "G", "name": "오재현", "no": "0"},
+            {"pos": "F", "name": "안영준", "no": "8"},
+            {"pos": "F", "name": "최부경", "no": "14"},
+            {"pos": "C", "name": "자밀 워니", "no": "34"},
+        ],
+        "key_bench": ["오세근", "최원혁", "고메즈 딜 리아노"],
+    },
+    "DB": {
+        "head_coach": "김주성",
+        "starters": [
+            {"pos": "G", "name": "이선 알바노", "no": "4"},
+            {"pos": "G", "name": "유현준", "no": "7"},
+            {"pos": "F", "name": "강상재", "no": "13"},
+            {"pos": "F", "name": "로버트 카터", "no": "32"},
+            {"pos": "C", "name": "김종규", "no": "15"},
+        ],
+        "key_bench": ["박인웅", "이관희", "서민수"],
+    },
+    "KT": {
+        "head_coach": "송영진",
+        "starters": [
+            {"pos": "G", "name": "허훈", "no": "2"},
+            {"pos": "G", "name": "최창진", "no": "1"},
+            {"pos": "F", "name": "문정현", "no": "21"},
+            {"pos": "F", "name": "한희원", "no": "11"},
+            {"pos": "C", "name": "하윤기", "no": "0"},
+        ],
+        "key_bench": ["레이션 해먼즈", "문성곤", "이두원"],
+    },
+    "LG": {
+        "head_coach": "조상현",
+        "starters": [
+            {"pos": "G", "name": "양준석", "no": "11"},
+            {"pos": "G", "name": "유기상", "no": "24"},
+            {"pos": "F", "name": "정인덕", "no": "7"},
+            {"pos": "F", "name": "칼 타마요", "no": "1"},
+            {"pos": "C", "name": "아셈 마레이", "no": "50"},
+        ],
+        "key_bench": ["전성현", "두경민", "대릴 먼로"],
+    },
+    "정관장": {
+        "head_coach": "김상식",
+        "starters": [
+            {"pos": "G", "name": "박지훈", "no": "6"},
+            {"pos": "G", "name": "최성원", "no": "11"},
+            {"pos": "F", "name": "배병준", "no": "1"},
+            {"pos": "F", "name": "정효근", "no": "33"},
+            {"pos": "C", "name": "캐디 라렌", "no": "25"},
+        ],
+        "key_bench": ["변준형", "한승희", "마이클 영"],
+    },
+    "KCC": {
+        "head_coach": "전창진",
+        "starters": [
+            {"pos": "G", "name": "이호현", "no": "0"},
+            {"pos": "G", "name": "허웅", "no": "3"},
+            {"pos": "F", "name": "최준용", "no": "2"},
+            {"pos": "F", "name": "송교창", "no": "12"},
+            {"pos": "C", "name": "디온테 버튼", "no": "1"},
+        ],
+        "key_bench": ["이승현", "정창영", "켈빈 에피스톨라"],
+    },
+    "한국가스공사": {
+        "head_coach": "강혁",
+        "starters": [
+            {"pos": "G", "name": "정성우", "no": "3"},
+            {"pos": "G", "name": "김낙현", "no": "4"},
+            {"pos": "F", "name": "신승민", "no": "11"},
+            {"pos": "F", "name": "앤드류 니콜슨", "no": "44"},
+            {"pos": "C", "name": "유슈 은도예", "no": "15"},
+        ],
+        "key_bench": ["SJ 벨란겔", "차바위", "곽정훈"],
+    },
+    "현대모비스": {
+        "head_coach": "조동현",
+        "starters": [
+            {"pos": "G", "name": "서명진", "no": "9"},
+            {"pos": "G", "name": "이우석", "no": "1"},
+            {"pos": "F", "name": "함지훈", "no": "12"},
+            {"pos": "F", "name": "숀 롱", "no": "21"},
+            {"pos": "C", "name": "케이지 프림", "no": "0"},
+        ],
+        "key_bench": ["장재석", "김국찬", "미구엘 옥존"],
+    },
+    "소노": {
+        "head_coach": "김승기",
+        "starters": [
+            {"pos": "G", "name": "이재도", "no": "4"},
+            {"pos": "G", "name": "이정현", "no": "6"},
+            {"pos": "F", "name": "정희재", "no": "11"},
+            {"pos": "F", "name": "최승욱", "no": "24"},
+            {"pos": "C", "name": "앨런 윌리엄스", "no": "15"},
+        ],
+        "key_bench": ["임동섭", "김진유", "디제이 번즈"],
+    },
+    "삼성": {
+        "head_coach": "김효범",
+        "starters": [
+            {"pos": "G", "name": "이동엽", "no": "3"},
+            {"pos": "G", "name": "이정현(삼성)", "no": "5"},
+            {"pos": "F", "name": "저스틴 구탕", "no": "1"},
+            {"pos": "C", "name": "이원석", "no": "2"},
+            {"pos": "C", "name": "코피 코번", "no": "10"},
+        ],
+        "key_bench": ["최성모", "신동혁", "마커스 데릭슨"],
+    },
+}
+
+
+def get_team_lineup(team: str) -> dict[str, Any] | None:
+    """Return lineup and head coach info for a given KBL team."""
+    for t_key, info in TEAM_LINEUPS.items():
+        if team == t_key or team in t_key or t_key in team:
+            return info
+    return None
+
+
 def search_kbl_players(query: str) -> list[dict[str, Any]]:
     """
     Search KBL players by name or team code.

@@ -211,12 +211,12 @@ class TestProBasketballBotFeatures:
     """Tests for the 10 core Pro Basketball Bot features (프로야구봇 KBL version)."""
 
     def test_all_10_quick_replies_present(self) -> None:
-        """MAIN_MENU_QUICK_REPLIES must include all 10 core menus."""
+        """MAIN_MENU_QUICK_REPLIES must match 프로야구봇 (_HhRnC) core menus."""
         from apps.kakao.builder import MAIN_MENU_QUICK_REPLIES
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
-            "일정", "KBL 일정", "결과", "뉴스", "주요장면",
-            "관심선수", "팀순위", "선수순위", "응원하기", "설정",
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "일정",
+            "결과", "팀순위", "선수순위", "주요장면", "알림설정",
         ]
         assert labels == expected
 
@@ -253,8 +253,9 @@ class TestProBasketballBotFeatures:
             user_points=20,
         )
         assert "정관장 60%" in cheer_resp.template.outputs[0]["simpleText"]["text"]
+        assert "승부예측" in cheer_resp.template.outputs[0]["simpleText"]["text"]
 
-        set_main = build_settings_response("KT", ["허훈"], {"game_start": True, "game_end": False, "clutch": False})
+        set_main = build_settings_response("KT", ["허훈"], {"lineup": True, "game_start": True, "game_end": False, "clutch": False})
         carousel_items = set_main.template.outputs[0]["carousel"]["items"]
         btn_labels = [b["label"] for card in carousel_items for b in card["buttons"]]
         assert "❤️ 응원팀 변경" in btn_labels
@@ -262,10 +263,40 @@ class TestProBasketballBotFeatures:
         assert "종료알림 ON" in btn_labels
         assert "클러치알림 ON" in btn_labels
         qr_labels = [q.label for q in set_main.template.quickReplies]
-        assert qr_labels == ["일정", "KBL 일정", "결과", "뉴스", "주요장면", "관심선수", "팀순위", "선수순위", "응원하기", "설정"]
+        assert qr_labels == [
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "일정",
+            "결과", "팀순위", "선수순위", "주요장면", "알림설정",
+        ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
         assert len(set_resp.template.quickReplies) == 10
+
+    def test_lineup_and_game_summary_builders(self) -> None:
+        """build_lineup_response and build_game_summary_response must format professional baseball bot equivalents."""
+        from apps.kakao.builder import build_game_summary_response, build_lineup_response
+        sample_games = [
+            {
+                "game_id": "G001",
+                "home_team": "SK",
+                "away_team": "DB",
+                "home_score": 88,
+                "away_score": 82,
+                "status": "FINAL",
+                "start_time": "2026-11-01T05:00:00Z",
+                "arena": "잠실학생",
+            }
+        ]
+        lineup_resp = build_lineup_response(sample_games, favorite_team="SK")
+        l_text = lineup_resp.template.outputs[0]["simpleText"]["text"]
+        assert "선발 라인업" in l_text
+        assert "자밀 워니" in l_text
+        assert "이선 알바노" in l_text
+
+        summary_resp = build_game_summary_response(sample_games, favorite_team="SK")
+        s_text = summary_resp.template.outputs[0]["simpleText"]["text"]
+        assert "경기 요약 & 한줄평" in s_text
+        assert "승리팀: SK" in s_text
+        assert "MVP" in s_text
 
     def test_clean_single_bubble_on_results_news_highlights_standings(self) -> None:
         """All content builders must output a clean single-bubble simpleText with 10 fixed quickReplies (#xx style)."""

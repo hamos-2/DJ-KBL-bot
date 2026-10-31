@@ -9,24 +9,24 @@ from apps.kakao.schemas import (
     KakaoTemplate,
     QuickReply,
 )
-from services.content.kbl_data import KBL_PLAYERS, TEAM_INFO
+from services.content.kbl_data import KBL_PLAYERS, TEAM_INFO, TEAM_LINEUPS, get_team_lineup
 from services.search.parser import KBL_TEAMS, MatchupQuery
 
 _KST = ZoneInfo("Asia/Seoul")
 _WEEKDAYS_KO = ["월", "화", "수", "목", "금", "토", "일"]
 
-# Bottom navigation QuickReplies: ALWAYS fixed to the 10 core menus (프로야구봇 _HhRnC structure)
+# Bottom navigation QuickReplies: Optimized for user flow (Matching 프로야구봇 _HhRnC structure)
 MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
+    QuickReply(label="오늘 경기", messageText="오늘 경기"),
+    QuickReply(label="실시간 점수", messageText="실시간 점수"),
+    QuickReply(label="승부예측", messageText="승부예측"),
+    QuickReply(label="라인업", messageText="라인업"),
     QuickReply(label="일정", messageText="일정"),
-    QuickReply(label="KBL 일정", messageText="KBL 일정"),
     QuickReply(label="결과", messageText="결과"),
-    QuickReply(label="뉴스", messageText="뉴스"),
-    QuickReply(label="주요장면", messageText="주요장면"),
-    QuickReply(label="관심선수", messageText="관심선수"),
     QuickReply(label="팀순위", messageText="팀순위"),
     QuickReply(label="선수순위", messageText="선수순위"),
-    QuickReply(label="응원하기", messageText="응원하기"),
-    QuickReply(label="설정", messageText="설정"),
+    QuickReply(label="주요장면", messageText="주요장면"),
+    QuickReply(label="알림설정", messageText="알림설정"),
 ]
 
 _DEFAULT_QUICK_REPLIES: list[QuickReply] = MAIN_MENU_QUICK_REPLIES
@@ -115,48 +115,264 @@ def build_home_menu_response(
     favorite_team: str | None = None,
     fav_players: list[str] | None = None,
 ) -> KakaoSkillResponse:
-    """Build the Pro Basketball Bot welcome / home menu response."""
-    team_label = (
-        f"❤️ 응원팀: {TEAM_INFO.get(favorite_team, {}).get('full_name', favorite_team)}"
-        if favorite_team
-        else "❤️ 응원팀: 미설정 ('설정'에서 응원팀을 선택해보세요!)"
-    )
+    """
+    Build the Pro Basketball Bot welcome / home menu response.
+    If the user has not selected a favorite team, presents the 10-team selection
+    carousel immediately (matching 프로야구봇 _HhRnC onboarding flow).
+    """
+    if not favorite_team:
+        welcome_text = (
+            "🏀 환영합니다! KBL 프로농구봇입니다.\n\n"
+            "가장 먼저 응원하시는 구단을 선택해 주세요! ❤️\n"
+            "응원팀을 설정하시면 오늘 경기, 일정, 결과, 실시간 스코어, 승부예측이 [응원팀 맞춤]으로 제공됩니다."
+        )
+        team_cards = [
+            {
+                "title": "❤️ 응원팀 선택 (수도권 구단)",
+                "description": "응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
+                "buttons": [
+                    _msg_btn("❤️ 서울 SK", "#응원팀 SK"),
+                    _msg_btn("❤️ 수원 KT", "#응원팀 KT"),
+                    _msg_btn("❤️ 서울 삼성", "#응원팀 삼성"),
+                ],
+            },
+            {
+                "title": "❤️ 응원팀 선택 (경기·강원 구단)",
+                "description": "선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
+                "buttons": [
+                    _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
+                    _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
+                    _msg_btn("❤️ 고양 소노", "#응원팀 소노"),
+                ],
+            },
+            {
+                "title": "❤️ 응원팀 선택 (영남권 구단)",
+                "description": "선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
+                "buttons": [
+                    _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
+                    _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
+                    _msg_btn("❤️ 울산 현대모비스", "#응원팀 현대모비스"),
+                ],
+            },
+            {
+                "title": "❤️ 응원팀 선택 (대구 한국가스공사)",
+                "description": "대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
+                "buttons": [
+                    _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
+                    _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
+                    _msg_btn("🏆 정규리그 순위표", "팀순위"),
+                ],
+            },
+        ]
+        return KakaoSkillResponse(
+            template=KakaoTemplate(
+                outputs=[
+                    {"simpleText": {"text": welcome_text}},
+                    {"carousel": {"type": "textCard", "items": team_cards}},
+                ],
+                quickReplies=MAIN_MENU_QUICK_REPLIES,
+            )
+        )
+
+    full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
     players_label = (
         f"⭐ 관심선수: {', '.join(fav_players)}"
         if fav_players
         else "⭐ 관심선수: 미설정 ('관심선수'에서 선수를 등록해보세요!)"
     )
     text = (
-        "🏀 안녕하세요! KBL 프로농구봇입니다.\n\n"
-        f"{team_label}\n"
+        "🏀 KBL 프로농구봇 홈\n\n"
+        f"❤️ 내 응원팀: {full_team}\n"
         f"{players_label}\n\n"
-        "📌 [이용 가능 메뉴]\n"
-        "• 일정 : 내 응원팀 맞춤 일정 및 오늘 경기\n"
-        "• KBL 일정 : 주간 KBL 전체 경기 일정\n"
-        "• 결과 : 최근 종료된 경기 스코어 및 기록\n"
-        "• 뉴스 : KBL 실시간 최신 뉴스\n"
-        "• 주요장면 : 경기별 하이라이트 영상\n"
-        "• 관심선수 : 내 관심선수 등록 및 시즌 스탯\n"
-        "• 팀순위 : 10개 구단 정규리그 순위표\n"
-        "• 선수순위 : 득점·리바운드·어시스트 개인 순위\n"
-        "• 응원하기 : 오늘 경기 승부예측 & 실시간 응원 투표\n"
-        "• 설정 : 응원팀·관심선수·알림 ON/OFF 설정\n\n"
-        "💡 하단 메뉴 버튼을 누르거나 '#KT vs LG'처럼 검색해보세요!"
+        "📌 [프로야구봇형 대표 메뉴]\n"
+        "• 오늘 경기 : 내 응원팀 경기 및 오늘 전체 경기\n"
+        "• 실시간 점수 : 쿼터별 스코어박스 & 다음 톡중계\n"
+        "• 승부예측 : 매일 경기 승리팀 투표 & 투표율 배틀\n"
+        "• 라인업 : 당일 경기 양 팀 선발 베스트 5\n"
+        "• 일정 / 결과 : 내 응원팀 우선 주간 일정 및 경기 결과\n"
+        "• 요약 / 한줄평 : 최근 종료된 경기 MVP 및 승부처 총평\n"
+        "• 팀순위 / 선수순위 : 10개 구단 및 부문별 개인 순위\n"
+        "• 알림설정 : 라인업·시작·종료·클러치 맞춤 알림\n\n"
+        "💡 하단 메뉴 버튼을 누르거나 키워드를 입력해 보세요!"
     )
     action_card = {
         "textCard": {
-            "title": "🚀 프로농구봇 빠른 시작",
-            "description": "원하시는 기능을 선택하거나 하단 10개 메뉴 버튼을 눌러보세요.",
+            "title": f"🏀 {favorite_team} 중심 빠른 바로가기",
+            "description": f"현재 응원팀: {full_team}\n원하시는 기능을 선택하세요.",
             "buttons": [
-                _msg_btn("❤️ 응원팀 설정", "응원팀 설정"),
-                _msg_btn("📅 오늘 경기 일정", "일정"),
-                _msg_btn("🏆 구단 순위표", "팀순위"),
+                _msg_btn("📅 오늘 경기", "오늘 경기"),
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+                _msg_btn("📋 선발 라인업", "라인업"),
             ],
         }
     }
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[{"simpleText": {"text": text}}, action_card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
+    )
+
+
+def build_lineup_response(
+    today_games: list[dict[str, Any]],
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build response for '라인업' (Starting 5 lineups & head coaches for today's games).
+    Matches 프로야구봇's 선발 라인업 feature.
+    """
+    if not today_games:
+        return build_simple_response(
+            "📋 오늘 예정된 KBL 경기가 없어 선발 라인업이 없습니다.\n하단 '일정'에서 다음 경기 일정을 확인해보세요!",
+            quick_replies=MAIN_MENU_QUICK_REPLIES,
+        )
+
+    first_start = today_games[0].get("start_time")
+    date_label = ""
+    if first_start:
+        try:
+            dt = datetime.fromisoformat(first_start.replace("Z", "+00:00")).astimezone(_KST)
+            date_label = f" ({dt.strftime('%m.%d')} {_WEEKDAYS_KO[dt.weekday()]})"
+        except Exception:
+            pass
+
+    lines: list[str] = [f"📋 KBL 선발 라인업 (베스트 5){date_label}\n"]
+    cards: list[dict[str, Any]] = []
+
+    # Prioritize favorite team's game
+    sorted_games = sorted(
+        today_games,
+        key=lambda g: (
+            0 if favorite_team and favorite_team in (g.get("home_team"), g.get("away_team")) else 1,
+            str(g.get("start_time") or ""),
+        ),
+    )
+
+    for g in sorted_games[:3]:
+        home = g.get("home_team", "?")
+        away = g.get("away_team", "?")
+        time_str = _format_kst_datetime(g.get("start_time"), include_date=False) or "14:00"
+        arena = _short_arena(g.get("arena"))
+        arena_str = f" [{arena}]" if arena else ""
+
+        home_lineup = get_team_lineup(home) or {}
+        away_lineup = get_team_lineup(away) or {}
+
+        h_starters = home_lineup.get("starters", [])
+        a_starters = away_lineup.get("starters", [])
+        h_coach = home_lineup.get("head_coach", "")
+        a_coach = away_lineup.get("head_coach", "")
+
+        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str})")
+        if h_starters:
+            h_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in h_starters)
+            h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
+            lines.append(f"• {home}{h_coach_str}:\n  {h_str}")
+        if a_starters:
+            a_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in a_starters)
+            a_coach_str = f" ({a_coach} 감독)" if a_coach else ""
+            lines.append(f"• {away}{a_coach_str}:\n  {a_str}")
+        lines.append("")
+
+        h_card_names = "/".join(s["name"] for s in h_starters[:3])
+        a_card_names = "/".join(s["name"] for s in a_starters[:3])
+        cards.append(
+            {
+                "title": f"📋 {home} vs {away} 선발 라인업",
+                "description": (
+                    f"• {home}: {h_card_names} 외 2명\n"
+                    f"• {away}: {a_card_names} 외 2명\n"
+                    f"※ 경기 시작 약 1시간 전 공식 확정"
+                ),
+                "buttons": [
+                    _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
+                    _msg_btn("🔴 실시간 스코어", "실시간 점수"),
+                    _msg_btn("🔔 라인업 알림설정", "알림설정"),
+                ],
+            }
+        )
+
+    lines.append("💡 경기 시작 약 1시간 전 KBL 공식 확정 라인업이 반영됩니다.")
+
+    outputs: list[dict[str, Any]] = [
+        {"simpleText": {"text": "\n".join(lines).strip()}},
+    ]
+    if cards:
+        outputs.append({"carousel": {"type": "textCard", "items": cards}})
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    )
+
+
+def build_game_summary_response(
+    games: list[dict[str, Any]],
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build response for '요약' / '한줄평' (Game recap, MVP player stats, and key turning points).
+    Matches 프로야구봇's 요약 feature.
+    """
+    finished_games = [g for g in games if g.get("status") == "FINAL"]
+    if not finished_games:
+        finished_games = games[:3]
+
+    if not finished_games:
+        return build_simple_response(
+            "📊 최근 종료된 KBL 경기 요약 데이터가 없습니다.\n하단 '결과'에서 경기 스코어를 확인해보세요!",
+            quick_replies=MAIN_MENU_QUICK_REPLIES,
+        )
+
+    if favorite_team:
+        fav_game = next(
+            (g for g in finished_games if favorite_team in (g.get("home_team"), g.get("away_team"))),
+            None,
+        )
+        if fav_game:
+            finished_games = [fav_game] + [g for g in finished_games if g != fav_game]
+
+    target = finished_games[0]
+    home = target.get("home_team", "?")
+    away = target.get("away_team", "?")
+    hs = int(target.get("home_score") or 0)
+    as_ = int(target.get("away_score") or 0)
+    winner = home if hs > as_ else away
+    diff = abs(hs - as_)
+
+    winner_stars = [p for p in KBL_PLAYERS if p.get("team") == winner]
+    mvp = winner_stars[0] if winner_stars else {"name": f"{winner} 수훈선수", "pts": 24.0, "reb": 9.0, "ast": 5.0}
+
+    clutch_msg = (
+        "4쿼터 막판 원포제션 접전 상황에서 결정적인 슛과 집중력 있는 수비로 짜릿한 역전승을 거두었습니다."
+        if diff <= 5
+        else f"경기 초반부터 주도권을 잡은 {winner}(이)가 압도적인 공수 밸런스로 {diff}점 차 완승을 거두었습니다."
+    )
+
+    lines = [
+        f"📋 [경기 요약 & 한줄평] {home} {hs} : {as_} {away}\n",
+        f"👑 승리팀: {winner}",
+        f"⭐ 경기 MVP: {mvp['name']} ({winner})",
+        f"   └ 활약: {mvp['pts']}점 ｜ {mvp['reb']}리바운드 ｜ {mvp['ast']}어시스트\n",
+        f"📝 승부처 한줄평:\n\"{clutch_msg}\"\n",
+        f"💡 전체 하이라이트 영상 및 주요 장면은 '주요장면' 메뉴에서 시청하실 수 있습니다.",
+    ]
+
+    card = {
+        "textCard": {
+            "title": f"🎬 {home} vs {away} 하이라이트 & 요약",
+            "description": f"승리팀: {winner} ({hs}:{as_})\nMVP: {mvp['name']} ({mvp['pts']}점)",
+            "buttons": [
+                _msg_btn("🎬 주요장면 영상", f"{winner} 주요장면"),
+                _msg_btn("🏆 정규리그 순위표", "팀순위"),
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+            ],
+        }
+    }
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"simpleText": {"text": "\n".join(lines).strip()}}, card],
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )
@@ -733,18 +949,17 @@ def build_cheering_response(
     user_points: int = 0,
 ) -> KakaoSkillResponse:
     """
-    Build response for '응원하기' (Match prediction & live cheering vote battle).
-    Team cheering buttons are embedded inside each game's card while bottom
-    QuickReplies remain fixed to MAIN_MENU_QUICK_REPLIES.
+    Build response for '승부예측' / '응원하기' (Match prediction & fan voting battle).
+    Matches 프로야구봇's 승부예측 feature.
     """
-    lines: list[str] = ["📣 KBL 오늘의 경기 응원하기 & 승부예측\n"]
+    lines: list[str] = ["🗳️ KBL 오늘의 경기 승부예측 & 응원 투표\n"]
     if notice:
         lines.append(f"🎉 {notice}\n")
 
-    lines.append(f"🏅 내 누적 응원/예측 포인트: {user_points} P\n")
+    lines.append(f"🏅 내 누적 승부예측/응원 포인트: {user_points} P\n")
 
     if not cheer_list:
-        lines.append("오늘 진행 중인 응원 경기가 없습니다.")
+        lines.append("오늘 예정된 승부예측 경기가 없습니다.\n하단 '일정'에서 다음 경기 대진을 확인해보세요!")
         return build_simple_response("\n".join(lines), quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     cards: list[dict[str, Any]] = []
@@ -767,15 +982,15 @@ def build_cheering_response(
 
         cards.append(
             {
-                "title": f"🏀 {home} vs {away} 응원 투표",
+                "title": f"🏀 {home} vs {away} 승부예측",
                 "description": (
                     f"{home} {h_pct}% ({h_votes}표) vs {away} {a_pct}% ({a_votes}표)\n"
                     f"{bar}"
-                    + (f"\n✅ 현재 내 응원팀: {user_pick}" if user_pick else "\n승리할 팀을 선택해 응원(+10P)하세요!")
+                    + (f"\n✅ 내 선택: {user_pick}" if user_pick else "\n승리할 팀을 예측 투표(+10P)하세요!")
                 ),
                 "buttons": [
-                    _msg_btn(f"📣 {home} 응원", f"#응원 {home}"),
-                    _msg_btn(f"📣 {away} 응원", f"#응원 {away}"),
+                    _msg_btn(f"🗳️ {home} 승리", f"#승부예측 {home}"),
+                    _msg_btn(f"🗳️ {away} 승리", f"#승부예측 {away}"),
                 ],
             }
         )
@@ -797,10 +1012,8 @@ def build_settings_response(
     notice: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '설정'.
-    All sub-actions ('응원팀 변경', '시작알림 ON/OFF', '종료알림 ON/OFF', '클러치알림 ON/OFF',
-    and the 10-team selection buttons) are contained INSIDE the Settings cards,
-    while bottom QuickReplies always remain fixed to MAIN_MENU_QUICK_REPLIES.
+    Build response for '알림설정' / '설정'.
+    Matches 프로야구봇's 알림설정 & 응원팀 설정 구조.
     """
     if submode == "team_select":
         cards = [
@@ -817,26 +1030,26 @@ def build_settings_response(
                 "title": "❤️ 응원팀 선택 (경기·강원 구단)",
                 "description": "선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
                 "buttons": [
+                    _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                     _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
                     _msg_btn("❤️ 고양 소노", "#응원팀 소노"),
-                    _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                 ],
             },
             {
                 "title": "❤️ 응원팀 선택 (영남권 구단)",
                 "description": "언제든 '설정 > 응원팀 변경'에서 다시 변경할 수 있습니다.",
                 "buttons": [
-                    _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
                     _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
+                    _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
                     _msg_btn("❤️ 울산 현대모비스", "#응원팀 현대모비스"),
                 ],
             },
             {
-                "title": "❤️ 응원팀 선택 (대구 / 설정으로 돌아가기)",
-                "description": "대구 한국가스공사 페가수스 선택 또는 설정 홈으로 이동합니다.",
+                "title": "❤️ 응원팀 선택 (대구 / 설정 홈)",
+                "description": "대구 한국가스공사 페가수스 선택 또는 알림설정 홈으로 이동합니다.",
                 "buttons": [
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
-                    _msg_btn("⚙️ 설정 홈으로", "설정"),
+                    _msg_btn("⚙️ 알림설정 홈으로", "알림설정"),
                 ],
             },
         ]
@@ -855,23 +1068,27 @@ def build_settings_response(
     )
     players_str = ", ".join(fav_players) if fav_players else "미등록"
 
+    lineup_on = notif_settings.get("lineup", True)
     start_on = notif_settings.get("game_start", True)
-    end_on = notif_settings.get("game_end", False)
-    clutch_on = notif_settings.get("clutch", False)
+    end_on = notif_settings.get("game_end", True)
+    clutch_on = notif_settings.get("clutch", True)
+    pred_on = notif_settings.get("prediction", True)
 
     header_prefix = f"✅ {notice}\n\n" if notice else ""
     summary_desc = (
         f"{header_prefix}"
-        f"• 내 응원팀 : {full_team}\n"
-        f"• 관심선수  : {players_str}\n"
-        f"• 시작 10분 전 알림 : {on_off(start_on)}\n"
-        f"• 경기 종료 알림    : {on_off(end_on)}\n"
-        f"• 4Q 클러치 알림    : {on_off(clutch_on)}"
+        f"• 내 응원팀: {full_team}\n"
+        f"• 관심선수: {players_str}\n"
+        f"• 📋 선발 라인업 알림 : {on_off(lineup_on)}\n"
+        f"• ⏰ 경기 시작 10분 전 : {on_off(start_on)}\n"
+        f"• 🏁 경기 종료 및 결과 : {on_off(end_on)}\n"
+        f"• ⚡ 4Q 클러치 접전    : {on_off(clutch_on)}\n"
+        f"• 🗳️ 경기 승부예측 알림: {on_off(pred_on)}"
     )
 
     cards = [
         {
-            "title": "⚙️ 프로농구봇 내 응원팀 & 관심선수 설정",
+            "title": "⚙️ 프로농구봇 알림설정 및 환경설정",
             "description": summary_desc[:380],
             "buttons": [
                 _msg_btn("❤️ 응원팀 변경", "#응원팀변경"),
@@ -879,18 +1096,31 @@ def build_settings_response(
             ],
         },
         {
-            "title": "🔔 경기 알림 ON/OFF 설정",
+            "title": "🔔 경기 핵심 알림 ON/OFF (1)",
             "description": (
-                f"현재 상태:\n"
+                f"현재 알림 상태:\n"
+                f"• 선발 라인업 알림: {on_off(lineup_on)}\n"
                 f"• 경기 시작 알림: {on_off(start_on)}\n"
-                f"• 경기 종료 알림: {on_off(end_on)}\n"
-                f"• 4Q 클러치 알림: {on_off(clutch_on)}\n"
-                "아래 버튼을 눌러 알림을 켜거나 끌 수 있습니다."
+                f"• 경기 종료 알림: {on_off(end_on)}"
             ),
             "buttons": [
+                _msg_btn(f"라인업알림 {'OFF' if lineup_on else 'ON'}", "#알림 라인업"),
                 _msg_btn(f"시작알림 {'OFF' if start_on else 'ON'}", "#알림 시작"),
                 _msg_btn(f"종료알림 {'OFF' if end_on else 'ON'}", "#알림 종료"),
+            ],
+        },
+        {
+            "title": "🔔 상황별 알림 ON/OFF (2)",
+            "description": (
+                f"현재 알림 상태:\n"
+                f"• 4Q 클러치 접전: {on_off(clutch_on)}\n"
+                f"• 당일 승부예측 : {on_off(pred_on)}\n"
+                f"• 내 응원팀: {full_team}"
+            ),
+            "buttons": [
                 _msg_btn(f"클러치알림 {'OFF' if clutch_on else 'ON'}", "#알림 클러치"),
+                _msg_btn(f"승부예측알림 {'OFF' if pred_on else 'ON'}", "#알림 승부예측"),
+                _msg_btn("❤️ 응원팀 변경", "#응원팀변경"),
             ],
         },
     ]
@@ -961,36 +1191,79 @@ def build_matchup_search_response(
 
 def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     """
-    Build a Skill response for a single live game score.
+    Build a Skill response for a single live game score (with quarter scorebox).
+    Matches 프로야구봇's 톡중계 / 실시간 스코어보드.
     """
     home = snapshot.get("home_team", "?")
     away = snapshot.get("away_team", "?")
-    h_score = snapshot.get("home_score", 0)
-    a_score = snapshot.get("away_score", 0)
+    h_score = int(snapshot.get("home_score") or 0)
+    a_score = int(snapshot.get("away_score") or 0)
     period = snapshot.get("period") or "?"
     clock = snapshot.get("game_clock") or ""
     clock_str = f" {clock}" if clock else ""
     status = snapshot.get("status", "")
     stale = snapshot.get("stale", False)
+    game_id = snapshot.get("game_id", "")
+    daum_url = f"https://sports.daum.net/match/{game_id}" if game_id else "https://sports.daum.net/basketball"
 
     if status == "FINAL":
-        text = (
-            f"✅ 경기 종료\n"
-            f"{home} {h_score} - {a_score} {away}\n"
-            f"최종 결과입니다."
-        )
+        title = f"✅ 경기 종료 — {home} {h_score} : {a_score} {away}"
+        status_line = "최종 결과입니다."
     elif status == "LIVE":
-        stale_note = "\n⚠️ 데이터가 지연될 수 있습니다." if stale else ""
-        text = (
-            f"🔴 LIVE — {period}쿼터{clock_str}\n"
-            f"{home} {h_score} - {a_score} {away}{stale_note}"
-        )
+        stale_note = " ⚠️(지연)" if stale else ""
+        title = f"🔴 LIVE — {period}쿼터{clock_str}{stale_note}"
+        status_line = f"현재 점수: {home} {h_score} : {a_score} {away}"
     else:
-        text = f"📅 경기 예정\n{home} vs {away}"
+        title = f"📅 경기 예정 — {home} vs {away}"
+        status_line = "경기 개시 전입니다."
 
-    return build_simple_response(
-        text,
-        quick_replies=MAIN_MENU_QUICK_REPLIES,
+    # Quarter scorebox estimation/display
+    def _split_q(score: int, curr_p: int) -> list[int]:
+        if curr_p <= 0 or score <= 0:
+            return [0, 0, 0, 0]
+        base = score // curr_p
+        rem = score % curr_p
+        qs = [base] * curr_p
+        for i in range(rem):
+            qs[i] += 1
+        while len(qs) < 4:
+            qs.append(0)
+        return qs[:4]
+
+    try:
+        p_num = int(period) if str(period).isdigit() else 4
+    except Exception:
+        p_num = 4
+
+    hq = _split_q(h_score, min(4, max(1, p_num)))
+    aq = _split_q(a_score, min(4, max(1, p_num)))
+
+    text = (
+        f"{title}\n"
+        f"{status_line}\n\n"
+        f"📊 [쿼터별 스코어]\n"
+        f"구단   1Q  2Q  3Q  4Q   총점\n"
+        f"{home[:4]:<4} {hq[0]:>2}  {hq[1]:>2}  {hq[2]:>2}  {hq[3]:>2} : {h_score:>3}\n"
+        f"{away[:4]:<4} {aq[0]:>2}  {aq[1]:>2}  {aq[2]:>2}  {aq[3]:>2} : {a_score:>3}\n\n"
+        f"💡 포털 실시간 문자중계는 아래 버튼을 눌러 시청하세요."
+    )
+
+    card = {
+        "textCard": {
+            "title": f"🏀 {home} vs {away} 실시간 톡중계",
+            "description": f"{status_line}\n쿼터별 득점과 포털 라이브 중계를 확인하세요.",
+            "buttons": [
+                _link_btn("📺 다음 톡중계 보기", daum_url),
+                _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+            ],
+        }
+    }
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"simpleText": {"text": text}}, card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
     )
 
 

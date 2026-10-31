@@ -14,10 +14,12 @@ from apps.kakao.builder import (
     build_error_response,
     build_favorite_players_response,
     build_game_results_response,
+    build_game_summary_response,
     build_health_response,
     build_highlights_response,
     build_home_menu_response,
     build_kbl_schedule_response,
+    build_lineup_response,
     build_live_score_response,
     build_matchup_search_response,
     build_my_schedule_response,
@@ -138,7 +140,7 @@ async def _dispatch_command(
         prefs = await get_user_preferences(user_hmac)
         return build_home_menu_response(fav_team, prefs.get("favorite_players", []))
 
-    # 1. Settings & Onboarding (#응원팀, #알림, 설정)
+    # 1. Settings & Onboarding (#응원팀, #알림, 알림설정, 설정)
     if u_compact in (
         "#응원팀변경",
         "응원팀변경",
@@ -183,25 +185,35 @@ async def _dispatch_command(
     if (
         u.startswith("#알림")
         or u_compact in ("알림설정", "알림")
-        or ("알림" in u_compact and any(k in u_compact for k in ("시작", "종료", "클러치", "접전", "on", "off", "ON", "OFF")))
+        or ("알림" in u_compact and any(k in u_compact for k in ("시작", "종료", "라인업", "클러치", "접전", "승부예측", "예측", "on", "off", "ON", "OFF")))
     ):
         prefs = await get_user_preferences(user_hmac)
         notifs = prefs.setdefault("notifications", {})
         notice_msg = None
-        if "시작" in u:
+        if "라인업" in u:
+            notifs["lineup"] = not notifs.get("lineup", True)
+            state_str = "ON" if notifs["lineup"] else "OFF"
+            notice_msg = f"선발 라인업 알림이 [{state_str}]으로 변경되었습니다."
+            await save_user_preferences(user_hmac, prefs)
+        elif "시작" in u:
             notifs["game_start"] = not notifs.get("game_start", True)
             state_str = "ON" if notifs["game_start"] else "OFF"
             notice_msg = f"경기 시작 10분 전 알림이 [{state_str}]으로 변경되었습니다."
             await save_user_preferences(user_hmac, prefs)
         elif "종료" in u:
-            notifs["game_end"] = not notifs.get("game_end", False)
+            notifs["game_end"] = not notifs.get("game_end", True)
             state_str = "ON" if notifs["game_end"] else "OFF"
             notice_msg = f"경기 종료 결과 알림이 [{state_str}]으로 변경되었습니다."
             await save_user_preferences(user_hmac, prefs)
         elif "클러치" in u or "접전" in u:
-            notifs["clutch"] = not notifs.get("clutch", False)
+            notifs["clutch"] = not notifs.get("clutch", True)
             state_str = "ON" if notifs["clutch"] else "OFF"
             notice_msg = f"4쿼터 접전(클러치) 알림이 [{state_str}]으로 변경되었습니다."
+            await save_user_preferences(user_hmac, prefs)
+        elif "승부예측" in u or "예측" in u:
+            notifs["prediction"] = not notifs.get("prediction", True)
+            state_str = "ON" if notifs["prediction"] else "OFF"
+            notice_msg = f"당일 승부예측 알림이 [{state_str}]으로 변경되었습니다."
             await save_user_preferences(user_hmac, prefs)
         return build_settings_response(
             fav_team,
@@ -218,19 +230,41 @@ async def _dispatch_command(
             prefs.get("notifications", {}),
         )
 
-    # 2. Cheering & Match Prediction (응원하기 / 승부예측 / #응원)
+    # 2. Lineup (라인업 / 선발라인업 / 베스트 5 - 프로야구봇 핵심 기능)
     if (
-        u.startswith("#응원")
-        or (u.startswith("응원") and not u.startswith("응원팀"))
-        or u_compact in ("응원하기", "응원", "승부예측", "예측", "투표")
+        u_compact in ("라인업", "선발라인업", "선발명단", "베스트5", "스타팅", "엔트리")
+        or "라인업" in u_compact
+    ):
+        today_games = await game_service.get_today_games(db)
+        if not today_games:
+            today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
+        return build_lineup_response(today_games, favorite_team=fav_team)
+
+    # 3. Game Summary & Recap (요약 / 한줄평 - 프로야구봇 핵심 기능)
+    if u_compact in ("요약", "한줄평", "경기요약", "게임요약", "총평", "리캡"):
+        recent_games = await game_service.get_recent_results(db, limit=6)
+        return build_game_summary_response(recent_games, favorite_team=fav_team)
+
+    # 4. Cheering & Match Prediction (승부예측 / 응원하기 / #승부예측 / #응원)
+    if (
+        u.startswith("#승부예측")
+        or (u.startswith("승부예측") and len(u_compact) > 4)
+        or u.startswith("#응원")
+        or (u.startswith("응원") and not u.startswith("응원팀") and len(u_compact) > 2)
+        or u_compact in ("승부예측", "예측", "투표", "응원하기", "응원")
     ):
         today_games = await game_service.get_today_games(db)
         if not today_games:
             today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
 
         vote_notice = None
-        if (u.startswith("#응원") or u.startswith("응원")) and not u.startswith("#응원팀") and not u.startswith("응원팀") and u_compact not in ("응원하기", "응원"):
-            raw_pick = re.sub(r"^#?응원(하기)?\s*", "", u).strip()
+        if (
+            u.startswith("#승부예측")
+            or u.startswith("승부예측")
+            or u.startswith("#응원")
+            or u.startswith("응원")
+        ) and not u.startswith("#응원팀") and not u.startswith("응원팀") and u_compact not in ("응원하기", "응원", "승부예측", "예측"):
+            raw_pick = re.sub(r"^#?(승부예측|예측|응원하기|응원)\s*", "", u).strip()
             norm_pick = normalize_team_name(raw_pick)
             if norm_pick in KBL_TEAMS:
                 target_game = next(
@@ -258,11 +292,11 @@ async def _dispatch_command(
                         target_game["away_team"],
                     )
                     vote_notice = (
-                        f"[{norm_pick}] 승리 응원 투표가 완료되었습니다! "
+                        f"[{norm_pick}] 승리 예측 투표가 완료되었습니다! "
                         f"(내 포인트: {vote_res['user_points']}P)"
                     )
                 else:
-                    vote_notice = f"예정된 [{norm_pick}] 경기가 없어 응원 목록을 표시합니다."
+                    vote_notice = f"예정된 [{norm_pick}] 경기가 없어 승부예측 목록을 표시합니다."
 
         cheer_list = []
         user_points = 0
