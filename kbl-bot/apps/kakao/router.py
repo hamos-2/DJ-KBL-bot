@@ -24,6 +24,8 @@ from apps.kakao.builder import (
     build_news_response,
     build_player_rankings_response,
     build_settings_response,
+    build_single_player_response,
+    build_team_players_response,
     build_team_standings_response,
     build_today_games_response,
 )
@@ -276,32 +278,59 @@ async def _dispatch_command(
 
         return build_cheering_response(cheer_list, notice=vote_notice, user_points=user_points)
 
-    # 3. Favorite Players & Player Search (관심선수 / #관심선수 / #선수)
-    if (
+    # 3. Favorite Players & Custom Player Search/Registration
+    # 3-A. Team player query (e.g. "DB 선수", "SK 선수", "KT 선수")
+    if u_compact.endswith("선수") and len(u_compact) >= 3:
+        potential_team = u_compact[:-2]
+        if potential_team in KBL_TEAMS:
+            prefs = await get_user_preferences(user_hmac)
+            fav_players: list[str] = prefs.get("favorite_players", [])
+            team_players = [p for p in KBL_PLAYERS if p["team"] == potential_team]
+            return build_team_players_response(potential_team, team_players, fav_players)
+
+    # 3-B. Favorite players menu / direct player action / single player lookup
+    is_fav_menu = u_compact in ("관심선수", "내선수", "관심선수목록", "관심선수관리", "선수관리")
+    has_player_prefix = (
         u_compact.startswith("관심선수")
         or u.startswith("#관심선수")
         or u.startswith("#선수")
         or u.startswith("선수검색")
-    ):
+    )
+
+    clean_sub = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
+    clean_no_action = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|검색)+\s*", "", u).strip()
+
+    # Helper to find player by name or nickname
+    def _find_player(query_str: str) -> dict | None:
+        c = query_str.replace(" ", "").strip()
+        if not c or len(c) < 2:
+            return None
+        for p in KBL_PLAYERS:
+            pc = p["name"].replace(" ", "")
+            if c == pc or c in pc or pc in c:
+                return p
+        return None
+
+    matched_player = _find_player(clean_sub) if clean_sub else _find_player(clean_no_action)
+
+    if is_fav_menu or has_player_prefix or matched_player is not None:
         prefs = await get_user_preferences(user_hmac)
         fav_players: list[str] = prefs.get("favorite_players", [])
-        notice_msg = None
 
-        arg = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
-        if arg:
-            if arg in ("초기화", "전체삭제", "비우기"):
-                prefs["favorite_players"] = []
-                await save_user_preferences(user_hmac, prefs)
-                return build_favorite_players_response(
-                    [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다."
-                )
+        # Reset all
+        if clean_sub in ("초기화", "전체삭제", "비우기"):
+            prefs["favorite_players"] = []
+            await save_user_preferences(user_hmac, prefs)
+            return build_favorite_players_response(
+                [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다.", favorite_team=fav_team
+            )
 
-            is_delete = arg.startswith("삭제") or arg.startswith("해제")
-            clean_name = re.sub(r"^(삭제|해제|추가|등록)\s*", "", arg).strip()
-            matched = search_kbl_players(clean_name)
-            exact = matched[0]["name"] if matched else clean_name
+        if matched_player is not None:
+            exact = matched_player["name"]
+            is_del = any(w in u for w in ("삭제", "해제", "제거", "빼기"))
+            is_add = any(w in u for w in ("등록", "추가", "넣기", "관심선수"))
 
-            if is_delete:
+            if is_del:
                 if exact in fav_players:
                     fav_players.remove(exact)
                     prefs["favorite_players"] = fav_players
@@ -309,7 +338,11 @@ async def _dispatch_command(
                     notice_msg = f"[{exact}] 선수가 관심선수에서 해제되었습니다."
                 else:
                     notice_msg = f"[{exact}] 선수는 관심선수 목록에 없습니다."
-            else:
+                return build_favorite_players_response(
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team
+                )
+
+            if is_add or has_player_prefix:
                 if exact not in fav_players:
                     fav_players.append(exact)
                     prefs["favorite_players"] = fav_players
@@ -317,9 +350,17 @@ async def _dispatch_command(
                     notice_msg = f"[{exact}] 선수가 내 관심선수로 등록되었습니다!"
                 else:
                     notice_msg = f"[{exact}] 선수는 이미 관심선수로 등록되어 있습니다."
-            return build_favorite_players_response(fav_players, matched, notice=notice_msg)
+                return build_favorite_players_response(
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team
+                )
 
-        return build_favorite_players_response(fav_players, KBL_PLAYERS[:5])
+            # User simply typed player name (e.g. "허훈", "알바노", "김종규") -> show single player card
+            return build_single_player_response(
+                matched_player, is_favorite=(exact in fav_players)
+            )
+
+        # Default favorite players home view
+        return build_favorite_players_response(fav_players, KBL_PLAYERS[:5], favorite_team=fav_team)
 
     # 4. Team Standings (팀순위)
     if u_compact in ("팀순위", "순위", "구단순위", "정규리그순위", "kbl순위", "KBL순위"):

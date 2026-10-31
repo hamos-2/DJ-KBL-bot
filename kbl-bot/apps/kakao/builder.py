@@ -521,72 +521,198 @@ def build_player_rankings_response(
     )
 
 
+def build_single_player_response(
+    player: dict[str, Any],
+    is_favorite: bool = False,
+    notice: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build detailed player profile card with 1-click favorite toggle button.
+    """
+    name = player["name"]
+    team = player.get("team", "")
+    full_team = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+    pos = player.get("pos", "F")
+    no = player.get("no", "")
+    pts = player.get("pts", 0.0)
+    reb = player.get("reb", 0.0)
+    ast = player.get("ast", 0.0)
+    tpm = player.get("tpm", 0.0)
+    stl = player.get("stl", 0.0)
+
+    fav_badge = " [⭐ 내 관심선수]" if is_favorite else ""
+    lines = [f"⭐ [선수 정보] {name} ({full_team} #{no}){fav_badge}\n"]
+    if notice:
+        lines.append(f"✅ {notice}\n")
+
+    lines.extend([
+        f"• 포지션 : {pos}",
+        f"• 시즌 평균 : {pts}점 ｜ {reb}리바 ｜ {ast}어시",
+        f"• 세부 기록 : 3점슛 {tpm}개 ｜ 스틸 {stl}개\n",
+        "💡 아래 버튼을 눌러 관심선수로 바로 등록하거나 해제할 수 있습니다.",
+    ])
+
+    toggle_btn = (
+        _msg_btn(f"➖ {name} 관심선수 해제", f"#관심선수 삭제 {name}")
+        if is_favorite
+        else _msg_btn(f"➕ {name} 관심선수 등록", f"#관심선수 {name}")
+    )
+
+    card = {
+        "textCard": {
+            "title": f"⭐ {name} ({team}) 선수 관리",
+            "description": f"{name} 선수를 내 관심선수 목록에 추가하거나 관리합니다.",
+            "buttons": [
+                toggle_btn,
+                _msg_btn("⭐ 관심선수 목록", "관심선수"),
+                _msg_btn(f"📰 {team} 뉴스", f"{team} 뉴스"),
+            ],
+        }
+    }
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"simpleText": {"text": "\n".join(lines).strip()}}, card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
+    )
+
+
+def build_team_players_response(
+    team: str,
+    players: list[dict[str, Any]],
+    fav_players: list[str],
+) -> KakaoSkillResponse:
+    """
+    Build response listing players of a specific team with 1-click favorite toggle buttons.
+    """
+    full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+    lines = [
+        f"🏀 [{full}] 주요 선수 목록\n",
+    ]
+    for p in players:
+        star = "⭐ " if p["name"] in fav_players else "• "
+        lines.append(
+            f"{star}{p['name']} ({p['pos']} #{p['no']}) — {p['pts']}점 ｜ {p['reb']}리바 ｜ {p['ast']}어시"
+        )
+    lines.append("\n💡 아래 버튼을 눌러 관심선수를 바로 등록하거나 해제할 수 있습니다.")
+
+    def _btn(p_name: str) -> dict[str, str]:
+        if p_name in fav_players:
+            return _msg_btn(f"➖ {p_name} 해제", f"#관심선수 삭제 {p_name}")
+        return _msg_btn(f"➕ {p_name} 등록", f"#관심선수 {p_name}")
+
+    buttons = [_btn(p["name"]) for p in players[:3]]
+    card = {
+        "textCard": {
+            "title": f"⭐ {team} 선수 원클릭 관심선수 설정",
+            "description": f"{team} 선수들을 내 관심선수로 등록해보세요.",
+            "buttons": buttons,
+        }
+    }
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"simpleText": {"text": "\n".join(lines).strip()}}, card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
+    )
+
+
 def build_favorite_players_response(
     fav_players: list[str],
     search_results: list[dict[str, Any]] | None = None,
     notice: str | None = None,
+    favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build response for '관심선수'.
-    Player add/remove buttons are embedded inside the card carousel while bottom
-    QuickReplies remain fixed to MAIN_MENU_QUICK_REPLIES.
+    Personalized by user's favorite team and enables full customization.
     """
-    lines: list[str] = ["⭐ KBL 관심선수 & 선수 기록 조회\n"]
+    count_str = f" (현재 {len(fav_players)}명 등록)" if fav_players else ""
+    lines: list[str] = [f"⭐ KBL 관심선수 관리{count_str}\n"]
     if notice:
         lines.append(f"✅ {notice}\n")
 
     if fav_players:
-        lines.append(f"📌 내 관심선수 ({len(fav_players)}명):")
+        lines.append("📌 [내 관심선수 현황]")
         for name in fav_players:
             p_info = next((p for p in KBL_PLAYERS if p["name"] == name), None)
             if p_info:
                 lines.append(
                     f"• {p_info['name']} ({p_info['team']} / {p_info['pos']} #{p_info['no']})\n"
-                    f"  시즌 평균: {p_info['pts']}점 | {p_info['reb']}리바 | {p_info['ast']}어시 | 3점 {p_info['tpm']}개"
+                    f"  시즌 평균: {p_info['pts']}점 ｜ {p_info['reb']}리바 ｜ {p_info['ast']}어시"
                 )
             else:
                 lines.append(f"• {name}")
         lines.append("")
     else:
-        lines.append("📌 아직 등록된 관심선수가 없습니다.\n아래 카드에서 선수를 등록하거나 '#관심선수 허훈'처럼 입력해보세요!\n")
+        lines.append(
+            "📌 아직 등록된 관심선수가 없습니다.\n"
+            "좋아하는 선수를 등록하시면 선수 스탯과 소식을 맞춤으로 확인하실 수 있습니다!\n"
+        )
 
-    if search_results:
-        lines.append("🔍 [주요 선수 시즌 평균 기록]")
-        for p in search_results[:5]:
-            lines.append(
-                f"• {p['name']} ({p['team']}, {p['pos']}) — {p['pts']}점 / {p['reb']}리바 / {p['ast']}어시"
-            )
+    lines.append(
+        "💬 [나만의 관심선수 등록/검색]\n"
+        "채팅창에 선수 이름(예: '김종규', '알바노', '허훈', '워니')만 입력해도 바로 조회 및 등록할 수 있습니다.\n"
+        "(구단별 전체 선수 보기: 'DB 선수', 'SK 선수', 'KT 선수')"
+    )
 
     def _player_toggle_btn(name: str) -> dict[str, str]:
         if name in fav_players:
             return _msg_btn(f"➖ {name} 해제", f"#관심선수 삭제 {name}")
         return _msg_btn(f"➕ {name} 등록", f"#관심선수 {name}")
 
+    carousel_items: list[dict[str, Any]] = []
+
+    # Card 1: Favorite team players if user has a favorite team
+    if favorite_team:
+        team_p = [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:3]
+        if team_p:
+            full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
+            carousel_items.append(
+                {
+                    "title": f"❤️ [{favorite_team}] 내 응원팀 선수 등록",
+                    "description": f"{full_t} 주요 선수를 관심선수로 등록해보세요.",
+                    "buttons": [_player_toggle_btn(p_name) for p_name in team_p],
+                }
+            )
+
+    # Card 2: Star guards / forwards
+    star_guards = ["허훈", "이정현", "허웅"]
+    carousel_items.append(
+        {
+            "title": "⭐ 리그 인기 가드/포워드 등록",
+            "description": "버튼을 누르면 내 관심선수로 즉시 등록/해제됩니다.",
+            "buttons": [_player_toggle_btn(n) for n in star_guards],
+        }
+    )
+
+    # Card 3: Star big men / shooters
+    star_bigs = ["자밀 워니", "아셈 마레이", "유기상"]
+    carousel_items.append(
+        {
+            "title": "⭐ 리그 인기 빅맨/슈터 등록",
+            "description": "버튼을 누르면 내 관심선수로 즉시 등록/해제됩니다.",
+            "buttons": [_player_toggle_btn(n) for n in star_bigs],
+        }
+    )
+
+    # Card 4: If user has registered players, add a card to manage/delete
+    if fav_players:
+        del_buttons = [_msg_btn(f"➖ {p_name} 해제", f"#관심선수 삭제 {p_name}") for p_name in fav_players[:3]]
+        carousel_items.append(
+            {
+                "title": "⚙️ 등록된 내 관심선수 해제",
+                "description": "더 이상 추적을 원하지 않는 선수를 해제할 수 있습니다.",
+                "buttons": del_buttons,
+            }
+        )
+
     outputs: list[dict[str, Any]] = [
         {"simpleText": {"text": "\n".join(lines).strip()}},
         {
             "carousel": {
                 "type": "textCard",
-                "items": [
-                    {
-                        "title": "⭐ 인기 가드/포워드 관심선수 설정",
-                        "description": "버튼을 누르면 내 관심선수로 즉시 등록되거나 해제됩니다.",
-                        "buttons": [
-                            _player_toggle_btn("허훈"),
-                            _player_toggle_btn("이정현"),
-                            _player_toggle_btn("허웅"),
-                        ],
-                    },
-                    {
-                        "title": "⭐ 인기 빅맨/슈터 관심선수 설정",
-                        "description": "더 많은 선수는 채팅창에 '#관심선수 선수이름'을 입력해 등록할 수 있습니다.",
-                        "buttons": [
-                            _player_toggle_btn("자밀 워니"),
-                            _player_toggle_btn("아셈 마레이"),
-                            _player_toggle_btn("유기상"),
-                        ],
-                    },
-                ],
+                "items": carousel_items[:4],
             }
         },
     ]

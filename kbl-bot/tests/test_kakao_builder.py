@@ -339,6 +339,28 @@ class TestProBasketballBotFeatures:
         assert "KBL 프로농구 주요장면" in gen_text
         assert "응원팀 등록" in gen_text
 
+    def test_custom_player_builders(self) -> None:
+        """build_single_player_response and build_team_players_response must render toggle buttons."""
+        from apps.kakao.builder import build_single_player_response, build_team_players_response
+        from services.content.kbl_data import KBL_PLAYERS
+
+        player = next(p for p in KBL_PLAYERS if p["name"] == "허훈")
+        resp1 = build_single_player_response(player, is_favorite=False)
+        text1 = resp1.template.outputs[0]["simpleText"]["text"]
+        assert "허훈" in text1
+        assert "수원 KT" in text1
+        btn1 = resp1.template.outputs[1]["textCard"]["buttons"][0]
+        assert "등록" in btn1["label"]
+
+        resp2 = build_single_player_response(player, is_favorite=True)
+        btn2 = resp2.template.outputs[1]["textCard"]["buttons"][0]
+        assert "해제" in btn2["label"]
+
+        db_players = [p for p in KBL_PLAYERS if p["team"] == "DB"]
+        team_resp = build_team_players_response("DB", db_players, fav_players=["이선 알바노"])
+        assert "원주 DB" in team_resp.template.outputs[0]["simpleText"]["text"]
+        assert len(team_resp.template.outputs[1]["textCard"]["buttons"]) >= 1
+
     def test_deterministic_seed_consistency(self) -> None:
         """_deterministic_seed must return identical values across calls."""
         from core.cache.redis import _deterministic_seed
