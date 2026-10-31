@@ -231,7 +231,8 @@ class TestProBasketballBotFeatures:
         assert len(standings) == 10
         resp = build_team_standings_response(standings, favorite_team="KT")
         text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "1위 ⭐KT" in text
+        assert "1. ⭐KT" in text
+        assert "6강 PO" in text
 
     def test_player_rankings_builder(self) -> None:
         """build_player_rankings_response must render leaderboards and category quick-replies."""
@@ -241,7 +242,7 @@ class TestProBasketballBotFeatures:
         resp = build_player_rankings_response(ranks, category="pts")
         text = resp.template.outputs[0]["simpleText"]["text"]
         assert "자밀 워니" in text
-        assert "득점(PTS)" in text
+        assert "득점" in text
 
     def test_cheering_and_settings_builders(self) -> None:
         """build_cheering_response and build_settings_response must render interactive buttons."""

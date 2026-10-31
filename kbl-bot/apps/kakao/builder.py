@@ -46,6 +46,17 @@ def _format_kst_datetime(iso_str: str | None, include_date: bool = True) -> str:
         return ""
 
 
+def _short_arena(arena: str | None) -> str:
+    """Return compact 2~4 letter stadium / city abbreviation."""
+    if not arena:
+        return ""
+    arena = arena.strip()
+    for kw in ["잠실학생", "잠실", "수원", "고양", "창원", "원주", "울산", "대구", "안양", "부산"]:
+        if kw in arena:
+            return kw
+    return arena.replace("체육관", "").replace("아레나", "").strip()[:4]
+
+
 def _msg_btn(label: str, message_text: str) -> dict[str, str]:
     """Build an in-card message button dict for Kakao textCard/basicCard."""
     return {
@@ -156,19 +167,27 @@ def build_today_games_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build a Skill response that lists today's games (with favorite team highlighted).
+    Build a compact Skill response that lists today's games (with favorite team highlighted).
     """
     if not games:
         return build_simple_response(
-            "📅 오늘 예정된 KBL 경기가 없습니다.\n하단 'KBL 일정' 또는 '결과' 메뉴에서 전체 일정을 확인해보세요!",
+            "📅 오늘 예정된 KBL 경기가 없습니다.\n하단 'KBL 일정'에서 이번 주 일정을 확인해보세요!",
             quick_replies=MAIN_MENU_QUICK_REPLIES,
         )
 
-    header = "🏀 오늘의 KBL 경기"
+    first_start = games[0].get("start_time")
+    date_label = ""
+    if first_start:
+        try:
+            dt = datetime.fromisoformat(first_start.replace("Z", "+00:00")).astimezone(_KST)
+            date_label = f" ({dt.strftime('%m.%d')} {_WEEKDAYS_KO[dt.weekday()]})"
+        except Exception:
+            pass
+
+    header = f"🏀 오늘의 KBL 경기{date_label}"
     if favorite_team:
-        header += f" (❤️ 내 응원팀: {favorite_team})"
+        header += f" [❤️ {favorite_team}]"
     lines: list[str] = [f"{header}\n"]
-    status_emoji = {"LIVE": "🔴", "SCHEDULED": "📅", "FINAL": "✅"}
 
     sorted_games = sorted(
         games,
@@ -179,17 +198,13 @@ def build_today_games_response(
     )
 
     for g in sorted_games:
-        emoji = status_emoji.get(g.get("status", ""), "⚪")
         home = g.get("home_team", "?")
         away = g.get("away_team", "?")
         status = g.get("status", "")
-        arena = g.get("arena") or ""
-        arena_suffix = f" | {arena}" if arena else ""
-        fav_mark = (
-            "⭐ "
-            if favorite_team and favorite_team in (home, away)
-            else ""
-        )
+        arena = _short_arena(g.get("arena"))
+        arena_suffix = f" ({arena})" if arena else ""
+        fav_mark = "⭐ " if favorite_team and favorite_team in (home, away) else ""
+        time_str = _format_kst_datetime(g.get("start_time"), include_date=False) or "14:00"
 
         if status == "LIVE":
             h_score = g.get("home_score", 0)
@@ -199,21 +214,19 @@ def build_today_games_response(
             clock_str = f" {clock}" if clock else ""
             stale_mark = " ⚠️" if g.get("stale") else ""
             lines.append(
-                f"{fav_mark}{emoji} {home} {h_score} - {a_score} {away}"
-                f"  ({period}쿼터{clock_str}){stale_mark}{arena_suffix}"
+                f"{fav_mark}🔴 {time_str}  {home} {h_score}:{a_score} {away} ({period}Q{clock_str}){stale_mark}{arena_suffix}"
             )
         elif status == "FINAL":
             h_score = g.get("home_score", 0)
             a_score = g.get("away_score", 0)
             lines.append(
-                f"{fav_mark}{emoji} {home} {h_score} - {a_score} {away}  [종료]{arena_suffix}"
+                f"{fav_mark}✅ {time_str}  {home} {h_score}:{a_score} {away} (종료){arena_suffix}"
             )
         else:
-            time_str = _format_kst_datetime(g.get("start_time"), include_date=False)
-            lines.append(f"{fav_mark}{emoji} {home} vs {away}  {time_str}{arena_suffix}")
+            lines.append(f"{fav_mark}• {time_str}  {home} vs {away}{arena_suffix}")
 
     return build_simple_response(
-        "\n".join(lines),
+        "\n".join(lines).strip(),
         quick_replies=MAIN_MENU_QUICK_REPLIES,
     )
 
@@ -224,57 +237,45 @@ def build_my_schedule_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '일정' (My favorite team's schedule + Today's games).
+    Build compact response for '일정' (My favorite team's schedule + Today's games).
     """
     lines: list[str] = []
     if favorite_team:
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
-        lines.append(f"📅 [{full_name}] 경기 일정\n")
+        lines.append(f"📅 [{full_name}] 경기 일정")
         team_games = [
             g for g in upcoming_games
             if favorite_team in (g.get("home_team"), g.get("away_team"))
         ]
         if team_games:
-            for g in team_games[:4]:
+            for g in team_games[:3]:
                 dt_str = _format_kst_datetime(g.get("start_time"), include_date=True)
                 home = g.get("home_team", "?")
                 away = g.get("away_team", "?")
-                arena = g.get("arena") or "경기장 미정"
-                status = g.get("status", "SCHEDULED")
-                if status == "LIVE":
-                    lines.append(
-                        f"🔴 [진행중] {home} {g.get('home_score', 0)} - {g.get('away_score', 0)} {away}\n"
-                        f"   🕒 {dt_str} | 📍 {arena}"
-                    )
-                elif status == "FINAL":
-                    lines.append(
-                        f"✅ [종료] {home} {g.get('home_score', 0)} - {g.get('away_score', 0)} {away}\n"
-                        f"   🕒 {dt_str} | 📍 {arena}"
-                    )
-                else:
-                    lines.append(f"🏀 {dt_str} | {home} vs {away} ({arena})")
-            lines.append("")
+                arena = _short_arena(g.get("arena"))
+                arena_str = f" ({arena})" if arena else ""
+                vs_str = f"vs {away}" if home == favorite_team else f"@ {home}"
+                lines.append(f"• {dt_str}  {vs_str}{arena_str}")
         else:
-            lines.append("다가오는 7일 내 예정된 응원팀 경기가 없습니다.\n")
-    else:
-        lines.append("💡 하단 '설정' 메뉴에서 응원팀을 등록하시면 내 응원팀 일정을 가장 먼저 받아보실 수 있습니다!\n")
+            lines.append("• 7일 내 예정된 응원팀 경기가 없습니다.")
+        lines.append("\n━━━━━━━━━━━━━━\n")
 
-    lines.append("━━━━━━━━━━━━━━")
     today_resp = build_today_games_response(today_games, favorite_team=favorite_team)
     today_text = today_resp.template.outputs[0]["simpleText"]["text"]
     lines.append(today_text)
 
-    outputs: list[dict[str, Any]] = [
-        {"simpleText": {"text": "\n".join(lines).strip()}}
-    ]
-    return KakaoSkillResponse(
-        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+    if not favorite_team:
+        lines.append("\n(💡 하단 '설정'에서 응원팀 등록 시 맞춤 일정 제공)")
+
+    return build_simple_response(
+        "\n".join(lines).strip(),
+        quick_replies=MAIN_MENU_QUICK_REPLIES,
     )
 
 
 def build_kbl_schedule_response(games: list[dict[str, Any]]) -> KakaoSkillResponse:
     """
-    Build response for 'KBL 일정' (Full upcoming 7-day KBL schedule).
+    Build compact response for 'KBL 일정' grouped cleanly by date.
     """
     if not games:
         return build_simple_response(
@@ -282,28 +283,39 @@ def build_kbl_schedule_response(games: list[dict[str, Any]]) -> KakaoSkillRespon
             quick_replies=MAIN_MENU_QUICK_REPLIES,
         )
 
-    lines: list[str] = ["🗓 KBL 프로농구 주요 경기 일정\n"]
-    status_emoji = {"LIVE": "🔴", "SCHEDULED": "📅", "FINAL": "✅"}
+    from collections import defaultdict
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
-    for g in games[:8]:
-        status = g.get("status", "SCHEDULED")
-        emoji = status_emoji.get(status, "📅")
-        home = g.get("home_team", "?")
-        away = g.get("away_team", "?")
-        dt_str = _format_kst_datetime(g.get("start_time"), include_date=True)
-        arena = g.get("arena") or ""
-        arena_str = f" ({arena})" if arena else ""
+    for g in games[:12]:
+        start = g.get("start_time")
+        date_key = "예정 경기"
+        if start:
+            try:
+                dt = datetime.fromisoformat(start.replace("Z", "+00:00")).astimezone(_KST)
+                wd = _WEEKDAYS_KO[dt.weekday()]
+                date_key = f"{dt.strftime('%m.%d')} ({wd})"
+            except Exception:
+                pass
+        grouped[date_key].append(g)
 
-        if status == "LIVE":
-            lines.append(
-                f"{emoji} {dt_str} | {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away} [진행중]{arena_str}"
-            )
-        elif status == "FINAL":
-            lines.append(
-                f"{emoji} {dt_str} | {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away} [종료]{arena_str}"
-            )
-        else:
-            lines.append(f"{emoji} {dt_str} | {home} vs {away}{arena_str}")
+    lines: list[str] = ["🗓 KBL 경기 일정\n"]
+    for date_key, day_games in list(grouped.items())[:4]:
+        lines.append(f"[{date_key}]")
+        for g in day_games:
+            home = g.get("home_team", "?")
+            away = g.get("away_team", "?")
+            status = g.get("status", "SCHEDULED")
+            arena = _short_arena(g.get("arena"))
+            arena_str = f" ({arena})" if arena else ""
+            time_str = _format_kst_datetime(g.get("start_time"), include_date=False) or "14:00"
+
+            if status == "LIVE":
+                lines.append(f"🔴 {time_str}  {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away} [진행중]")
+            elif status == "FINAL":
+                lines.append(f"✅ {time_str}  {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away} [종료]")
+            else:
+                lines.append(f"• {time_str}  {home} vs {away}{arena_str}")
+        lines.append("")
 
     return build_simple_response(
         "\n".join(lines).strip(),
@@ -401,27 +413,32 @@ def build_team_standings_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '팀순위' (10-team KBL regular season standings).
+    Build compact response for '팀순위' (10-team KBL regular season standings).
     Clean single-bubble text output (#xx style).
     """
     lines: list[str] = [
-        "🏆 2026-27 KBL 정규리그 팀 순위\n",
-        "순위 | 구단 | 승-패 | 승률 | 게임차 | 연속",
-        "──────────────────────",
+        "🏆 2026-27 KBL 정규리그 순위\n",
     ]
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
 
-    for s in standings[:10]:
-        rank = s.get("rank", "?")
+    for idx, s in enumerate(standings[:10], start=1):
+        rank = s.get("rank", idx)
         team = s.get("team", "?")
         wins = s.get("wins", 0)
         losses = s.get("losses", 0)
         wpct = float(s.get("wpct") or 0.0)
         gb = s.get("gb", "0.0")
+        gb_str = "선두" if str(gb) in ("0", "0.0", "-") else f"{gb}차"
         streak = s.get("streak", "-")
-        star = "⭐" if favorite_team and team == favorite_team else ""
-        lines.append(
-            f"{rank}위 {star}{team} | {wins}승 {losses}패 | {wpct:.3f} | {gb} | {streak}"
-        )
+        streak_str = f" ｜ {streak}" if streak and streak != "-" else ""
+        fav = "⭐" if favorite_team and team == favorite_team else ""
+
+        wpct_str = f"{wpct:.3f}".lstrip("0") if wpct < 1.0 else "1.000"
+        prefix = f"{medals.get(rank, '')} {rank}." if rank in medals else f"{rank}."
+        lines.append(f"{prefix} {fav}{team} {wins}승 {losses}패 ({wpct_str}) {gb_str}{streak_str}")
+
+        if rank == 6:
+            lines.append("┈┈┈┈ 6강 PO 진출 마지노선 ┈┈┈┈")
 
     return build_simple_response(
         "\n".join(lines).strip(),
@@ -434,62 +451,49 @@ def build_player_rankings_response(
     category: str = "pts",
 ) -> KakaoSkillResponse:
     """
-    Build response for '선수순위' (KBL individual stat leaders by category).
-    Category selection buttons are embedded inside the card while bottom QuickReplies
-    remain fixed to MAIN_MENU_QUICK_REPLIES.
+    Build clean single-bubble response for '선수순위' (KBL individual stat leaders).
     """
     cat_labels = {
-        "pts": ("득점(PTS)", "점"),
-        "reb": ("리바운드(REB)", "개"),
-        "ast": ("어시스트(AST)", "개"),
-        "tpm": ("3점슛(3PM)", "개"),
-        "stl": ("스틸(STL)", "개"),
+        "pts": ("득점", "점"),
+        "reb": ("리바운드", "개"),
+        "ast": ("어시스트", "개"),
+        "tpm": ("3점슛", "개"),
+        "stl": ("스틸", "개"),
     }
-    label, unit = cat_labels.get(category, ("득점(PTS)", "점"))
+    label, unit = cat_labels.get(category, ("득점", "점"))
 
     lines: list[str] = [
-        f"🏅 KBL 개인 순위 — [{label} 부문]\n",
+        f"🏅 KBL 선수 순위 — [{label} TOP 5]\n",
     ]
-    for p in rankings[:7]:
-        rank = p.get("rank", "?")
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+    for idx, p in enumerate(rankings[:5], start=1):
+        rank = p.get("rank", idx)
         name = p.get("name", "?")
         team = p.get("team", "?")
         val = p.get("value", 0.0)
-        lines.append(
-            f"{rank}위 {name} ({team}) — 평균 {val}{unit}\n"
-            f"   (득점 {p.get('pts')} / 리바 {p.get('reb')} / 어시 {p.get('ast')})"
-        )
+        prefix = f"{medals.get(rank, '')} {rank}." if rank in medals else f"{rank}."
 
-    outputs: list[dict[str, Any]] = [
-        {"simpleText": {"text": "\n".join(lines)}},
-        {
-            "carousel": {
-                "type": "textCard",
-                "items": [
-                    {
-                        "title": "🏀 주요 기록 부문별 순위 보기",
-                        "description": "원하시는 기록 부문을 선택하시면 해당 부문 TOP 7 순위를 보여드립니다.",
-                        "buttons": [
-                            _msg_btn("🏀 득점 순위", "선수순위 득점"),
-                            _msg_btn("🏀 리바운드 순위", "선수순위 리바운드"),
-                            _msg_btn("🏀 어시스트 순위", "선수순위 어시스트"),
-                        ],
-                    },
-                    {
-                        "title": "🏀 슈팅 & 수비 부문 순위 보기",
-                        "description": "3점슛 성공 및 스틸 부문 선수 순위를 확인해보세요.",
-                        "buttons": [
-                            _msg_btn("🏀 3점슛 순위", "선수순위 3점"),
-                            _msg_btn("🏀 스틸 순위", "선수순위 스틸"),
-                            _msg_btn("⭐ 관심선수 관리", "관심선수"),
-                        ],
-                    },
-                ],
-            }
-        },
-    ]
-    return KakaoSkillResponse(
-        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+        lines.append(f"{prefix} {name} ({team}) — 평균 {val}{unit}")
+        if rank <= 3:
+            pts = p.get("pts")
+            reb = p.get("reb")
+            ast = p.get("ast")
+            sub_parts = []
+            if category != "pts" and pts is not None:
+                sub_parts.append(f"{pts}점")
+            if category != "reb" and reb is not None:
+                sub_parts.append(f"{reb}리바")
+            if category != "ast" and ast is not None:
+                sub_parts.append(f"{ast}어시")
+            if sub_parts:
+                lines.append(f"   └ {' ｜ '.join(sub_parts)}")
+
+    lines.append("\n💡 부문별 조회: '선수순위 득점', '선수순위 리바운드', '선수순위 어시스트', '선수순위 3점'")
+
+    return build_simple_response(
+        "\n".join(lines).strip(),
+        quick_replies=MAIN_MENU_QUICK_REPLIES,
     )
 
 
