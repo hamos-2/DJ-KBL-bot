@@ -196,3 +196,103 @@ class TestSREMailerMultipleRecipients:
                 call_args = instance.sendmail.call_args[0]
                 recipients = call_args[1]
                 assert recipients == ["admin1@test.com", "admin2@test.com"]
+
+
+class TestPredictionQuarterCutoffAndResults:
+    """Tests for 3Q prediction cutoff and match prediction results settlement."""
+
+    @pytest.mark.asyncio
+    async def test_prediction_blocked_when_period_3_or_higher(self) -> None:
+        """When game is LIVE and period >= 3, voting must be rejected with 3Q cutoff notice."""
+        from apps.kakao.router import _dispatch_command
+
+        mock_db = AsyncMock()
+        mock_game_service = MagicMock()
+        # Game in 3rd Quarter
+        mock_game_service.get_today_games = AsyncMock(return_value=[{
+            "game_id": "TEST_3Q_GAME",
+            "home_team": "KT",
+            "away_team": "LG",
+            "status": "LIVE",
+            "period": 3,
+            "game_clock": "07:22",
+            "home_score": 45,
+            "away_score": 48,
+        }])
+
+        mock_user = MagicMock()
+        mock_user.kakao_user_key_hmac = "test_user_hmac_3q"
+        mock_user.favorite_team = "KT"
+
+        mock_cheers = {
+            "game_id": "TEST_3Q_GAME",
+            "home_team": "KT",
+            "away_team": "LG",
+            "home_votes": 120,
+            "away_votes": 90,
+            "home_pct": 57,
+            "away_pct": 43,
+            "user_pick": None,
+            "user_points": 50,
+        }
+
+        with patch("apps.kakao.router.vote_team_cheer") as mock_vote, \
+             patch("apps.kakao.router.get_game_cheers", new_callable=AsyncMock, return_value=mock_cheers):
+            resp = await _dispatch_command(
+                "#승부예측 KT",
+                db=mock_db,
+                game_service=mock_game_service,
+                user_service=MagicMock(),
+                user=mock_user,
+            )
+
+            # vote_team_cheer must NOT be called because period >= 3
+            mock_vote.assert_not_called()
+            # Response must mention 3Q 예측 마감 or 마감
+            card = resp.template.outputs[0]["carousel"]["items"][0]
+            assert "3Q 예측 마감" in card["title"] or "마감" in card["description"]
+
+    @pytest.mark.asyncio
+    async def test_prediction_results_settlement_and_hit_points(self) -> None:
+        """When viewing '예측결과', final games must be settled and winners awarded +50P."""
+        from apps.kakao.router import _dispatch_command
+
+        mock_db = AsyncMock()
+        mock_game_service = MagicMock()
+        # Game finished, KT won
+        mock_game_service.get_today_games = AsyncMock(return_value=[{
+            "game_id": "TEST_FINAL_GAME",
+            "home_team": "KT",
+            "away_team": "LG",
+            "status": "FINAL",
+            "period": 4,
+            "home_score": 85,
+            "away_score": 79,
+        }])
+        mock_game_service.get_kbl_results = AsyncMock(return_value=[])
+
+        mock_user = MagicMock()
+        mock_user.kakao_user_key_hmac = "test_user_settle"
+        mock_user.favorite_team = "KT"
+
+        # User predicted KT (which won)
+        with patch("apps.kakao.router.get_user_prediction_for_game", return_value="KT"), \
+             patch("apps.kakao.router.settle_prediction_hit", return_value=(True, 150)) as mock_settle:
+            resp = await _dispatch_command(
+                "예측결과",
+                db=mock_db,
+                game_service=mock_game_service,
+                user_service=MagicMock(),
+                user=mock_user,
+            )
+
+            mock_settle.assert_awaited_once_with("test_user_settle", "TEST_FINAL_GAME", True, bonus_points=50)
+            carousel = resp.template.outputs[0]["carousel"]["items"]
+            assert len(carousel) >= 2
+            # First card is dashboard summary
+            assert "1승 0패" in carousel[0]["title"]
+            assert "100%" in carousel[0]["title"]
+            # Second card is game outcome
+            assert "적중 성공" in carousel[1]["description"]
+            assert "+50P" in carousel[1]["description"]
+

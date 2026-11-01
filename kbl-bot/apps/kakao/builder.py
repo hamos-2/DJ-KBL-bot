@@ -1504,16 +1504,45 @@ def build_cheering_response(
         h_pct = c["home_pct"]
         a_pct = c["away_pct"]
         user_pick = c.get("user_pick")
+        is_closed = c.get("is_closed", False)
+        status = c.get("status", "SCHEDULED")
 
         filled = max(1, min(9, round(h_pct / 10)))
         bar = ("🟥" * filled) + ("🟦" * (10 - filled))
 
-        desc_prefix = f"🎉 {notice}\n" if notice else ""
-        pick_str = f"✅ 내 선택: {user_pick} 승리" if user_pick else f"승리팀 예측 투표(+10P) / 누적 {user_points}P"
+        if is_closed:
+            if status == "FINAL":
+                title_tag = " [✅ 경기 종료]"
+                close_note = "※ 경기가 종료되어 예측이 마감되었습니다.\n"
+            else:
+                title_tag = " [🔒 3Q 예측 마감]"
+                close_note = "※ 3쿼터 진입으로 예측이 마감되었습니다.\n"
+        else:
+            title_tag = ""
+            close_note = ""
+
+        desc_prefix = f"🎉 {notice}\n" if notice else close_note
+        if user_pick:
+            pick_str = f"✅ 내 선택: {user_pick} 승리" + (" (마감)" if is_closed else "")
+        else:
+            pick_str = "승부예측 미참여 (마감)" if is_closed else f"승리팀 예측 투표(+10P) / 누적 {user_points}P"
+
+        if is_closed:
+            card_btns = [
+                _msg_btn("📊 내 예측 결과", "예측결과"),
+                _msg_btn("🔴 실시간 스코어", "실시간 점수"),
+                _msg_btn("📅 경기 일정", "일정"),
+            ]
+        else:
+            card_btns = [
+                _msg_btn(f"🗳️ {home} 승리", f"#승부예측 {home}"),
+                _msg_btn(f"🗳️ {away} 승리", f"#승부예측 {away}"),
+                _msg_btn("📊 내 예측 결과", "예측결과"),
+            ]
 
         cards.append(
             _basic_card(
-                title=f"🏀 {home} vs {away} 승부예측",
+                title=f"🏀 {home} vs {away} 승부예측{title_tag}",
                 description=(
                     f"{desc_prefix}"
                     f"{home} {h_pct}% ({h_votes}표) vs {away} {a_pct}% ({a_votes}표)\n"
@@ -1521,14 +1550,12 @@ def build_cheering_response(
                     f"{pick_str}"
                 ),
                 thumbnail_url=get_team_logo(home),
-                buttons=[
-                    _msg_btn(f"🗳️ {home} 승리", f"#승부예측 {home}"),
-                    _msg_btn(f"🗳️ {away} 승리", f"#승부예측 {away}"),
-                ],
+                buttons=card_btns,
             )
         )
 
     cheer_quick_replies = [
+        QuickReply(label="📊 내 예측 결과", messageText="예측결과"),
         QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
@@ -1598,13 +1625,14 @@ def build_user_points_response(
         thumbnail_url=logo_url,
         buttons=[
             _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
+            _msg_btn("📊 내 예측 결과", "예측결과"),
             _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
-            _msg_btn("🏆 정규리그 순위", "팀순위"),
         ],
     )
 
     point_quick_replies = [
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+        QuickReply(label="📊 예측결과", messageText="예측결과"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="🏅 선수순위", messageText="선수순위"),
@@ -1616,6 +1644,117 @@ def build_user_points_response(
         template=KakaoTemplate(
             outputs=[{"basicCard": card}],
             quickReplies=point_quick_replies,
+        )
+    )
+
+
+def build_prediction_results_response(
+    results: list[dict[str, Any]],
+    stats: dict[str, Any],
+    user_points: int,
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build response for '예측결과' / '승부예측 결과' (Prediction outcome and settlement report).
+    Displays user's prediction history, win/miss outcome, hit points (+50P), and total record.
+    """
+    quick_replies = [
+        QuickReply(label="🗳️ 오늘 승부예측", messageText="승부예측"),
+        QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
+        QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+        QuickReply(label="🏆 팀순위", messageText="팀순위"),
+        QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+    ]
+
+    tier_name, badge, _ = get_point_tier(user_points)
+
+    if not results:
+        card = _list_card(
+            header_title="📊 나의 KBL 승부예측 결과",
+            items=[
+                {
+                    "title": "아직 참여한 승부예측이 없습니다.",
+                    "description": "오늘 경기의 승리팀을 맞히면 기본 +10P, 적중 시 +50P를 지급해 드립니다! 🏀",
+                    "imageUrl": DEFAULT_SPORTS_LOGO,
+                },
+                {
+                    "title": f"내 보유 포인트: {user_points:,} P ({tier_name})",
+                    "description": "매일 경기 승부예측에 참여하고 포인트를 적립해 보세요.",
+                    "imageUrl": DEFAULT_SPORTS_LOGO,
+                },
+            ],
+            buttons=[
+                _msg_btn("🗳️ 오늘 승부예측 참여", "승부예측"),
+                _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
+            ],
+        )
+        return KakaoSkillResponse(
+            template=KakaoTemplate(outputs=[card], quickReplies=quick_replies)
+        )
+
+    cards: list[dict[str, Any]] = []
+
+    # 1. Overall stats dashboard card
+    hits = stats.get("hits", 0)
+    misses = stats.get("misses", 0)
+    pending = stats.get("pending", 0)
+    total = stats.get("total", 0)
+    hit_rate = stats.get("hit_rate", 0)
+
+    fav_logo = get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO
+    summary_desc = (
+        f"• 나의 전적 : {hits}승 {misses}패 ({hit_rate}% 적중률)\n"
+        f"• 참여 경기 : 총 {total}경기 (진행중 {pending}경기)\n"
+        f"• 보유 포인트 : {user_points:,} P ({tier_name})\n"
+        f"💡 승리팀 적중 시 1경기당 +50P 자동 보너스!"
+    )
+    cards.append(
+        _basic_card(
+            title=f"🏆 나의 승부예측 전적: {hits}승 {misses}패 ({hit_rate}%)",
+            description=summary_desc,
+            thumbnail_url=fav_logo,
+            buttons=[
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+                _msg_btn("💰 내 포인트", "포인트"),
+                _msg_btn("🏀 오늘 경기", "오늘 경기"),
+            ],
+        )
+    )
+
+    # 2. Individual game outcome cards (up to 4 recent games)
+    for res in results[:4]:
+        home = res["home_team"]
+        away = res["away_team"]
+        user_pick = res["user_pick"]
+        status = res["status"]
+        outcome_badge = res["outcome_badge"]
+        score_text = res["score_text"]
+        points_note = res.get("points_note", "")
+
+        desc = (
+            f"• 내 선택 : ✅ {user_pick} 승리 예측\n"
+            f"• 경기 결과 : {score_text}\n"
+            f"• 판정 : {outcome_badge}\n"
+            f"{points_note}"
+        ).strip()
+
+        cards.append(
+            _basic_card(
+                title=f"🏀 {home} vs {away} 예측 결과",
+                description=desc[:380],
+                thumbnail_url=get_team_logo(home),
+                buttons=[
+                    _msg_btn("🔴 실시간 스코어", "실시간 점수"),
+                    _msg_btn("🗳️ 승부예측", "승부예측"),
+                    _msg_btn("📅 경기 일정", "일정"),
+                ],
+            )
+        )
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"carousel": {"type": "basicCard", "items": cards}}],
+            quickReplies=quick_replies,
         )
     )
 

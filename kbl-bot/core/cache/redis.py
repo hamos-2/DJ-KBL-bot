@@ -489,3 +489,44 @@ def _is_stale(updated_at_iso: str) -> bool:
         return age > timedelta(seconds=_FRESHNESS_THRESHOLD_SECONDS)
     except (ValueError, TypeError):
         return True
+
+
+# ---------------------------------------------------------------------------
+# Prediction settlement & user prediction history helpers
+# ---------------------------------------------------------------------------
+
+_CHEER_SETTLED_PREFIX = "cheer:hit_settled:"
+
+
+async def get_user_prediction_for_game(user_hmac: str, game_id: str) -> str | None:
+    """Return the team picked by the user for *game_id*, or None."""
+    client = await get_redis()
+    return await client.get(f"{_CHEER_USER_PREFIX}{user_hmac}:{game_id}")
+
+
+async def settle_prediction_hit(
+    user_hmac: str, game_id: str, is_hit: bool, bonus_points: int = 50
+) -> tuple[bool, int]:
+    """
+    If *is_hit* is True and settlement has not yet been processed for *game_id*,
+    atomically award *bonus_points* (default 50P) to the user's points balance.
+
+    Returns:
+        (newly_awarded: bool, current_total_points: int)
+    """
+    client = await get_redis()
+    points_key = f"{_USER_POINTS_PREFIX}{user_hmac}"
+    settled_key = f"{_CHEER_SETTLED_PREFIX}{user_hmac}:{game_id}"
+
+    if not is_hit:
+        pts = await client.get(points_key)
+        return False, int(pts or 0)
+
+    was_set = await client.set(settled_key, "1", ex=14 * 86400, nx=True)
+    if was_set:
+        new_pts = await client.incrby(points_key, bonus_points)
+        return True, int(new_pts)
+
+    pts = await client.get(points_key)
+    return False, int(pts or 0)
+

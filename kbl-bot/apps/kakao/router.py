@@ -26,6 +26,7 @@ from apps.kakao.builder import (
     build_news_response,
     build_notice_response,
     build_player_rankings_response,
+    build_prediction_results_response,
     build_settings_response,
     build_single_player_response,
     build_team_news_menu_response,
@@ -39,8 +40,10 @@ from core.cache.redis import (
     get_game_cheers,
     get_redis,
     get_user_points,
+    get_user_prediction_for_game,
     get_user_preferences,
     save_user_preferences,
+    settle_prediction_hit,
     vote_team_cheer,
 )
 from core.config import get_settings
@@ -328,17 +331,24 @@ async def _dispatch_command(
                             today_games = [target_game] + today_games
 
                 if target_game:
-                    vote_res = await vote_team_cheer(
-                        user_hmac,
-                        str(target_game["game_id"]),
-                        norm_pick,
-                        target_game["home_team"],
-                        target_game["away_team"],
-                    )
-                    vote_notice = (
-                        f"[{norm_pick}] 승리 예측 투표가 완료되었습니다! "
-                        f"(내 포인트: {vote_res['user_points']}P)"
-                    )
+                    g_status = target_game.get("status", "SCHEDULED")
+                    g_period = target_game.get("period")
+                    if g_status == "FINAL":
+                        vote_notice = f"🔒 [{target_game['home_team']} vs {target_game['away_team']}] 경기는 이미 종료되어 승부예측이 마감되었습니다."
+                    elif g_status == "LIVE" and g_period is not None and g_period >= 3:
+                        vote_notice = f"🔒 [{target_game['home_team']} vs {target_game['away_team']}] 경기는 3쿼터에 진입하여 승부예측이 마감되었습니다. (전반전 1~2쿼터까지만 참여 가능)"
+                    else:
+                        vote_res = await vote_team_cheer(
+                            user_hmac,
+                            str(target_game["game_id"]),
+                            norm_pick,
+                            target_game["home_team"],
+                            target_game["away_team"],
+                        )
+                        vote_notice = (
+                            f"[{norm_pick}] 승리 예측 투표가 완료되었습니다! "
+                            f"(내 포인트: {vote_res['user_points']}P)"
+                        )
                 else:
                     vote_notice = f"예정된 [{norm_pick}] 경기가 없어 승부예측 목록을 표시합니다."
 
@@ -351,10 +361,120 @@ async def _dispatch_command(
                 g["away_team"],
                 user_hmac=user_hmac,
             )
+            g_status = g.get("status", "SCHEDULED")
+            g_period = g.get("period")
+            c_info["is_closed"] = g_status == "FINAL" or (g_status == "LIVE" and g_period is not None and g_period >= 3)
+            c_info["status"] = g_status
+            c_info["period"] = g_period
             user_points = c_info["user_points"]
             cheer_list.append(c_info)
 
         return build_cheering_response(cheer_list, notice=vote_notice, user_points=user_points)
+
+    # 4-B. Match Prediction Results & Settlement (예측결과 / 승부예측결과 / 내예측 / 승부예측전적)
+    if (
+        u_compact in (
+            "예측결과",
+            "승부예측결과",
+            "내예측",
+            "내예측결과",
+            "승부예측전적",
+            "예측전적",
+            "적중결과",
+            "적중",
+            "예측내역",
+        )
+        or ("예측" in u_compact and "결과" in u_compact)
+    ):
+        today_games = await game_service.get_today_games(db)
+        recent_games = await game_service.get_kbl_results(db, limit=10)
+
+        all_games = []
+        seen_ids = set()
+        for g in (today_games or []) + (recent_games or []):
+            gid = str(g.get("game_id"))
+            if gid not in seen_ids:
+                seen_ids.add(gid)
+                all_games.append(g)
+
+        results = []
+        hits = 0
+        misses = 0
+        pending = 0
+        user_points = 0
+
+        for g in all_games:
+            gid = str(g.get("game_id"))
+            home = g.get("home_team", "")
+            away = g.get("away_team", "")
+            status = g.get("status", "SCHEDULED")
+            h_score = g.get("home_score")
+            a_score = g.get("away_score")
+
+            user_pick = await get_user_prediction_for_game(user_hmac, gid)
+            if not user_pick:
+                continue
+
+            points_note = ""
+            if status == "FINAL" and h_score is not None and a_score is not None:
+                if h_score > a_score:
+                    winner = home
+                elif a_score > h_score:
+                    winner = away
+                else:
+                    winner = "무승부"
+
+                if user_pick == winner:
+                    hits += 1
+                    outcome_badge = "🎉 적중 성공!"
+                    awarded, cur_pts = await settle_prediction_hit(user_hmac, gid, True, bonus_points=50)
+                    user_points = cur_pts
+                    if awarded:
+                        points_note = "💰 적중 보너스 +50P 지급 완료!"
+                    else:
+                        points_note = "💰 적중 보너스 +50P (지급 완료됨)"
+                else:
+                    misses += 1
+                    outcome_badge = "😢 예측 실패"
+                score_text = f"{home} {h_score} : {a_score} {away} ({winner} 승리)"
+            elif status == "LIVE":
+                pending += 1
+                period = g.get("period", 1)
+                clock = g.get("game_clock", "")
+                score_text = f"실시간 진행 중 ({period}쿼터 {clock}) {home} {h_score or 0} : {a_score or 0} {away}"
+                outcome_badge = "⏳ 경기 진행 중 (결과 대기)"
+            else:
+                pending += 1
+                score_text = f"경기 예정 ({g.get('start_time', '')[:10]})"
+                outcome_badge = "📅 경기 시작 전"
+
+            results.append({
+                "game_id": gid,
+                "home_team": home,
+                "away_team": away,
+                "user_pick": user_pick,
+                "status": status,
+                "score_text": score_text,
+                "outcome_badge": outcome_badge,
+                "points_note": points_note,
+            })
+
+        if not user_points:
+            user_points = await get_user_points(user_hmac)
+
+        total_settled = hits + misses
+        hit_rate = round(hits * 100 / total_settled) if total_settled > 0 else 0
+        stats = {
+            "total": len(results),
+            "hits": hits,
+            "misses": misses,
+            "pending": pending,
+            "hit_rate": hit_rate,
+        }
+
+        return build_prediction_results_response(
+            results, stats, user_points, favorite_team=fav_team
+        )
 
     # 2-B. User Points Check (포인트 / 내 포인트 / 포인트 확인 / 포인트 조회 / 적립금)
     if (
