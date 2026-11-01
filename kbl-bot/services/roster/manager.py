@@ -267,21 +267,6 @@ class RosterManager:
                             except (ValueError, TypeError):
                                 pass
 
-                    # If official leaderboard provides team and it's valid, verify
-                    item_team = item.get("team")
-                    if item_team and item_team != "?":
-                        norm_team = self._normalize_team(item_team)
-                        if norm_team and norm_team != player.get("team"):
-                            # Check user constraint
-                            if not (p_name == "김선형" and norm_team == "SK"):
-                                logger.info(
-                                    "Leaderboard indicates team update for player",
-                                    player=p_name,
-                                    old_team=player.get("team"),
-                                    new_team=norm_team,
-                                )
-                                player["team"] = norm_team
-
         self._last_synced_at = datetime.now(UTC).isoformat()
         self._sync_back_to_kbl_data()
         logger.debug("Leaderboard stats synced into active roster", updated_count=updated_count)
@@ -304,7 +289,7 @@ class RosterManager:
 
     async def load_from_cache(self) -> bool:
         """
-        Load dynamic roster overrides from Redis cache if present.
+        Load dynamic roster overrides from Redis cache if present and valid.
         Returns True if overrides were applied.
         """
         cached = await get_dynamic_roster_cache()
@@ -313,27 +298,40 @@ class RosterManager:
 
         lineups = cached.get("lineups")
         players = cached.get("players")
-        if lineups and isinstance(lineups, dict):
-            # Validate constraints before applying
-            valid = True
+        if lineups and isinstance(lineups, dict) and players and isinstance(players, list):
+            # Strict validation: verify all 10 teams have 5 starters and constraints hold
+            expected_teams = {"SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"}
+            if not expected_teams.issubset(lineups.keys()):
+                logger.warning("Dynamic roster cache rejected: missing teams")
+                return False
+
             for team, info in lineups.items():
-                starter_names = [s.get("name") for s in info.get("starters", [])]
+                starters = info.get("starters", [])
+                if len(starters) != 5:
+                    logger.warning("Dynamic roster cache rejected: starters count != 5", team=team)
+                    return False
+                starter_names = [s.get("name") for s in starters]
                 if "함지훈" in starter_names:
-                    valid = False
-                    break
+                    logger.warning("Dynamic roster cache rejected: retired player 함지훈 found")
+                    return False
                 if team == "SK" and "김선형" in starter_names:
-                    valid = False
-                    break
-            if valid:
-                self._lineups = copy.deepcopy(lineups)
+                    logger.warning("Dynamic roster cache rejected: 김선형 in SK starters")
+                    return False
 
-        if players and isinstance(players, list):
+            # Verify key aces: 허훈 must be in KT, 장재석 in 현대모비스
+            kt_starters = [s.get("name") for s in lineups["KT"].get("starters", [])]
+            if "허훈" not in kt_starters:
+                logger.warning("Dynamic roster cache rejected: 허훈 missing from KT")
+                return False
+
+            self._lineups = copy.deepcopy(lineups)
             self._players = copy.deepcopy(players)
+            self._last_synced_at = cached.get("last_synced_at")
+            self._sync_back_to_kbl_data()
+            logger.info("Restored dynamic roster from Redis cache", players_count=len(self._players))
+            return True
 
-        self._last_synced_at = cached.get("last_synced_at")
-        self._sync_back_to_kbl_data()
-        logger.info("Restored dynamic roster from Redis cache", players_count=len(self._players))
-        return True
+        return False
 
     # ---------------------------------------------------------------------------
     # Internal Helpers

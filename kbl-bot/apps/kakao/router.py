@@ -28,6 +28,7 @@ from apps.kakao.builder import (
     build_player_rankings_response,
     build_prediction_results_response,
     build_settings_response,
+    build_simple_response,
     build_single_player_response,
     build_team_news_menu_response,
     build_team_players_menu_response,
@@ -240,7 +241,8 @@ async def _dispatch_command(
     if u_compact in ("#로스터동기화", "로스터동기화", "#로스터갱신", "로스터갱신"):
         from services.roster.manager import get_roster_manager
         roster_mgr = get_roster_manager()
-        get_player_ranks_fn = getattr(provider, "get_player_rankings", None)
+        provider = getattr(game_service, "_provider", None)
+        get_player_ranks_fn = getattr(provider, "get_player_rankings", None) if provider else None
         updated_cnt = 0
         if callable(get_player_ranks_fn):
             try:
