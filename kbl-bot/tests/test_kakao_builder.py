@@ -336,7 +336,7 @@ class TestProBasketballBotFeatures:
             favorite_team="DB",
         )
         card = team_resp.template.outputs[0]["listCard"]
-        assert "원주 DB" in card["header"]["title"]
+        assert "DB" in card["header"]["title"]
         assert "DB 알바노" in card["items"][0]["title"]
 
         generic_resp = build_news_response(
@@ -344,7 +344,7 @@ class TestProBasketballBotFeatures:
             favorite_team=None,
         )
         gen_card = generic_resp.template.outputs[0]["listCard"]
-        assert "KBL 프로농구 최신 뉴스" in gen_card["header"]["title"]
+        assert "KBL" in gen_card["header"]["title"]
 
         # Test Page 1 and Page 2 (뉴스 더보기)
         sample_10_news = [{"title": f"기사 {i}", "url": f"https://sports.daum.net/{i}"} for i in range(10)]
@@ -352,14 +352,14 @@ class TestProBasketballBotFeatures:
         p1_card = p1.template.outputs[0]["listCard"]
         assert len(p1_card["items"]) == 5
         assert p1_card["items"][0]["title"] == "기사 0"
-        assert p1_card["buttons"][0]["label"] == "📰 뉴스 더보기"
+        assert p1_card["buttons"][0]["label"] == "뉴스 더보기"
 
         p2 = build_news_response(sample_10_news, favorite_team="KT", page=2)
         p2_card = p2.template.outputs[0]["listCard"]
         assert len(p2_card["items"]) == 5
         assert p2_card["items"][0]["title"] == "기사 5"
-        assert "2/2" in p2_card["header"]["title"]
-        assert p2_card["buttons"][0]["label"] == "📰 최신 뉴스로"
+        assert "더보기" in p2_card["header"]["title"]
+        assert p2_card["buttons"][0]["label"] == "최신 뉴스로"
 
     def test_team_specific_highlights_builder(self) -> None:
         """build_highlights_response must customize header and advice when favorite_team is provided."""

@@ -1,5 +1,6 @@
 """Factory functions for building Kakao Skill response payloads (Pro Basketball Bot MVP)."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -955,22 +956,31 @@ def build_news_response(
 
     if page == 2:
         slice_items = news_items[5:10] if len(news_items) > 5 else news_items[:5]
-        header = f"📰 [{full_name}] 뉴스 더보기 (2/2)" if favorite_team else "📰 KBL 프로농구 뉴스 더보기 (2/2)"
-        toggle_btn = _msg_btn("📰 최신 뉴스로", f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
-        qr_news = QuickReply(label="📰 처음 뉴스로", messageText=f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
+        header = f"{favorite_team} 관련 뉴스 (더보기)" if favorite_team else "KBL 프로농구 뉴스 더보기 (2/2)"
+        toggle_btn = _msg_btn("최신 뉴스로", f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
+        qr_news = QuickReply(label="처음 뉴스로", messageText=f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
     else:
         slice_items = news_items[:5]
-        header = f"📰 [{full_name}] 최신 뉴스" if favorite_team else "📰 KBL 프로농구 최신 뉴스"
-        toggle_btn = _msg_btn("📰 뉴스 더보기", f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
-        qr_news = QuickReply(label="📰 뉴스 더보기", messageText=f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
+        header = f"{favorite_team} 관련 뉴스" if favorite_team else "KBL 프로농구 최신 뉴스"
+        toggle_btn = _msg_btn("뉴스 더보기", f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
+        qr_news = QuickReply(label="뉴스 더보기", messageText=f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
 
     items: list[dict[str, Any]] = []
     for item in slice_items:
         title = item.get("title", "프로농구 소식")
         url = item.get("url", "https://sports.daum.net/basketball")
+        raw_time = item.get("time") or ""
+        date_match = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", raw_time)
+        if date_match:
+            time_desc = f"{int(date_match.group(2)):02d}.{int(date_match.group(3)):02d}."
+        elif raw_time:
+            time_desc = raw_time
+        else:
+            time_desc = item.get("source") or "최신 뉴스"
+
         items.append({
             "title": title,
-            "description": "Daum 스포츠 농구 뉴스",
+            "description": time_desc,
             "imageUrl": item.get("imageUrl") or default_img,
             "link": {"web": url},
         })
@@ -988,7 +998,7 @@ def build_news_response(
         items=items,
         buttons=[
             toggle_btn,
-            _msg_btn("🏀 다른팀 뉴스", "다른팀 뉴스"),
+            _msg_btn("다른팀 뉴스", "다른팀 뉴스"),
         ],
     )
     custom_qr = [

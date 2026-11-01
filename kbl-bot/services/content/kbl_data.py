@@ -405,24 +405,86 @@ def parse_daum_news_html(
     items: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
 
-    # Match <a href="https://v.daum.net/v/..." ...>Title</a>
-    pattern = re.compile(
-        r'<a[^>]+href=["\'](https://v\.daum\.net/v/\d+)[^"\']*["\'][^>]*>(.*?)</a>',
-        re.DOTALL | re.IGNORECASE,
-    )
-    for match in pattern.finditer(raw_html):
-        url = match.group(1)
+    # 1. Primary: Modern Daum Search markup (<li data-docid="...">)
+    li_blocks = re.findall(r'<li data-docid=[^>]+>(.*?)</li>\s*(?:<li|</ul>)', raw_html, re.DOTALL)
+    for block in li_blocks:
+        t_match = re.search(
+            r'<div class=["\']item-title["\'][^>]*>.*?<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+            block,
+            re.DOTALL,
+        )
+        if not t_match:
+            continue
+        url = t_match.group(1).replace("http://", "https://")
         if url in seen_urls:
             continue
-        raw_title = re.sub(r"<[^>]+>", "", match.group(2))
-        title = html.unescape(raw_title).strip()
-        title = re.sub(r"\s+", " ", title)
-        if len(title) < 10 or title in ("다음뉴스", "언론사 픽", "관련뉴스"):
+        raw_title = re.sub(r"<[^>]+>", "", t_match.group(2)).strip()
+        title = html.unescape(raw_title)
+        if len(title) < 8 or title in ("다음뉴스", "언론사 픽", "관련뉴스"):
             continue
+
+        # Extract photographic thumbnail
+        img_match = re.search(
+            r'<div class=["\']item-thumb["\'][^>]*>.*?<img[^>]+(?:data-original-src|src)=["\']([^"\']+)["\']',
+            block,
+            re.DOTALL,
+        )
+        img_url = img_match.group(1) if img_match else None
+        if img_url and img_url.startswith("data:image"):
+            img_url = None
+
+        # Extract publish time (e.g. 4시간전, 10.30., 2026.10.25)
+        time_match = re.search(
+            r'<span class=["\']gem-subinfo["\'][^>]*>.*?<span class=["\']txt_info["\'][^>]*>(.*?)</span>',
+            block,
+            re.DOTALL,
+        )
+        time_str = re.sub(r"<[^>]+>", "", time_match.group(1)).strip() if time_match else ""
+
+        # Extract press source
+        source_match = re.search(
+            r'<strong class=["\']tit_item["\'][^>]*>.*?<span class=["\']txt_info["\'][^>]*>(.*?)</span>',
+            block,
+            re.DOTALL,
+        )
+        source = re.sub(r"<[^>]+>", "", source_match.group(1)).strip() if source_match else "Daum 스포츠"
+
         seen_urls.add(url)
-        items.append({"title": title, "url": url, "source": "Daum 스포츠"})
+        items.append({
+            "title": title,
+            "url": url,
+            "imageUrl": img_url,
+            "time": time_str,
+            "source": source,
+        })
         if len(items) >= 10:
             break
+
+    # 2. Secondary fallback: Regex for traditional v.daum.net links
+    if len(items) < 5:
+        pattern = re.compile(
+            r'<a[^>]+href=["\'](https?://v\.daum\.net/v/\d+)[^"\']*["\'][^>]*>(.*?)</a>',
+            re.DOTALL | re.IGNORECASE,
+        )
+        for match in pattern.finditer(raw_html):
+            url = match.group(1).replace("http://", "https://")
+            if url in seen_urls:
+                continue
+            raw_title = re.sub(r"<[^>]+>", "", match.group(2))
+            title = html.unescape(raw_title).strip()
+            title = re.sub(r"\s+", " ", title)
+            if len(title) < 10 or title in ("다음뉴스", "언론사 픽", "관련뉴스"):
+                continue
+            seen_urls.add(url)
+            items.append({
+                "title": title,
+                "url": url,
+                "imageUrl": None,
+                "time": "최신 뉴스",
+                "source": "Daum 스포츠",
+            })
+            if len(items) >= 10:
+                break
 
     # If team is specified, prioritize articles mentioning the team or its key players
     if team and items:
