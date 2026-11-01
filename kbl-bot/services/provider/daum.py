@@ -516,6 +516,9 @@ class DaumSportsDataProvider(SportsDataProvider):
         home_score = cls._parse_score(home_obj.get("result"), raw.get("homeScore"), status)
         away_score = cls._parse_score(away_obj.get("result"), raw.get("awayScore"), status)
 
+        home_quarters = cls._parse_quarters(raw.get("homeScore"))
+        away_quarters = cls._parse_quarters(raw.get("awayScore"))
+
         period = cls._parse_period(raw.get("periodType"), status)
         game_clock = str(raw.get("gameDetailStatus") or ("00:00" if status == "FINAL" else ""))
 
@@ -541,6 +544,8 @@ class DaumSportsDataProvider(SportsDataProvider):
             "away_team": away_team,
             "home_score": home_score,
             "away_score": away_score,
+            "home_quarters": home_quarters,
+            "away_quarters": away_quarters,
             "period": period,
             "game_clock": game_clock or None,
             "arena": arena,
@@ -549,6 +554,20 @@ class DaumSportsDataProvider(SportsDataProvider):
             "start_time": start_time_utc.isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }
+
+    @staticmethod
+    def _parse_quarters(score_obj: dict[str, Any] | None) -> list[int]:
+        """Extract list of quarter scores [q1, q2, q3, q4, (optional extra)] from Daum score breakdown."""
+        if not isinstance(score_obj, dict):
+            return []
+        quarters = []
+        for k in ("quarter1", "quarter2", "quarter3", "quarter4"):
+            v = score_obj.get(k)
+            quarters.append(int(v) if v is not None and str(v).isdigit() else 0)
+        extra_val = score_obj.get("extra")
+        if extra_val is not None and str(extra_val).isdigit() and int(extra_val) > 0:
+            quarters.append(int(extra_val))
+        return quarters
 
     @staticmethod
     def _parse_score(
@@ -576,7 +595,7 @@ class DaumSportsDataProvider(SportsDataProvider):
         if not period_type:
             return 1
         pt = str(period_type).upper().strip()
-        if "OT" in pt or "연장" in pt:
+        if "OT" in pt or "연장" in pt or "EXTRA" in pt:
             digits = re.findall(r"\d+", pt)
             ot_num = int(digits[0]) if digits else 1
             return 4 + ot_num

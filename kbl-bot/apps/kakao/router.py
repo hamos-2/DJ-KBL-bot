@@ -781,9 +781,21 @@ async def _dispatch_command(
         upcoming_g = await game_service.get_kbl_schedule(db, days=7, limit=15)
         return build_my_schedule_response(today_g, upcoming_g, favorite_team=fav_team)
 
-    # 11. Today Games (오늘 경기 / 실시간 점수)
-    if u_compact in ("오늘경기", "오늘농구", "오늘농구경기", "실시간점수", "스코어", "라이브"):
+    # 11. Today Games / Realtime Live Score / Refresh (오늘 경기 / 실시간 점수 / 새로고침 / 박스스코어)
+    if (
+        u_compact in (
+            "오늘경기", "오늘농구", "오늘농구경기", "실시간점수", "스코어", "라이브",
+            "새로고침", "실시간점수새로고침", "점수새로고침", "박스스코어", "실시간스코어",
+        )
+        or ("실시간" in u_compact and any(k in u_compact for k in ("점수", "스코어", "새로고침", "중계")))
+    ):
         today_g = await game_service.get_today_games(db)
+        if any(k in u_compact for k in ("새로고침", "실시간점수", "박스스코어")):
+            live_g = next((g for g in today_g if g.get("status") == "LIVE"), None)
+            fav_g = next((g for g in today_g if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))), None)
+            target = live_g or fav_g
+            if target and target.get("status") in ("LIVE", "FINAL"):
+                return build_live_score_response(target)
         return build_today_games_response(today_g, favorite_team=fav_team)
 
     # 12. Team / Matchup Search (#KT vs LG, SK vs KCC, #현대모비스, etc.)

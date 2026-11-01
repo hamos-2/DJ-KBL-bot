@@ -2013,6 +2013,7 @@ def build_matchup_search_response(
 def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     """
     Build a Skill response for a single live game score (with quarter scorebox).
+    Supports real-time quarter breakdown, Overtime (OT), and fresh Daum relay links.
     Returns pure itemCard with verified official logos and action buttons.
     """
     home = snapshot.get("home_team", "?")
@@ -2027,7 +2028,15 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     game_id = snapshot.get("game_id", "")
     daum_url = f"https://sports.daum.net/match/{game_id}" if game_id else "https://sports.daum.net/basketball"
 
-    # Quarter scorebox estimation/display
+    try:
+        p_num = int(period) if str(period).isdigit() else 4
+    except Exception:
+        p_num = 4
+
+    # Quarter scorebox: use real quarter scores if available, else proportional estimate
+    home_q_raw = snapshot.get("home_quarters")
+    away_q_raw = snapshot.get("away_quarters")
+
     def _split_q(score: int, curr_p: int) -> list[int]:
         if curr_p <= 0 or score <= 0:
             return [0, 0, 0, 0]
@@ -2040,23 +2049,45 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
             qs.append(0)
         return qs[:4]
 
-    try:
-        p_num = int(period) if str(period).isdigit() else 4
-    except Exception:
-        p_num = 4
+    if home_q_raw and isinstance(home_q_raw, list) and len(home_q_raw) >= 4:
+        hq = [int(x or 0) for x in home_q_raw]
+    else:
+        hq = _split_q(h_score, min(4, max(1, p_num)))
 
-    hq = _split_q(h_score, min(4, max(1, p_num)))
-    aq = _split_q(a_score, min(4, max(1, p_num)))
+    if away_q_raw and isinstance(away_q_raw, list) and len(away_q_raw) >= 4:
+        aq = [int(x or 0) for x in away_q_raw]
+    else:
+        aq = _split_q(a_score, min(4, max(1, p_num)))
+
+    item_list = [
+        {"title": "1쿼터", "description": f"{home[:3]} {hq[0]} : {aq[0]} {away[:3]}"},
+        {"title": "2쿼터", "description": f"{home[:3]} {hq[1]} : {aq[1]} {away[:3]}"},
+        {"title": "3쿼터", "description": f"{home[:3]} {hq[2]} : {aq[2]} {away[:3]}"},
+        {"title": "4쿼터", "description": f"{home[:3]} {hq[3]} : {aq[3]} {away[:3]}"},
+    ]
+
+    # Handle Overtime (OT / 연장전)
+    has_ot = p_num >= 5 or len(hq) > 4 or len(aq) > 4
+    if has_ot:
+        ot_h = hq[4] if len(hq) > 4 else max(0, h_score - sum(hq[:4]))
+        ot_a = aq[4] if len(aq) > 4 else max(0, a_score - sum(aq[:4]))
+        ot_label = f"연장{p_num - 4}차" if p_num > 5 else "연장(OT)"
+        item_list.append({"title": ot_label[:6], "description": f"{home[:3]} {ot_h} : {ot_a} {away[:3]}"})
+
+    if p_num >= 5:
+        period_str = f"연장{p_num - 4}차" if p_num > 5 else "연장(OT)"
+    else:
+        period_str = f"{period}쿼터"
 
     stale_note = " ⚠️(지연)" if stale else ""
     if status == "FINAL":
         head_title = "✅ 경기 종료"
         img_title = f"{home} {h_score} : {a_score} {away}"
-        img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 최종 스코어"
+        img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 최종 스코어{stale_note}"
     elif status == "LIVE":
         head_title = "🔴 LIVE 톡중계"
         img_title = f"{home} {h_score} : {a_score} {away}"
-        img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | {period}쿼터{clock_str}{stale_note}"
+        img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | {period_str}{clock_str}{stale_note}"
     else:
         head_title = "📅 경기 예정"
         img_title = f"{home} vs {away}"
@@ -2069,12 +2100,7 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
             "description": img_desc,
             "imageUrl": get_team_logo(home),
         },
-        item_list=[
-            {"title": "1쿼터", "description": f"{home[:3]} {hq[0]} : {aq[0]} {away[:3]}"},
-            {"title": "2쿼터", "description": f"{home[:3]} {hq[1]} : {aq[1]} {away[:3]}"},
-            {"title": "3쿼터", "description": f"{home[:3]} {hq[2]} : {aq[2]} {away[:3]}"},
-            {"title": "4쿼터", "description": f"{home[:3]} {hq[3]} : {aq[3]} {away[:3]}"},
-        ],
+        item_list=item_list,
         summary={
             "title": "최종점수" if status == "FINAL" else "현재점수",
             "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
