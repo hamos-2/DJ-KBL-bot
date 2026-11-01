@@ -1298,10 +1298,94 @@ def build_cheering_response(
             )
         )
 
+    cheer_quick_replies = [
+        QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
+        QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+        QuickReply(label="🏆 팀순위", messageText="팀순위"),
+        QuickReply(label="📋 라인업", messageText="라인업"),
+        QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+    ]
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[{"carousel": {"type": "basicCard", "items": cards}}],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            quickReplies=cheer_quick_replies,
+        )
+    )
+
+
+def get_point_tier(points: int) -> tuple[str, str, int]:
+    """
+    Return (tier_name, badge_emoji, points_needed_for_next).
+    Tier thresholds:
+        - 0 ~ 49P: 🥉 루키 (새싹 팬)
+        - 50 ~ 199P: 🥈 주전 (열혈 팬)
+        - 200 ~ 499P: 🥇 올스타 (찐팬)
+        - 500P 이상: 👑 KBL 레전드 (농구 마스터)
+    """
+    if points >= 500:
+        return "👑 KBL 레전드", "👑", 0
+    elif points >= 200:
+        return "🥇 올스타", "🥇", 500 - points
+    elif points >= 50:
+        return "🥈 주전", "🥈", 200 - points
+    else:
+        return "🥉 루키", "🥉", 50 - points
+
+
+def build_user_points_response(
+    user_points: int,
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build rich basicCard response for '포인트' / '내 포인트' / '포인트 확인'.
+    Displays total point balance, fan tier status, next tier progress, and point tips.
+    """
+    tier_name, badge, needed = get_point_tier(user_points)
+    next_msg = (
+        f"다음 등급까지 {needed}P 남음!"
+        if needed > 0
+        else "최고 등급 달성! 🎉"
+    )
+    fav_team_str = f" [{favorite_team} 팬]" if favorite_team else ""
+
+    desc = (
+        f"🏀 나의 승부예측 포인트 현황{fav_team_str}\n\n"
+        f"• 보유 포인트 : {user_points:,} P\n"
+        f"• 농구팬 등급 : {tier_name}\n"
+        f"• 승급 현황 : {next_msg}\n\n"
+        f"⚡ 포인트 적립 방법:\n"
+        f"• 매일 경기 승부예측 투표 시: +10P\n"
+        f"• 승리팀 적중 시 보너스: +30P\n"
+        f"• 오늘의 경기 출석 체크: +10P\n\n"
+        f"※ 모은 포인트는 팬 랭킹 배틀 및 기프티콘 이벤트 응모에 활용됩니다."
+    )
+
+    logo_url = get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO
+    card = _basic_card(
+        title=f"{badge} 내 승부예측 포인트: {user_points:,} P",
+        description=desc[:380],
+        thumbnail_url=logo_url,
+        buttons=[
+            _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
+            _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
+            _msg_btn("🏆 정규리그 순위", "팀순위"),
+        ],
+    )
+
+    point_quick_replies = [
+        QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+        QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+        QuickReply(label="🏆 팀순위", messageText="팀순위"),
+        QuickReply(label="🏅 선수순위", messageText="선수순위"),
+        QuickReply(label="📋 선발 라인업", messageText="라인업"),
+        QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+    ]
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"basicCard": card}],
+            quickReplies=point_quick_replies,
         )
     )
 

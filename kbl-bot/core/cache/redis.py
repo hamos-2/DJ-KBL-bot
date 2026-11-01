@@ -414,6 +414,13 @@ async def get_game_cheers(
     }
 
 
+async def get_user_points(user_hmac: str) -> int:
+    """Retrieve total accumulated prediction points for *user_hmac*."""
+    client = await get_redis()
+    raw = await client.get(f"{_USER_POINTS_PREFIX}{user_hmac}")
+    return int(raw or 0)
+
+
 # ---------------------------------------------------------------------------
 # Distributed Lock Helpers
 # ---------------------------------------------------------------------------

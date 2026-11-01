@@ -313,3 +313,40 @@ async def test_player_ranking_category_utterances():
     assert "1위선수_stl" in resp_stl.template.outputs[0]["listCard"]["items"][0]["title"]
 
 
+@pytest.mark.asyncio
+async def test_user_points_feature():
+    """Users must be able to check their prediction points, tiers, and earning tips."""
+    from apps.kakao.builder import build_user_points_response, get_point_tier
+
+    # 1. Tier boundary tests
+    assert get_point_tier(0)[0] == "🥉 루키"
+    assert get_point_tier(50)[0] == "🥈 주전"
+    assert get_point_tier(200)[0] == "🥇 올스타"
+    assert get_point_tier(500)[0] == "👑 KBL 레전드"
+
+    # 2. Response builder
+    resp = build_user_points_response(120, favorite_team="KT")
+    card = resp.template.outputs[0]["basicCard"]
+    assert "120 P" in card["title"]
+    assert "🥈 주전" in card["description"]
+    assert "승부예측" in card["buttons"][0]["label"]
+
+    # 3. Router dispatch test
+    class MockGameSvc:
+        pass
+
+    game_svc = MockGameSvc()
+    user = User(kakao_user_key_hmac="test_hmac_pts", encrypted_kakao_user_key="enc", favorite_team="KT")
+    db = AsyncMock()
+    user_svc = AsyncMock()
+
+    with patch("apps.kakao.router.get_user_points", AsyncMock(return_value=150)):
+        for q in ["포인트", "내 포인트", "포인트 확인", "포인트 조회", "자신의 포인트가 얼마인지 확인"]:
+            resp = await _dispatch_command(q, db, game_svc, user_svc, user)
+            assert resp is not None
+            card = resp.template.outputs[0]["basicCard"]
+            assert "150 P" in card["title"]
+            assert "🥈 주전" in card["description"]
+
+
+

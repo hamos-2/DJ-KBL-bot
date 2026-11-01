@@ -31,11 +31,13 @@ from apps.kakao.builder import (
     build_team_players_response,
     build_team_standings_response,
     build_today_games_response,
+    build_user_points_response,
 )
 from apps.kakao.schemas import KakaoSkillPayload, KakaoSkillResponse
 from core.cache.redis import (
     get_game_cheers,
     get_redis,
+    get_user_points,
     get_user_preferences,
     save_user_preferences,
     vote_team_cheer,
@@ -330,6 +332,28 @@ async def _dispatch_command(
             cheer_list.append(c_info)
 
         return build_cheering_response(cheer_list, notice=vote_notice, user_points=user_points)
+
+    # 2-B. User Points Check (포인트 / 내 포인트 / 포인트 확인 / 포인트 조회 / 적립금)
+    if (
+        u_compact in (
+            "포인트",
+            "내포인트",
+            "포인트확인",
+            "포인트조회",
+            "적립금",
+            "마일리지",
+            "point",
+            "points",
+            "mypoint",
+            "mypoints",
+        )
+        or (
+            "포인트" in u_compact
+            and any(k in u_compact for k in ("확인", "조회", "내", "얼마", "보기", "현황", "잔액", "내역", "자신", "나의"))
+        )
+    ):
+        pts = await get_user_points(user_hmac)
+        return build_user_points_response(pts, favorite_team=fav_team)
 
     # 3. Favorite Players & Custom Player Search/Registration
     # 3-A. Team player query (e.g. "DB 선수", "SK 선수", "KT 선수")
