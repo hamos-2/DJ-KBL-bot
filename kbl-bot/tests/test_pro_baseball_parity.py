@@ -411,5 +411,77 @@ async def test_multi_team_news_and_other_teams_menu_routing():
     assert "한국가스공사" in card_kogas["header"]["title"]
 
 
+@pytest.mark.asyncio
+async def test_favorite_player_registration_lifecycle():
+    """Verify full lifecycle of favorite player registration, lookup, duplicate handling, and deletion."""
+    from apps.kakao.router import _dispatch_command
+    from core.db.models import User
+    from unittest.mock import AsyncMock, patch
+
+    class MockGameSvc:
+        pass
+
+    game_svc = MockGameSvc()
+    user = User(kakao_user_key_hmac="test_hmac_fav_player", encrypted_kakao_user_key="enc", favorite_team="KT")
+    db = AsyncMock()
+    user_svc = AsyncMock()
+
+    current_prefs = {"favorite_players": [], "notifications": {}}
+
+    async def mock_get_prefs(hmac):
+        return {"favorite_players": list(current_prefs["favorite_players"]), "notifications": {}}
+
+    async def mock_save_prefs(hmac, prefs):
+        current_prefs["favorite_players"] = list(prefs["favorite_players"])
+
+    with patch("apps.kakao.router.get_user_preferences", side_effect=mock_get_prefs), \
+         patch("apps.kakao.router.save_user_preferences", side_effect=mock_save_prefs):
+
+        # 1. Initial list: empty
+        resp1 = await _dispatch_command("관심선수", db, game_svc, user_svc, user)
+        assert resp1 is not None
+        assert "등록된 관심선수가 없습니다" in resp1.template.outputs[0]["listCard"]["items"][0]["title"]
+
+        # 2. Register star player from KBL_PLAYERS ("#관심선수 허훈")
+        resp2 = await _dispatch_command("#관심선수 허훈", db, game_svc, user_svc, user)
+        assert resp2 is not None
+        assert "허훈" in resp2.template.outputs[0]["listCard"]["header"]["title"]
+        assert "등록되었습니다" in resp2.template.outputs[0]["listCard"]["header"]["title"]
+        assert "허훈" in current_prefs["favorite_players"]
+
+        # 3. Duplicate registration check
+        resp3 = await _dispatch_command("허훈 등록", db, game_svc, user_svc, user)
+        assert resp3 is not None
+        assert "이미 관심선수로 등록되어 있습니다" in resp3.template.outputs[0]["listCard"]["header"]["title"]
+        assert current_prefs["favorite_players"].count("허훈") == 1
+
+        # 4. Register lineup player from TEAM_LINEUPS ("오세근 등록")
+        resp4 = await _dispatch_command("오세근 등록", db, game_svc, user_svc, user)
+        assert resp4 is not None
+        assert "오세근" in resp4.template.outputs[0]["listCard"]["header"]["title"]
+        assert "오세근" in current_prefs["favorite_players"]
+
+        # 5. Check player lookup for registered player: shows "⭐ 관심선수 등록됨"
+        resp5 = await _dispatch_command("허훈", db, game_svc, user_svc, user)
+        assert resp5 is not None
+        card5 = resp5.template.outputs[0]["basicCard"]
+        assert "관심선수 등록됨" in card5["description"]
+        assert "관심선수 해제" in card5["buttons"][0]["label"]
+
+        # 6. Delete player ("#관심선수 삭제 허훈")
+        resp6 = await _dispatch_command("#관심선수 삭제 허훈", db, game_svc, user_svc, user)
+        assert resp6 is not None
+        assert "해제되었습니다" in resp6.template.outputs[0]["listCard"]["header"]["title"]
+        assert "허훈" not in current_prefs["favorite_players"]
+        assert "오세근" in current_prefs["favorite_players"]
+
+        # 7. Reset all ("관심선수 초기화")
+        resp7 = await _dispatch_command("관심선수 초기화", db, game_svc, user_svc, user)
+        assert resp7 is not None
+        assert "초기화되었습니다" in resp7.template.outputs[0]["listCard"]["header"]["title"]
+        assert len(current_prefs["favorite_players"]) == 0
+
+
+
 
 

@@ -48,7 +48,7 @@ from core.db.models import User
 from core.db.session import get_db
 from core.exceptions import GameNotFoundError, KBLBotError
 from core.logging import get_logger
-from services.content.kbl_data import KBL_PLAYERS, search_kbl_players
+from services.content.kbl_data import KBL_PLAYERS, TEAM_LINEUPS, search_kbl_players
 from services.game.service import GameService
 from services.ingestion.worker import IngestionWorker
 from services.search.parser import (
@@ -401,18 +401,75 @@ async def _dispatch_command(
     clean_target = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u)
     clean_target = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색)+\s*", "", clean_target).strip()
 
-    # Helper to find player by name or nickname
+    # Helper to find player by name or nickname across star players and team lineups
     def _find_player(query_str: str) -> dict | None:
         c = query_str.replace(" ", "").strip()
         if not c or len(c) < 2:
             return None
+        # 1. Search KBL_PLAYERS
         for p in KBL_PLAYERS:
             pc = p["name"].replace(" ", "")
             if c == pc or c in pc or pc in c:
                 return p
+        # 2. Search starters & key bench in TEAM_LINEUPS
+        for team_name, lineup_info in TEAM_LINEUPS.items():
+            for starter in lineup_info.get("starters", []):
+                s_name = starter.get("name", "")
+                sc = s_name.replace(" ", "")
+                if c == sc or c in sc or sc in c:
+                    return {
+                        "name": s_name,
+                        "team": team_name,
+                        "pos": starter.get("pos", "F"),
+                        "no": starter.get("no", ""),
+                        "pts": 10.0,
+                        "reb": 3.0,
+                        "ast": 2.5,
+                        "tpm": 1.0,
+                        "stl": 0.8,
+                        "blk": 0.3,
+                    }
+            for bench_name in lineup_info.get("key_bench", []):
+                bc = bench_name.replace(" ", "")
+                if c == bc or c in bc or bc in c:
+                    return {
+                        "name": bench_name,
+                        "team": team_name,
+                        "pos": "F",
+                        "no": "",
+                        "pts": 8.0,
+                        "reb": 2.5,
+                        "ast": 2.0,
+                        "tpm": 0.8,
+                        "stl": 0.5,
+                        "blk": 0.2,
+                    }
         return None
 
     matched_player = _find_player(clean_target)
+
+    is_del = any(w in u for w in ("삭제", "해제", "제거", "빼기"))
+    is_add = any(w in u for w in ("등록", "추가", "넣기", "관심선수"))
+
+    # Fallback: if user explicitly asked to register or delete a player name not in our static tables
+    if (
+        matched_player is None
+        and (is_add or is_del or has_player_prefix)
+        and len(clean_target) >= 2
+        and clean_target not in ("목록", "현황", "관리", "설정", "안내", "등록", "추가", "삭제", "해제", "보기")
+    ):
+        matched_player = {
+            "name": clean_target,
+            "team": fav_team or "KBL",
+            "pos": "F",
+            "no": "",
+            "pts": 0.0,
+            "reb": 0.0,
+            "ast": 0.0,
+            "tpm": 0.0,
+            "stl": 0.0,
+            "blk": 0.0,
+        }
 
     if is_fav_menu or has_player_prefix or matched_player is not None:
         prefs = await get_user_preferences(user_hmac)
@@ -428,8 +485,6 @@ async def _dispatch_command(
 
         if matched_player is not None:
             exact = matched_player["name"]
-            is_del = any(w in u for w in ("삭제", "해제", "제거", "빼기"))
-            is_add = any(w in u for w in ("등록", "추가", "넣기", "관심선수"))
 
             if is_del:
                 if exact in fav_players:

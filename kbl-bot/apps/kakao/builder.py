@@ -280,6 +280,7 @@ def build_home_menu_response(
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
     logo_url = get_team_logo(favorite_team)
+    fav_p_str = f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}" if fav_players else ""
 
     if team_game:
         home = team_game.get("home_team", "?")
@@ -303,6 +304,7 @@ def build_home_menu_response(
                 f"🏀 내 응원팀 {full_team} 실시간 경기 중!\n"
                 f"• 현재 상황: {period_str}{clock_str}{arena_str}\n"
                 f"• 매치업: {home} vs {away}"
+                f"{fav_p_str}"
             )
             buttons = [
                 _msg_btn("🔴 실시간 스코어", "실시간 점수"),
@@ -319,6 +321,7 @@ def build_home_menu_response(
                 f"🏀 내 응원팀 {full_team} 경기 종료\n"
                 f"• 최종 결과: {home} {h_s} : {a_s} {away}{arena_str}\n"
                 f"하이라이트 영상과 경기 요약을 확인하세요!"
+                f"{fav_p_str}"
             )
             buttons = [
                 _msg_btn("🎬 주요장면 보기", "주요장면"),
@@ -335,6 +338,7 @@ def build_home_menu_response(
                 f"• 경기 시간: {dt_str}{arena_str}\n"
                 f"• 매치업: {home} vs {away}\n"
                 f"※ 경기 시작 20분 전 확정 라인업이 공개됩니다."
+                f"{fav_p_str}"
             )
             buttons = [
                 _msg_btn("📋 선발 라인업", "라인업"),
@@ -354,7 +358,11 @@ def build_home_menu_response(
         action_card = {
             "basicCard": _basic_card(
                 title=f"🏀 {full_team}",
-                description=f"내 응원팀 설정 완료! ❤️\n하단 버튼을 눌러 오늘 경기와 일정을 확인하세요.",
+                description=(
+                    f"내 응원팀 설정 완료! ❤️\n"
+                    f"하단 버튼을 눌러 오늘 경기와 일정을 확인하세요."
+                    f"{fav_p_str}"
+                ),
                 thumbnail_url=logo_url,
                 buttons=[
                     _msg_btn("📅 오늘 경기", "오늘 경기"),
@@ -1239,8 +1247,10 @@ def build_player_rankings_response(
         QuickReply(label="🏀 블록슛", messageText="블록순위"),
         QuickReply(label="🏀 스틸", messageText="스틸순위"),
         QuickReply(label="🏀 3점슛", messageText="3점슛순위"),
+        QuickReply(label="⭐ 관심선수", messageText="관심선수"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="📅 오늘 경기", messageText="오늘 경기"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
 
     return KakaoSkillResponse(
