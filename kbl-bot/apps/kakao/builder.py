@@ -510,9 +510,13 @@ def build_lineup_response(
 
     lines.append("📢 KBL 공식 경기규칙: 경기 시작 20분 전까지 각 팀 감독이 스코어시트에 서명하여 공식 스타팅 5인을 경기 본부석에 최종 제출합니다. 경기 시작 20~30분 전부터 공식 확정 라인업이 실시간 반영됩니다.")
 
+    text_content = "\n".join(lines).strip()
+    if len(text_content) > 1000:
+        text_content = text_content[:996] + "..."
+
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards}},
-        {"simpleText": {"text": "\n".join(lines).strip()}},
+        {"simpleText": {"text": text_content}},
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)

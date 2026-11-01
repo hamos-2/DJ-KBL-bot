@@ -319,8 +319,12 @@ def main():
                 print(f"[Error in watchdog loop] {e}", file=sys.stderr)
             time.sleep(args.interval)
     else:
-        res = run_watchdog_check()
-        print(json.dumps(res, indent=2, ensure_ascii=False))
+        try:
+            res = run_watchdog_check()
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        except Exception as e:
+            print(f"[FATAL Watchdog Crash] {e}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

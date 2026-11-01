@@ -221,16 +221,18 @@ def send_sre_email(
         msg["Date"] = email.utils.formatdate(localtime=True)
         msg.attach(MIMEText(html_content, "html", "utf-8"))
 
+        recipients = [e.strip() for e in to_email.split(",") if e.strip()] if to_email else [smtp_user]
+
         if smtp_port == 465:
             with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as server:
                 server.login(smtp_user, smtp_pass)
-                server.sendmail(smtp_user, [to_email], msg.as_string())
+                server.sendmail(smtp_user, recipients, msg.as_string())
         else:
             with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
                 server.ehlo()
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
-                server.sendmail(smtp_user, [to_email], msg.as_string())
+                server.sendmail(smtp_user, recipients, msg.as_string())
 
         return True, f"이메일 발송 성공 -> {to_email}"
     except Exception as exc:

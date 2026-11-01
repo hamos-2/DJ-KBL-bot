@@ -7,6 +7,7 @@ Redis, PostgreSQL, and public HTTPS Cloudflare Tunnel endpoints.
 
 import json
 import os
+import platform
 import ssl
 import subprocess
 import sys
@@ -15,17 +16,24 @@ from datetime import datetime, timezone
 import urllib.request
 import urllib.error
 
-SSH_KEY = os.path.expanduser("/Users/dj/Downloads/ssh-key-2026-10-31.key")
-SSH_USER_HOST = "ubuntu@168.110.6.240"
-PUBLIC_BASE_URL = "https://activity-lexmark-insert-styles.trycloudflare.com"
+SSH_KEY = os.getenv("OCI_SSH_KEY_PATH", os.path.expanduser("/Users/dj/Downloads/ssh-key-2026-10-31.key"))
+SSH_USER_HOST = os.getenv("OCI_SSH_USER_HOST", "ubuntu@168.110.6.240")
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://activity-lexmark-insert-styles.trycloudflare.com")
 
 # SSL context that works even in environments with corporate proxies/Zscaler
 SSL_CTX = ssl._create_unverified_context()
 
 
+def is_running_on_oci_host() -> bool:
+    """Return True if executing directly on the OCI Ubuntu Linux VM host."""
+    return platform.system() == "Linux" and (
+        os.path.exists("/etc/oracle-cloud-agent") or os.path.exists("/home/ubuntu")
+    )
+
+
 def run_ssh(cmd: str) -> tuple[int, str]:
     """Execute a shell command locally on host or remotely via SSH."""
-    if not os.path.exists(SSH_KEY):
+    if is_running_on_oci_host():
         # Running directly on the OCI VPS host
         try:
             res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)

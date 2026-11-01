@@ -173,7 +173,7 @@ class DaumSportsDataProvider(SportsDataProvider):
 
     def __init__(
         self,
-        timeout_seconds: float = 6.0,
+        timeout_seconds: float = 2.5,
         verify_ssl: bool = False,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:

@@ -7,13 +7,14 @@ to ensure the KBL Bot infrastructure operates strictly within Oracle Cloud Alway
 
 import json
 import os
+import platform
 import subprocess
 import sys
 from datetime import datetime, timezone
 from typing import Any
 
-SSH_KEY = os.path.expanduser("/Users/dj/Downloads/ssh-key-2026-10-31.key")
-SSH_USER_HOST = "ubuntu@168.110.6.240"
+SSH_KEY = os.getenv("OCI_SSH_KEY_PATH", os.path.expanduser("/Users/dj/Downloads/ssh-key-2026-10-31.key"))
+SSH_USER_HOST = os.getenv("OCI_SSH_USER_HOST", "ubuntu@168.110.6.240")
 
 # OCI Always Free Limits
 OCI_FREE_LIMITS = {
@@ -27,9 +28,16 @@ OCI_FREE_LIMITS = {
 }
 
 
+def is_running_on_oci_host() -> bool:
+    """Return True if executing directly on the OCI Ubuntu Linux VM host."""
+    return platform.system() == "Linux" and (
+        os.path.exists("/etc/oracle-cloud-agent") or os.path.exists("/home/ubuntu")
+    )
+
+
 def run_remote_ssh(cmd: str) -> tuple[int, str]:
     """Execute command locally on OCI VPS or remotely via SSH."""
-    if not os.path.exists(SSH_KEY):
+    if is_running_on_oci_host():
         # Running directly on the OCI VPS host
         try:
             res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)

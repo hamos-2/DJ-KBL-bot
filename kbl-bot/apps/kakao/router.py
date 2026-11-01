@@ -687,9 +687,11 @@ async def today_games(
         assert resp is not None
         return _json_200(resp)
     except KBLBotError as exc:
+        await db.rollback()
         logger.warning("Domain error in today-games", error=str(exc))
         return _json_200(build_error_response(exc.user_message))
     except Exception as exc:
+        await db.rollback()
         logger.error("Unexpected error in today-games", exc_info=exc)
         return _json_200(build_error_response())
 
@@ -731,9 +733,11 @@ async def match_search(
             )
         )
     except KBLBotError as exc:
+        await db.rollback()
         logger.warning("Domain error in match-search", error=str(exc))
         return _json_200(build_error_response(exc.user_message))
     except Exception as exc:
+        await db.rollback()
         logger.error("Unexpected error in match-search", exc_info=exc)
         return _json_200(build_error_response())
 
@@ -774,12 +778,15 @@ async def live_score(
         snapshot = await game_service.get_live_snapshot(target_id)
         return _json_200(build_live_score_response(snapshot))
     except GameNotFoundError as exc:
+        await db.rollback()
         logger.warning("Live snapshot not found", game_id=raw_id)
         return _json_200(build_error_response(exc.user_message))
     except KBLBotError as exc:
+        await db.rollback()
         logger.warning("Domain error in live-score", error=str(exc))
         return _json_200(build_error_response(exc.user_message))
     except Exception as exc:
+        await db.rollback()
         logger.error("Unexpected error in live-score", exc_info=exc)
         return _json_200(build_error_response())
 

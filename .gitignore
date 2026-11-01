@@ -26,3 +26,10 @@ env/
 
 # Temporary bundles
 kbl_bot_code_bundle.txt
+
+# SRE Watchdog Runtime files
+kbl-bot/deploy/alerts/
+deploy/alerts/
+*alert_state.json
+*watchdog.log
+
