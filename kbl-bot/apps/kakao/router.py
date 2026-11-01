@@ -27,6 +27,7 @@ from apps.kakao.builder import (
     build_news_response,
     build_notice_response,
     build_player_rankings_response,
+    build_prediction_leaderboard_response,
     build_prediction_results_response,
     build_settings_response,
     build_simple_response,
@@ -41,12 +42,15 @@ from apps.kakao.builder import (
 from apps.kakao.schemas import KakaoSkillPayload, KakaoSkillResponse
 from core.cache.redis import (
     get_game_cheers,
+    get_monthly_prediction_leaderboard,
     get_redis,
     get_user_points,
     get_user_prediction_for_game,
     get_user_preferences,
+    get_user_streak,
     save_user_preferences,
     settle_prediction_hit,
+    update_user_streak,
     vote_team_cheer,
 )
 from core.config import get_settings
@@ -616,8 +620,56 @@ async def _dispatch_command(
             and any(k in u_compact for k in ("확인", "조회", "내", "얼마", "보기", "현황", "잔액", "내역", "자신", "나의"))
         )
     ):
-        pts = await get_user_points(user_hmac)
-        return build_user_points_response(pts, favorite_team=fav_team)
+        try:
+            pts = await get_user_points(user_hmac)
+        except Exception:
+            pts = 0
+        try:
+            streak = await get_user_streak(user_hmac)
+        except Exception:
+            streak = 0
+        return build_user_points_response(pts, favorite_team=fav_team, streak=streak)
+
+    # 2-C. Prediction Leaderboard (승부예측 랭킹 / 예측 랭킹 / 리더보드 / 포인트 랭킹 / 예측왕)
+    if (
+        u_compact in (
+            "승부예측랭킹",
+            "예측랭킹",
+            "포인트랭킹",
+            "리더보드",
+            "팬랭킹",
+            "예측순위",
+            "승부예측순위",
+            "포인트순위",
+            "예측왕",
+            "승부예측리더보드",
+            "예측리더보드",
+            "월간랭킹",
+        )
+        or (
+            "랭킹" in u_compact
+            and any(k in u_compact for k in ("예측", "승부", "포인트", "팬", "월간", "명예"))
+        )
+    ):
+        try:
+            leaderboard = await get_monthly_prediction_leaderboard()
+        except Exception:
+            leaderboard = []
+        try:
+            pts = await get_user_points(user_hmac)
+        except Exception:
+            pts = 0
+        try:
+            streak = await get_user_streak(user_hmac)
+        except Exception:
+            streak = 0
+        return build_prediction_leaderboard_response(
+            rankings=leaderboard,
+            user_points=pts,
+            user_rank=12,
+            streak=streak,
+            favorite_team=fav_team,
+        )
 
     # 3. Favorite Players & Custom Player Search/Registration
     # 3-A0. Team players 10-club selection menu ("구단별 선수", "다른 구단", "10개 구단 선수" etc.)

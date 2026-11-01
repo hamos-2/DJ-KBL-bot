@@ -601,6 +601,8 @@ def build_game_summary_response(
 
     winner_stars = [p for p in KBL_PLAYERS if p.get("team") == winner]
     mvp = winner_stars[0] if winner_stars else {"name": f"{winner} 수훈선수", "pts": 24.0, "reb": 9.0, "ast": 5.0}
+    gid = target.get("game_id", "")
+    vod_url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/video/kbl"
 
     clutch_msg = (
         "4쿼터 막판 원포제션 접전 상황에서 결정적인 슛과 집중력 있는 수비로 짜릿한 역전승을 거두었습니다."
@@ -631,7 +633,7 @@ def build_game_summary_response(
         ],
         summary={"title": "한줄평", "description": clutch_msg[:30]},
         buttons=[
-            _msg_btn("🎬 주요장면 영상", f"{winner} 주요장면"),
+            _link_btn("▶️ 공식 하이라이트 영상", vod_url),
             _msg_btn("🏆 정규리그 순위표", "팀순위"),
             _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
         ],
@@ -1816,6 +1818,7 @@ def get_point_tier(points: int) -> tuple[str, str, int]:
 def build_user_points_response(
     user_points: int,
     favorite_team: str | None = None,
+    streak: int = 0,
 ) -> KakaoSkillResponse:
     """
     Build rich basicCard response for '포인트' / '내 포인트' / '포인트 확인'.
@@ -1828,16 +1831,17 @@ def build_user_points_response(
         else "최고 등급 달성! 🎉"
     )
     fav_team_str = f" [{favorite_team} 팬]" if favorite_team else ""
+    streak_str = f"\n• 연승 보너스 : 🔥 {streak}연승 질주 중! (3연승 +30P / 5연승 +100P)" if streak > 0 else ""
 
     desc = (
         f"🏀 나의 승부예측 포인트 현황{fav_team_str}\n\n"
         f"• 보유 포인트 : {user_points:,} P\n"
         f"• 농구팬 등급 : {tier_name}\n"
-        f"• 승급 현황 : {next_msg}\n\n"
+        f"• 승급 현황 : {next_msg}{streak_str}\n\n"
         f"⚡ 포인트 적립 방법:\n"
         f"• 매일 경기 승부예측 투표 시: +10P\n"
-        f"• 승리팀 적중 시 보너스: +30P\n"
-        f"• 오늘의 경기 출석 체크: +10P\n\n"
+        f"• 승리팀 적중 시 보너스: +50P\n"
+        f"• 3/5/10연승 추가 보너스: +30P / +100P / +300P\n\n"
         f"※ 모은 포인트는 팬 랭킹 배틀 및 기프티콘 이벤트 응모에 활용됩니다."
     )
 
@@ -1847,19 +1851,19 @@ def build_user_points_response(
         description=desc[:380],
         thumbnail_url=logo_url,
         buttons=[
+            _msg_btn("🏆 승부예측 랭킹", "승부예측 랭킹"),
             _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
             _msg_btn("📊 내 예측 결과", "예측결과"),
-            _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
         ],
     )
 
     point_quick_replies = [
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+        QuickReply(label="🏆 승부예측 랭킹", messageText="승부예측 랭킹"),
         QuickReply(label="📊 예측결과", messageText="예측결과"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="🏅 선수순위", messageText="선수순위"),
-        QuickReply(label="📋 선발 라인업", messageText="라인업"),
         QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
     ]
 
@@ -1867,6 +1871,63 @@ def build_user_points_response(
         template=KakaoTemplate(
             outputs=[{"basicCard": card}],
             quickReplies=point_quick_replies,
+        )
+    )
+
+
+def build_prediction_leaderboard_response(
+    rankings: list[dict[str, Any]],
+    user_points: int,
+    user_rank: int = 12,
+    streak: int = 0,
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build pure listCard response for '승부예측 랭킹' / '리더보드'.
+    Displays monthly top 5 users, streaks, and current user ranking status.
+    """
+    items = []
+    for r in rankings[:5]:
+        rank = r.get("rank", 1)
+        nick = r.get("nickname", "팬")
+        team = r.get("team", "")
+        pts = r.get("points", 0)
+        stk = r.get("streak", 0)
+        stk_str = f" ({stk}연승🔥)" if stk >= 3 else ""
+        items.append({
+            "title": f"{rank}위 {nick} ({team}팬)"[:35],
+            "description": f"{pts:,}P 획득{stk_str}"[:30],
+            "imageUrl": get_team_logo(team) if team else DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://sports.daum.net/record/kbl"},
+        })
+
+    streak_msg = f" | {streak}연승 중🔥" if streak > 0 else ""
+    fav_str = f" [{favorite_team} 팬]" if favorite_team else ""
+    header_title = f"🏆 KBL 승부예측 월간 랭킹{fav_str}"[:35].strip()
+
+    card = _list_card(
+        header_title=header_title,
+        items=items or [{
+            "title": "집계 중",
+            "description": "승부예측 랭킹 집계 중입니다.",
+            "imageUrl": DEFAULT_SPORTS_LOGO,
+        }],
+        buttons=[
+            _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
+            _msg_btn("💰 내 포인트 확인", "내 포인트"),
+        ],
+    )
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[card],
+            quickReplies=[
+                QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+                QuickReply(label="📊 내 예측결과", messageText="예측결과"),
+                QuickReply(label="💰 내 포인트", messageText="내 포인트"),
+                QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+                QuickReply(label="🏆 팀순위", messageText="팀순위"),
+                QuickReply(label="🏠 홈으로", messageText="처음으로"),
+            ],
         )
     )
 
@@ -2251,11 +2312,34 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     else:
         period_str = f"{period}쿼터"
 
+    # Clutch Situation Detection (4Q under 2 mins & diff <= 5 pts, or OT diff <= 5)
+    diff = abs(h_score - a_score)
+    is_clutch = False
+    if status == "LIVE" and p_num >= 4 and diff <= 5:
+        if p_num >= 5:
+            is_clutch = True
+        elif clock:
+            m_clk = re.match(r"^(\d+):(\d+)$", clock.strip())
+            if m_clk:
+                secs = int(m_clk.group(1)) * 60 + int(m_clk.group(2))
+                if secs <= 120:
+                    is_clutch = True
+            elif "분" in clock or "초" in clock:
+                is_clutch = True
+        else:
+            is_clutch = True
+
     stale_note = " ⚠️(지연)" if stale else ""
     if status == "FINAL":
         head_title = "✅ 경기 종료"
         img_title = f"{home} {h_score} : {a_score} {away}"
         img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 최종 스코어{stale_note}"
+    elif status == "LIVE" and is_clutch:
+        head_title = "🔥 클러치"
+        lead = home if h_score > a_score else (away if a_score > h_score else "동점")
+        clutch_state = "동점 승부처!" if diff == 0 else (f"{lead} {diff}점차 (원포제션!)" if diff <= 3 else f"{lead} {diff}점차 (투포제션)")
+        img_title = f"⚡ [초접전] {home} {h_score} : {a_score} {away}"
+        img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | {period_str}{clock_str} 클러치!"
     elif status == "LIVE":
         head_title = "🔴 LIVE 톡중계"
         img_title = f"{home} {h_score} : {a_score} {away}"
@@ -2264,6 +2348,27 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
         head_title = "📅 경기 예정"
         img_title = f"{home} vs {away}"
         img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 경기 시작 전"
+
+    if status == "LIVE" and is_clutch:
+        live_buttons = [
+            _link_btn("📺 다음 톡중계 보기", daum_url),
+            _msg_btn("🔄 10초 점수 새로고침", "실시간 점수"),
+            _msg_btn("🗳️ 클러치 승부예측", "승부예측"),
+        ]
+        summary_block = {
+            "title": "🔥 승부처",
+            "description": clutch_state[:30],
+        }
+    else:
+        live_buttons = [
+            _link_btn("📺 다음 톡중계 보기", daum_url),
+            _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
+            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+        ]
+        summary_block = {
+            "title": "최종점수" if status == "FINAL" else "현재점수",
+            "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
+        }
 
     if status == "LIVE":
         contextual_qrs = [
@@ -2301,15 +2406,8 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
             "imageUrl": get_team_logo(home),
         },
         item_list=item_list,
-        summary={
-            "title": "최종점수" if status == "FINAL" else "현재점수",
-            "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
-        },
-        buttons=[
-            _link_btn("📺 다음 톡중계 보기", daum_url),
-            _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
-            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
-        ],
+        summary=summary_block,
+        buttons=live_buttons,
     )
     return KakaoSkillResponse(
         template=KakaoTemplate(

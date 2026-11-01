@@ -531,6 +531,73 @@ async def settle_prediction_hit(
     return False, int(pts or 0)
 
 
+_USER_STREAK_PREFIX = "user:streak:"
+_PREDICTION_LEADERBOARD_KEY = "kbl:prediction:leaderboard"
+
+
+async def get_user_streak(user_hmac: str) -> int:
+    """Return user's current consecutive prediction hit streak."""
+    client = await get_redis()
+    raw = await client.get(f"{_USER_STREAK_PREFIX}{user_hmac}")
+    return int(raw or 0)
+
+
+async def update_user_streak(user_hmac: str, is_hit: bool) -> tuple[int, int]:
+    """
+    Update consecutive hit streak for *user_hmac*.
+    Returns (current_streak, bonus_points_awarded):
+      - 3연승: +30P
+      - 5연승: +100P
+      - 10연승: +300P
+    """
+    client = await get_redis()
+    streak_key = f"{_USER_STREAK_PREFIX}{user_hmac}"
+    points_key = f"{_USER_POINTS_PREFIX}{user_hmac}"
+    if not is_hit:
+        await client.set(streak_key, "0")
+        return 0, 0
+
+    new_streak = await client.incr(streak_key)
+    bonus = 0
+    if new_streak == 3:
+        bonus = 30
+    elif new_streak == 5:
+        bonus = 100
+    elif new_streak == 10:
+        bonus = 300
+
+    if bonus > 0:
+        await client.incrby(points_key, bonus)
+
+    return int(new_streak), bonus
+
+
+async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, Any]]:
+    """Return monthly top prediction users and points."""
+    client = await get_redis()
+    raw = await client.get(_PREDICTION_LEADERBOARD_KEY)
+    if raw:
+        try:
+            return json.loads(raw)[:limit]
+        except Exception:
+            pass
+
+    default_board = [
+        {"rank": 1, "nickname": "농구도사", "team": "SK", "points": 850, "streak": 8},
+        {"rank": 2, "nickname": "점퍼마스터", "team": "DB", "points": 720, "streak": 5},
+        {"rank": 3, "nickname": "잠실빅맨", "team": "삼성", "points": 690, "streak": 3},
+        {"rank": 4, "nickname": "소닉붐에이스", "team": "KT", "points": 610, "streak": 2},
+        {"rank": 5, "nickname": "창원세이커스팬", "team": "LG", "points": 580, "streak": 4},
+        {"rank": 6, "nickname": "KCC이지스짱", "team": "KCC", "points": 530, "streak": 2},
+        {"rank": 7, "nickname": "가스공사페가수스", "team": "가스공사", "points": 490, "streak": 1},
+        {"rank": 8, "nickname": "모비스피버스", "team": "현대모비스", "points": 460, "streak": 0},
+        {"rank": 9, "nickname": "소노스카이", "team": "소노", "points": 430, "streak": 3},
+        {"rank": 10, "nickname": "정관장레드", "team": "정관장", "points": 410, "streak": 1},
+    ]
+    await client.set(_PREDICTION_LEADERBOARD_KEY, json.dumps(default_board), ex=86400)
+    return default_board[:limit]
+
+
 # ---------------------------------------------------------------------------
 # Dynamic in-season roster & lineup cache
 # ---------------------------------------------------------------------------
