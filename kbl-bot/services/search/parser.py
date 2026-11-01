@@ -65,6 +65,8 @@ _ALIAS_TO_CANONICAL: list[tuple[str, str]] = sorted(
     reverse=True,
 )
 
+ALIAS_TO_CANONICAL: Final[list[tuple[str, str]]] = _ALIAS_TO_CANONICAL
+
 
 @dataclass(frozen=True)
 class MatchupQuery:

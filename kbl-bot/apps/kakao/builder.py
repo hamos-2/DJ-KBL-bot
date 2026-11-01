@@ -955,14 +955,101 @@ def build_news_response(
         items=items,
         buttons=[
             toggle_btn,
-            _link_btn("🌐 다음 농구홈", "https://sports.daum.net/basketball"),
+            _msg_btn("🏀 다른팀 뉴스", "다른팀 뉴스"),
         ],
     )
-    custom_qr = [qr_news] + [qr for qr in MAIN_MENU_QUICK_REPLIES if qr.label != "뉴스"][:9]
+    custom_qr = [
+        qr_news,
+        QuickReply(label="🏀 다른팀 뉴스", messageText="다른팀 뉴스"),
+        QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
+    ]
+    all_teams_order = ["SK", "KT", "DB", "LG", "소노", "KCC", "현대모비스", "정관장", "한국가스공사", "삼성"]
+    other_teams = [t for t in all_teams_order if t != favorite_team]
+    for ot in other_teams:
+        if len(custom_qr) >= 10:
+            break
+        alias_label = "모비스" if ot == "현대모비스" else ("가스공사" if ot == "한국가스공사" else ot)
+        custom_qr.append(QuickReply(label=f"📰 {alias_label} 뉴스", messageText=f"{alias_label} 뉴스"))
+
+    while len(custom_qr) < 10:
+        for qr in MAIN_MENU_QUICK_REPLIES:
+            if qr.label not in [q.label for q in custom_qr]:
+                custom_qr.append(qr)
+                if len(custom_qr) >= 10:
+                    break
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[card],
             quickReplies=custom_qr,
+        )
+    )
+
+
+def build_team_news_menu_response(
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build a 4-card carousel menu allowing 1-tap browsing of news for all 10 KBL clubs + KBL overall news.
+    """
+    cards = [
+        _basic_card(
+            title="📰 수도권 구단 뉴스",
+            description="서울 SK, 수원 KT, 서울 삼성의 최신 구단 소식 및 선수단 인터뷰를 확인하세요.",
+            thumbnail_url=TEAM_LOGOS.get("SK", DEFAULT_SPORTS_LOGO),
+            buttons=[
+                _msg_btn("📰 서울 SK 뉴스", "SK 뉴스"),
+                _msg_btn("📰 수원 KT 뉴스", "KT 뉴스"),
+                _msg_btn("📰 서울 삼성 뉴스", "삼성 뉴스"),
+            ],
+        ),
+        _basic_card(
+            title="📰 경기·강원 구단 뉴스",
+            description="원주 DB, 안양 정관장, 고양 소노의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
+            thumbnail_url=TEAM_LOGOS.get("DB", DEFAULT_SPORTS_LOGO),
+            buttons=[
+                _msg_btn("📰 원주 DB 뉴스", "DB 뉴스"),
+                _msg_btn("📰 안양 정관장 뉴스", "정관장 뉴스"),
+                _msg_btn("📰 고양 소노 뉴스", "소노 뉴스"),
+            ],
+        ),
+        _basic_card(
+            title="📰 영남권 구단 뉴스",
+            description="창원 LG, 부산 KCC, 울산 현대모비스의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
+            thumbnail_url=TEAM_LOGOS.get("LG", DEFAULT_SPORTS_LOGO),
+            buttons=[
+                _msg_btn("📰 창원 LG 뉴스", "LG 뉴스"),
+                _msg_btn("📰 부산 KCC 뉴스", "KCC 뉴스"),
+                _msg_btn("📰 현대모비스 뉴스", "모비스 뉴스"),
+            ],
+        ),
+        _basic_card(
+            title="📰 대구 구단 & KBL 전체 뉴스",
+            description="대구 한국가스공사 페가수스 및 KBL 프로농구 리그 전체 주요 헤드라인을 확인하세요.",
+            thumbnail_url=TEAM_LOGOS.get("한국가스공사", DEFAULT_SPORTS_LOGO),
+            buttons=[
+                _msg_btn("📰 한국가스공사 뉴스", "가스공사 뉴스"),
+                _msg_btn("🏀 KBL 전체 뉴스", "전체 뉴스"),
+                _msg_btn("🏠 처음으로", "처음으로"),
+            ],
+        ),
+    ]
+    menu_qrs = [
+        QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
+        QuickReply(label="📰 SK 뉴스", messageText="SK 뉴스"),
+        QuickReply(label="📰 KT 뉴스", messageText="KT 뉴스"),
+        QuickReply(label="📰 DB 뉴스", messageText="DB 뉴스"),
+        QuickReply(label="📰 LG 뉴스", messageText="LG 뉴스"),
+        QuickReply(label="📰 소노 뉴스", messageText="소노 뉴스"),
+        QuickReply(label="📰 KCC 뉴스", messageText="KCC 뉴스"),
+        QuickReply(label="📰 모비스 뉴스", messageText="모비스 뉴스"),
+        QuickReply(label="📰 가스공사 뉴스", messageText="가스공사 뉴스"),
+        QuickReply(label="📰 정관장 뉴스", messageText="정관장 뉴스"),
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"carousel": {"type": "basicCard", "items": cards}}],
+            quickReplies=menu_qrs,
         )
     )
 

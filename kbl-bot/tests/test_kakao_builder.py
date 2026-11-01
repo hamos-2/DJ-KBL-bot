@@ -425,5 +425,44 @@ class TestProBasketballBotFeatures:
         assert len(card["items"]) >= 3
         assert len(resp.template.quickReplies) == 10
 
+    def test_team_news_menu_and_other_teams_navigation(self) -> None:
+        """Verify '다른팀 뉴스' carousel menu and quick replies for all 10 teams."""
+        from apps.kakao.builder import build_news_response, build_team_news_menu_response
+
+        # 1. build_team_news_menu_response
+        menu_resp = build_team_news_menu_response()
+        assert menu_resp.version == "2.0"
+        carousel = menu_resp.template.outputs[0]["carousel"]
+        assert carousel["type"] == "basicCard"
+        assert len(carousel["items"]) == 4  # 수도권, 경기강원, 영남, 대구/전체
+        assert len(menu_resp.template.quickReplies) == 10
+
+        # Verify buttons across all cards cover teams
+        all_btn_labels = [
+            btn["label"]
+            for card in carousel["items"]
+            for btn in card["buttons"]
+        ]
+        assert any("SK" in label for label in all_btn_labels)
+        assert any("KT" in label for label in all_btn_labels)
+        assert any("DB" in label for label in all_btn_labels)
+        assert any("LG" in label for label in all_btn_labels)
+        assert any("모비스" in label for label in all_btn_labels)
+        assert any("한국가스공사" in label for label in all_btn_labels)
+        assert any("KBL 전체" in label for label in all_btn_labels)
+
+        # 2. build_news_response has "다른팀 뉴스" action button & quick replies
+        news_resp = build_news_response(
+            [{"title": "뉴스 기사", "url": "https://sports.daum.net"}],
+            favorite_team="KT",
+        )
+        news_card = news_resp.template.outputs[0]["listCard"]
+        assert any("다른팀 뉴스" in btn["label"] for btn in news_card["buttons"])
+        qr_labels = [qr.label for qr in news_resp.template.quickReplies]
+        assert any("다른팀 뉴스" in l for l in qr_labels)
+        assert any("전체 뉴스" in l for l in qr_labels)
+        assert len(news_resp.template.quickReplies) == 10
+
+
 
 

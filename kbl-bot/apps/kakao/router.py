@@ -28,6 +28,7 @@ from apps.kakao.builder import (
     build_player_rankings_response,
     build_settings_response,
     build_single_player_response,
+    build_team_news_menu_response,
     build_team_players_response,
     build_team_standings_response,
     build_today_games_response,
@@ -50,7 +51,12 @@ from core.logging import get_logger
 from services.content.kbl_data import KBL_PLAYERS, search_kbl_players
 from services.game.service import GameService
 from services.ingestion.worker import IngestionWorker
-from services.search.parser import KBL_TEAMS, normalize_team_name, parse_matchup_query
+from services.search.parser import (
+    ALIAS_TO_CANONICAL,
+    KBL_TEAMS,
+    normalize_team_name,
+    parse_matchup_query,
+)
 from services.user.service import UserService
 
 logger = get_logger("router.kakao")
@@ -498,19 +504,40 @@ async def _dispatch_command(
         rankings = await game_service.get_player_rankings(category=cat)
         return build_player_rankings_response(rankings, category=cat)
 
-    # 6. News (뉴스 / 팀별 맞춤 뉴스 / 뉴스 더보기)
+    # 6. News (뉴스 / 팀별 맞춤 뉴스 / 뉴스 더보기 / 다른팀 뉴스)
     if (
         "뉴스" in u_compact
         or "소식" in u_compact
         or "기사" in u_compact
         or u_compact in ("더보기", "뉴스더보기", "다음뉴스")
+        or any(k in u_compact for k in ("다른팀", "구단별", "팀별", "타구단"))
     ):
-        requested_team = None
-        for t in KBL_TEAMS:
-            if t in u_compact:
-                requested_team = t
-                break
-        target_team = requested_team or fav_team
+        # 6-1. 다른팀 뉴스 선택 메뉴
+        if any(
+            k in u_compact
+            for k in ("다른팀뉴스", "다른팀", "구단별뉴스", "팀별뉴스", "타구단뉴스", "다른구단뉴스", "팀뉴스", "구단뉴스")
+        ) or ("다른팀" in u_compact and "뉴스" in u_compact):
+            return build_team_news_menu_response(favorite_team=fav_team)
+
+        # 6-2. 리그 전체 뉴스
+        is_general_news = any(
+            k in u_compact
+            for k in ("전체뉴스", "kbl뉴스", "리그뉴스", "전체소식", "kbl소식", "리그소식", "프로농구뉴스")
+        ) or u_compact in ("전체", "kbl")
+
+        # 6-3. 특정 구단 매칭
+        requested_team: str | None = None
+        if not is_general_news:
+            norm_candidate = normalize_team_name(u_compact)
+            if norm_candidate in KBL_TEAMS:
+                requested_team = norm_candidate
+            else:
+                for alias_norm, canonical in ALIAS_TO_CANONICAL:
+                    if alias_norm in u_compact.upper():
+                        requested_team = canonical
+                        break
+
+        target_team = None if is_general_news else (requested_team or fav_team)
         is_page_2 = any(k in u_compact for k in ("더보기", "다음", "2페이지", "more")) and not any(k in u_compact for k in ("처음", "이전", "1페이지"))
         page = 2 if is_page_2 else 1
         news_items = await game_service.get_latest_news(db, team=target_team)
@@ -525,10 +552,14 @@ async def _dispatch_command(
         or "클립" in u_compact
     ):
         requested_team = None
-        for t in KBL_TEAMS:
-            if t in u_compact:
-                requested_team = t
-                break
+        norm_candidate = normalize_team_name(u_compact)
+        if norm_candidate in KBL_TEAMS:
+            requested_team = norm_candidate
+        else:
+            for alias_norm, canonical in ALIAS_TO_CANONICAL:
+                if alias_norm in u_compact.upper():
+                    requested_team = canonical
+                    break
         target_team = requested_team or fav_team
         highlights = await game_service.get_latest_highlights(db, team=target_team)
         return build_highlights_response(highlights, favorite_team=target_team)

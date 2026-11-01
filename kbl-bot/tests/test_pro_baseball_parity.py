@@ -369,4 +369,47 @@ async def test_user_points_feature():
             assert "🥈 주전" in card["description"]
 
 
+@pytest.mark.asyncio
+async def test_multi_team_news_and_other_teams_menu_routing():
+    """Verify router dispatches '다른팀 뉴스' carousel and supports viewing other teams' news."""
+    from apps.kakao.router import _dispatch_command
+    from core.db.models import User
+    from unittest.mock import AsyncMock, patch
+
+    class MockGameSvc:
+        async def get_latest_news(self, db, team=None):
+            t = team or "전체"
+            return [{"title": f"[{t}] 농구 뉴스", "url": "https://sports.daum.net"}]
+
+    game_svc = MockGameSvc()
+    user = User(kakao_user_key_hmac="test_hmac_news", encrypted_kakao_user_key="enc", favorite_team="KT")
+    db = AsyncMock()
+    user_svc = AsyncMock()
+
+    # 1. "다른팀 뉴스" -> returns carousel menu
+    resp_menu = await _dispatch_command("다른팀 뉴스", db, game_svc, user_svc, user)
+    assert resp_menu is not None
+    assert "carousel" in resp_menu.template.outputs[0]
+    assert len(resp_menu.template.outputs[0]["carousel"]["items"]) == 4
+
+    # 2. "모비스 뉴스" -> fetches 현대모비스 news
+    resp_mobis = await _dispatch_command("모비스 뉴스", db, game_svc, user_svc, user)
+    assert resp_mobis is not None
+    card_mobis = resp_mobis.template.outputs[0]["listCard"]
+    assert "현대모비스" in card_mobis["header"]["title"]
+
+    # 3. "전체 뉴스" -> fetches general KBL news
+    resp_all = await _dispatch_command("전체 뉴스", db, game_svc, user_svc, user)
+    assert resp_all is not None
+    card_all = resp_all.template.outputs[0]["listCard"]
+    assert "KBL 프로농구 최신 뉴스" in card_all["header"]["title"]
+
+    # 4. "가스공사 뉴스" -> fetches 한국가스공사 news
+    resp_kogas = await _dispatch_command("가스공사 뉴스", db, game_svc, user_svc, user)
+    assert resp_kogas is not None
+    card_kogas = resp_kogas.template.outputs[0]["listCard"]
+    assert "한국가스공사" in card_kogas["header"]["title"]
+
+
+
 
