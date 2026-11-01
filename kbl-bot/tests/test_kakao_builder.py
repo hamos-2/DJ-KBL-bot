@@ -557,3 +557,25 @@ class TestProBasketballBotFeatures:
         assert TEAM_LINEUPS["정관장"]["head_coach"] == "유도훈"
         assert TEAM_LINEUPS["KCC"]["head_coach"] == "이상민"
 
+        # 4. Verify trades & departures across all clubs
+        # DB: Onuaku departed, Henry Ellenson is starting forward/center
+        db_starters = [s["name"] for s in TEAM_LINEUPS["DB"]["starters"]]
+        assert "치나누 오누아쿠" not in all_player_names
+        assert "치나누 오누아쿠" not in db_starters
+        assert "헨리 엘런슨" in db_starters
+
+        # KCC & 정관장 trade: Cady Lalanne is at KCC, Deonte Burton is at 정관장
+        kcc_starters = [s["name"] for s in TEAM_LINEUPS["KCC"]["starters"]]
+        assert "캐디 라렌" in kcc_starters
+        assert "디온테 버튼" not in kcc_starters
+
+        jgj_starters = [s["name"] for s in TEAM_LINEUPS["정관장"]["starters"]]
+        assert "디온테 버튼" in jgj_starters
+        assert "캐디 라렌" not in jgj_starters
+
+        # LG: Heo Il-young departed to 정관장, Tamayo is starter
+        lg_starters = [s["name"] for s in TEAM_LINEUPS["LG"]["starters"]]
+        assert "허일영" not in lg_starters
+        assert "칼 타마요" in lg_starters
+        assert any(p["name"] == "허일영" and p["team"] == "정관장" for p in KBL_PLAYERS)
+

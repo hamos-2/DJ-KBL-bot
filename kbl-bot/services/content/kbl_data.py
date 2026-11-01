@@ -116,21 +116,21 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "레이션 해먼즈", "team": "KT", "pos": "F", "no": "12", "pts": 22.2, "reb": 9.5, "ast": 2.5, "tpm": 1.5, "stl": 1.0, "blk": 0.4},
     {"name": "정창영", "team": "KT", "pos": "G", "no": "4", "pts": 7.8, "reb": 2.5, "ast": 2.8, "tpm": 0.9, "stl": 0.7, "blk": 0.1},
 
-    # 부산 KCC 이지스 (KT에서 허훈 영입, 허웅-허훈 형제 결성)
+    # 부산 KCC 이지스 (허훈 영입, 정관장에서 캐디 라렌 트레이드 영입)
     {"name": "허훈", "team": "KCC", "pos": "G", "no": "2", "pts": 16.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
     {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
     {"name": "최준용", "team": "KCC", "pos": "F", "no": "35", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
     {"name": "송교창", "team": "KCC", "pos": "F", "no": "11", "pts": 14.2, "reb": 5.4, "ast": 2.8, "tpm": 1.2, "stl": 0.9, "blk": 0.5},
     {"name": "이승현", "team": "KCC", "pos": "C", "no": "1", "pts": 11.5, "reb": 6.8, "ast": 2.1, "tpm": 0.4, "stl": 0.7, "blk": 0.6},
-    {"name": "디온테 버튼", "team": "KCC", "pos": "F", "no": "0", "pts": 21.0, "reb": 8.5, "ast": 5.2, "tpm": 1.8, "stl": 1.4, "blk": 1.0},
+    {"name": "캐디 라렌", "team": "KCC", "pos": "C", "no": "25", "pts": 15.8, "reb": 9.5, "ast": 1.6, "tpm": 0.4, "stl": 0.7, "blk": 1.4},
     {"name": "이호현", "team": "KCC", "pos": "G", "no": "6", "pts": 9.8, "reb": 2.1, "ast": 4.2, "tpm": 0.9, "stl": 0.8, "blk": 0.1},
 
-    # 원주 DB 프로미 (삼성에서 베테랑 이정현 영입, 이관희 삼성 복귀)
+    # 원주 DB 프로미 (베테랑 이정현 영입, 헨리 엘런슨 영입)
     {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
     {"name": "이정현", "team": "DB", "pos": "G", "no": "3", "pts": 13.5, "reb": 2.9, "ast": 4.5, "tpm": 1.7, "stl": 0.9, "blk": 0.1},
     {"name": "강상재", "team": "DB", "pos": "F", "no": "13", "pts": 13.1, "reb": 6.3, "ast": 3.4, "tpm": 1.3, "stl": 0.8, "blk": 0.5},
     {"name": "김종규", "team": "DB", "pos": "C", "no": "15", "pts": 11.2, "reb": 6.1, "ast": 1.2, "tpm": 0.4, "stl": 0.5, "blk": 0.9},
-    {"name": "치나누 오누아쿠", "team": "DB", "pos": "C", "no": "32", "pts": 17.5, "reb": 11.2, "ast": 3.8, "tpm": 0.2, "stl": 1.2, "blk": 1.5},
+    {"name": "헨리 엘런슨", "team": "DB", "pos": "F", "no": "10", "pts": 17.5, "reb": 8.2, "ast": 2.1, "tpm": 1.4, "stl": 0.8, "blk": 0.9},
 
     # 서울 삼성 썬더스 (이관희 친정 복귀, KCC 이근휘 영입)
     {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "21", "pts": 23.9, "reb": 11.8, "ast": 1.9, "tpm": 0.0, "stl": 0.6, "blk": 1.1},
@@ -152,7 +152,7 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "23", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
     {"name": "유기상", "team": "LG", "pos": "G", "no": "3", "pts": 13.5, "reb": 3.2, "ast": 1.9, "tpm": 2.9, "stl": 1.3, "blk": 0.3},
     {"name": "양준석", "team": "LG", "pos": "G", "no": "2", "pts": 11.5, "reb": 2.4, "ast": 5.8, "tpm": 1.2, "stl": 0.9, "blk": 0.1},
-    {"name": "허일영", "team": "LG", "pos": "F", "no": "12", "pts": 10.2, "reb": 3.5, "ast": 1.1, "tpm": 1.8, "stl": 0.5, "blk": 0.2},
+    {"name": "정인덕", "team": "LG", "pos": "F", "no": "24", "pts": 8.9, "reb": 3.6, "ast": 1.2, "tpm": 1.5, "stl": 0.6, "blk": 0.3},
     {"name": "전성현", "team": "LG", "pos": "F", "no": "23", "pts": 14.8, "reb": 2.2, "ast": 1.8, "tpm": 3.1, "stl": 0.7, "blk": 0.1},
     {"name": "칼 타마요", "team": "LG", "pos": "F", "no": "1", "pts": 12.4, "reb": 5.1, "ast": 1.5, "tpm": 1.1, "stl": 0.8, "blk": 0.4},
 
@@ -172,12 +172,13 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "정희재", "team": "소노", "pos": "F", "no": "12", "pts": 9.5, "reb": 4.2, "ast": 1.5, "tpm": 1.6, "stl": 0.6, "blk": 0.2},
     {"name": "최승욱", "team": "소노", "pos": "F", "no": "11", "pts": 8.7, "reb": 3.8, "ast": 1.2, "tpm": 1.0, "stl": 1.1, "blk": 0.4},
 
-    # 안양 정관장 레드부스터스
+    # 안양 정관장 레드부스터스 (LG 허일영 영입, 디온테 버튼 트레이드 영입)
     {"name": "박지훈", "team": "정관장", "pos": "G", "no": "6", "pts": 13.8, "reb": 4.1, "ast": 5.1, "tpm": 1.5, "stl": 1.6, "blk": 0.2},
-    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 11.5, "reb": 2.2, "ast": 5.9, "tpm": 1.8, "stl": 0.4, "blk": 0.1},
+    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 14.5, "reb": 2.5, "ast": 6.8, "tpm": 2.1, "stl": 1.2, "blk": 0.1},
+    {"name": "허일영", "team": "정관장", "pos": "F", "no": "12", "pts": 10.2, "reb": 3.5, "ast": 1.1, "tpm": 1.8, "stl": 0.5, "blk": 0.2},
     {"name": "정효근", "team": "정관장", "pos": "F", "no": "33", "pts": 11.7, "reb": 5.5, "ast": 2.3, "tpm": 1.2, "stl": 0.8, "blk": 0.6},
     {"name": "배병준", "team": "정관장", "pos": "F", "no": "1", "pts": 10.4, "reb": 2.8, "ast": 1.5, "tpm": 2.2, "stl": 0.9, "blk": 0.1},
-    {"name": "캐디 라렌", "team": "정관장", "pos": "C", "no": "25", "pts": 16.5, "reb": 9.8, "ast": 1.8, "tpm": 0.5, "stl": 0.8, "blk": 1.4},
+    {"name": "디온테 버튼", "team": "정관장", "pos": "F", "no": "0", "pts": 21.0, "reb": 8.5, "ast": 5.2, "tpm": 1.8, "stl": 1.4, "blk": 1.0},
 ]
 
 
@@ -200,10 +201,10 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "G", "name": "이선 알바노", "no": "3"},
             {"pos": "G", "name": "이정현", "no": "3"},
             {"pos": "F", "name": "강상재", "no": "13"},
-            {"pos": "F", "name": "치나누 오누아쿠", "no": "32"},
+            {"pos": "F", "name": "헨리 엘런슨", "no": "10"},
             {"pos": "C", "name": "김종규", "no": "15"},
         ],
-        "key_bench": ["유현준", "이용우", "박인웅", "서민수", "로버트 카터"],
+        "key_bench": ["로버트 카터", "유현준", "이용우", "박인웅", "서민수"],
     },
     "KT": {
         "head_coach": "송영진",
@@ -222,10 +223,10 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "G", "name": "양준석", "no": "2"},
             {"pos": "G", "name": "유기상", "no": "3"},
             {"pos": "F", "name": "정인덕", "no": "24"},
-            {"pos": "F", "name": "허일영", "no": "12"},
+            {"pos": "F", "name": "칼 타마요", "no": "1"},
             {"pos": "C", "name": "아셈 마레이", "no": "23"},
         ],
-        "key_bench": ["칼 타마요", "전성현", "대릴 먼로", "이승우", "정희현"],
+        "key_bench": ["전성현", "대릴 먼로", "이승우", "정희현", "최형찬"],
     },
     "정관장": {
         "head_coach": "유도훈",
@@ -234,9 +235,9 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "G", "name": "변준형", "no": "5"},
             {"pos": "F", "name": "배병준", "no": "1"},
             {"pos": "F", "name": "정효근", "no": "33"},
-            {"pos": "C", "name": "캐디 라렌", "no": "25"},
+            {"pos": "F", "name": "디온테 버튼", "no": "0"},
         ],
-        "key_bench": ["최성원", "한승희", "마이클 영", "표승빈"],
+        "key_bench": ["허일영", "최성원", "한승희", "마이클 영", "표승빈"],
     },
     "KCC": {
         "head_coach": "이상민",
@@ -245,9 +246,9 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "G", "name": "허웅", "no": "3"},
             {"pos": "F", "name": "최준용", "no": "35"},
             {"pos": "F", "name": "송교창", "no": "11"},
-            {"pos": "C", "name": "이승현", "no": "1"},
+            {"pos": "C", "name": "캐디 라렌", "no": "25"},
         ],
-        "key_bench": ["디온테 버튼", "이호현", "최진광", "켈빈 에피스톨라"],
+        "key_bench": ["이승현", "이호현", "최진광", "켈빈 에피스톨라"],
     },
     "한국가스공사": {
         "head_coach": "강혁",
