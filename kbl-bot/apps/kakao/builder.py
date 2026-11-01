@@ -371,34 +371,50 @@ def build_lineup_response(
             except Exception:
                 pass
 
-        status_badge = "✅ [공식 확정 라인업]" if is_confirmed else "📋 [예상 스타팅 Best 5]"
-        status_guide = "※ 경기 20분 전 KBL 본부석 제출 확정 선발" if is_confirmed else "※ KBL 규정에 따라 경기 시작 20분 전 공식 확정"
-
-        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {status_badge}")
-        if h_starters:
-            h_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in h_starters)
-            h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
-            lines.append(f"• {home}{h_coach_str}:\n  {h_str}")
-        if a_starters:
-            a_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in a_starters)
-            a_coach_str = f" ({a_coach} 감독)" if a_coach else ""
-            lines.append(f"• {away}{a_coach_str}:\n  {a_str}")
-        lines.append("")
-
         h_names_str = "·".join(s["name"] for s in h_starters) or "출전 명단 확인 중"
         a_names_str = "·".join(s["name"] for s in a_starters) or "출전 명단 확인 중"
         h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
         a_coach_str = f" ({a_coach} 감독)" if a_coach else ""
 
+        if is_confirmed:
+            status_badge = "✅ [공식 확정 선발 라인업]"
+            title_tag = "[확정]"
+            card_desc = (
+                f"{status_badge}\n"
+                f"• {home}{h_coach_str}:\n  {h_names_str}\n"
+                f"• {away}{a_coach_str}:\n  {a_names_str}\n"
+                f"※ 경기 20분 전 KBL 본부석 제출 확정 선발"
+            )
+            line_status = "✅ [공식 확정 선발 라인업]"
+            h_prefix = f"• {home}{h_coach_str}"
+            a_prefix = f"• {away}{a_coach_str}"
+        else:
+            status_badge = "⏳ [공식 라인업 준비 중]"
+            title_tag = "[준비중]"
+            card_desc = (
+                f"⏳ [공식 라인업 발표 준비 중]\n"
+                f"• 경기 시작 20~30분 전 공식 발표됩니다.\n\n"
+                f"[참고: 구단별 예상 주전 Best 5]\n"
+                f"• {home}{h_coach_str}: {h_names_str}\n"
+                f"• {away}{a_coach_str}: {a_names_str}"
+            )
+            line_status = "⏳ [공식 발표 준비 중 (경기 20분 전 공개)]"
+            h_prefix = f"• [예상] {home}{h_coach_str}"
+            a_prefix = f"• [예상] {away}{a_coach_str}"
+
+        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {line_status}")
+        if h_starters:
+            h_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in h_starters)
+            lines.append(f"{h_prefix}:\n  {h_str}")
+        if a_starters:
+            a_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in a_starters)
+            lines.append(f"{a_prefix}:\n  {a_str}")
+        lines.append("")
+
         cards.append(
             _basic_card(
-                title=f"📋 {home} vs {away} 선발 라인업",
-                description=(
-                    f"{status_badge}\n"
-                    f"• {home}{h_coach_str}:\n  {h_names_str}\n"
-                    f"• {away}{a_coach_str}:\n  {a_names_str}\n"
-                    f"{status_guide}"
-                ),
+                title=f"📋 {home} vs {away} 선발 라인업 {title_tag}",
+                description=card_desc,
                 thumbnail_url=get_team_logo(home),
                 buttons=[
                     _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
@@ -408,7 +424,7 @@ def build_lineup_response(
             )
         )
 
-    lines.append("📢 KBL 공식 경기규칙: 경기 시작 20분 전까지 각 팀 감독이 스코어시트에 서명하여 공식 스타팅 5인을 경기 본부석에 최종 제출합니다.")
+    lines.append("📢 KBL 공식 경기규칙: 경기 시작 20분 전까지 각 팀 감독이 스코어시트에 서명하여 공식 스타팅 5인을 경기 본부석에 최종 제출합니다. 경기 시작 20~30분 전부터 공식 확정 라인업이 실시간 반영됩니다.")
 
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards}},
