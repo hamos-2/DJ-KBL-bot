@@ -373,6 +373,7 @@ class GameService:
     async def get_player_rankings(self, category: str = "pts") -> list[dict[str, Any]]:
         """
         Return top KBL player rankings for *category* (``pts``, ``ast``, ``reb``, ``stl``, ``blk``, ``tpm``).
+        Ensures a minimum of 5 ranked players by blending live leaders with the verified league leaderboard.
         """
         cached = await get_player_rankings_cache()
         if not cached:
@@ -388,7 +389,25 @@ class GameService:
                     logger.warning("Failed to fetch player rankings from provider", error=str(exc))
             if not cached:
                 cached = get_default_player_rankings()
-        return cached.get(category, cached.get("pts", []))
+
+        raw_list = cached.get(category, cached.get("pts", []))
+        defaults = get_default_player_rankings().get(category, [])
+
+        if len(raw_list) >= 5:
+            return raw_list[:5]
+
+        # Blend: live leader at #1 + distinct top default players for ranks 2..5
+        combined = [dict(p) for p in raw_list]
+        seen_names = {p["name"] for p in combined if "name" in p}
+        for dp in defaults:
+            if dp["name"] not in seen_names:
+                item = dict(dp)
+                item["rank"] = len(combined) + 1
+                combined.append(item)
+                seen_names.add(dp["name"])
+            if len(combined) >= 5:
+                break
+        return combined
 
     async def get_latest_news(
         self, db: AsyncSession | None = None, team: str | None = None
