@@ -406,6 +406,34 @@ class TestProBasketballBotFeatures:
         card3 = team_resp.template.outputs[0]["listCard"]
         assert "원주 DB" in card3["header"]["title"]
         assert len(card3["buttons"]) >= 1
+        assert any("다른 구단" in b["label"] for b in card3["buttons"])
+        # Second output is 1-tap registration basicCard
+        assert len(team_resp.template.outputs) == 2
+        card4 = team_resp.template.outputs[1]["basicCard"]
+        assert "관심선수" in card4["title"]
+
+    def test_team_players_menu_and_10_clubs_selection(self) -> None:
+        """Verify 10-team player selection menu and quick replies."""
+        from apps.kakao.builder import build_team_players_menu_response, build_favorite_players_response
+
+        # 1. 10-team carousel menu
+        menu_resp = build_team_players_menu_response()
+        assert menu_resp.version == "2.0"
+        cards = menu_resp.template.outputs[0]["carousel"]["items"]
+        assert len(cards) == 4
+        all_buttons = [btn["messageText"] for card in cards for btn in card["buttons"]]
+        for t in ["SK", "KT", "DB", "KCC", "LG", "정관장", "소노", "삼성"]:
+            assert any(t in b for b in all_buttons), f"Team {t} missing from player menu buttons"
+        assert len(menu_resp.template.quickReplies) == 10
+
+        # 2. Favorite players response carousel contains 10-team browsing cards
+        fav_resp = build_favorite_players_response(fav_players=["김선형"], favorite_team="KT")
+        assert fav_resp.version == "2.0"
+        fav_cards = fav_resp.template.outputs[1]["carousel"]["items"]
+        fav_card_titles = [c["title"] for c in fav_cards]
+        assert any("수도권" in t for t in fav_card_titles)
+        assert any("경기·강원" in t for t in fav_card_titles)
+        assert any("영남권" in t for t in fav_card_titles)
 
     def test_deterministic_seed_consistency(self) -> None:
         """_deterministic_seed must return identical values across calls."""

@@ -30,6 +30,7 @@ from apps.kakao.builder import (
     build_settings_response,
     build_single_player_response,
     build_team_news_menu_response,
+    build_team_players_menu_response,
     build_team_players_response,
     build_team_standings_response,
     build_today_games_response,
@@ -503,14 +504,47 @@ async def _dispatch_command(
         return build_user_points_response(pts, favorite_team=fav_team)
 
     # 3. Favorite Players & Custom Player Search/Registration
-    # 3-A. Team player query (e.g. "DB 선수", "SK 선수", "KT 선수")
-    if u_compact.endswith("선수") and len(u_compact) >= 3:
-        potential_team = u_compact[:-2]
-        if potential_team in KBL_TEAMS:
+    # 3-A0. Team players 10-club selection menu ("구단별 선수", "다른 구단", "10개 구단 선수" etc.)
+    if (
+        u_compact in (
+            "구단별선수",
+            "구단별선수보기",
+            "구단별선수찾기",
+            "구단별선수목록",
+            "다른구단",
+            "다른구단선수",
+            "다른구단선수찾기",
+            "다른구단선수보기",
+            "다른구단찾기",
+            "구단선수",
+            "10개구단선수",
+            "10개구단선수단",
+            "10개구단",
+            "팀별선수",
+            "팀별선수보기",
+            "팀별선수목록",
+            "구단선택",
+            "선수구단",
+        )
+        or ("구단별" in u_compact and "선수" in u_compact)
+        or ("다른구단" in u_compact and ("선수" in u_compact or "찾기" in u_compact))
+    ):
+        return build_team_players_menu_response(favorite_team=fav_team)
+
+    # 3-A. Team player query (e.g. "DB 선수", "SK 선수", "KT 선수", "가스공사 선수단")
+    raw_target = None
+    if u_compact.endswith("선수단") and len(u_compact) >= 4:
+        raw_target = u_compact[:-3]
+    elif u_compact.endswith("선수") and len(u_compact) >= 3:
+        raw_target = u_compact[:-2]
+
+    if raw_target:
+        norm_t = normalize_team_name(raw_target)
+        if norm_t and norm_t in KBL_TEAMS:
             prefs = await get_user_preferences(user_hmac)
             fav_players: list[str] = prefs.get("favorite_players", [])
-            team_players = [p for p in KBL_PLAYERS if p["team"] == potential_team]
-            return build_team_players_response(potential_team, team_players, fav_players)
+            team_players = [p for p in KBL_PLAYERS if p["team"] == norm_t]
+            return build_team_players_response(norm_t, team_players, fav_players)
 
     # 3-B. Favorite players menu / direct player action / single player lookup
     is_fav_menu = (

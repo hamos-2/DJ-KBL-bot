@@ -40,6 +40,7 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
 
 FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
+    QuickReply(label="🏀 10개 구단 선수", messageText="구단별 선수"),
     QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
     QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
     QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
@@ -48,7 +49,6 @@ FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
     QuickReply(label="🏅 선수순위", messageText="선수순위"),
     QuickReply(label="🗑️ 관심선수 초기화", messageText="관심선수 초기화"),
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
 ]
 
 _DEFAULT_QUICK_REPLIES: list[QuickReply] = MAIN_MENU_QUICK_REPLIES
@@ -1364,7 +1364,7 @@ def build_team_players_response(
 ) -> KakaoSkillResponse:
     """
     Build response listing players of a specific team.
-    Returns pure listCard with verified team logo and action buttons.
+    Returns listCard overview + basicCard 1-tap registration buttons.
     """
     full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
     items = []
@@ -1383,18 +1383,108 @@ def build_team_players_response(
             "imageUrl": get_team_logo(team),
         })
 
-    card = _list_card(
+    list_card = _list_card(
         header_title=f"🏀 [{full}] 주요 선수 목록",
         items=items,
         buttons=[
-            _msg_btn("⭐ 관심선수 관리", "관심선수"),
-            _msg_btn(f"📰 {team} 뉴스", f"{team} 뉴스"),
+            _msg_btn("🏀 다른 구단 선수 찾기", "구단별 선수"),
+            _msg_btn("⭐ 내 관심선수 목록", "관심선수"),
         ],
     )
+
+    def _p_toggle_btn(name: str) -> dict[str, str]:
+        if name in fav_players:
+            return _msg_btn(f"➖ {name} 해제", f"#관심선수 삭제 {name}")
+        return _msg_btn(f"➕ {name} 등록", f"#관심선수 {name}")
+
+    reg_card = _basic_card(
+        title=f"⭐ [{team}] 관심선수 원클릭 등록",
+        description=f"버튼을 터치하면 {full} 선수가 내 관심선수로 즉시 등록/해제됩니다.",
+        thumbnail_url=get_team_logo(team),
+        buttons=[_p_toggle_btn(p["name"]) for p in players[:3]],
+    )
+
+    team_quick_replies = [
+        QuickReply(label="🏀 다른 구단 찾기", messageText="구단별 선수"),
+        QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
+        QuickReply(label=f"📰 {team} 뉴스", messageText=f"{team} 뉴스"),
+        QuickReply(label=f"📅 {team} 일정", messageText=f"{team} 일정"),
+        QuickReply(label="🏅 선수순위", messageText="선수순위"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
+    ]
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[card],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            outputs=[list_card, {"basicCard": reg_card}],
+            quickReplies=team_quick_replies,
+        )
+    )
+
+
+def build_team_players_menu_response(
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build a 4-card carousel menu allowing 1-tap browsing of players for all 10 KBL clubs.
+    """
+    cards = [
+        _basic_card(
+            title="🏀 수도권 구단 선수단",
+            description="서울 SK, 수원 KT, 서울 삼성의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+            thumbnail_url=get_team_logo("SK"),
+            buttons=[
+                _msg_btn("🏀 서울 SK 선수", "SK 선수"),
+                _msg_btn("🏀 수원 KT 선수", "KT 선수"),
+                _msg_btn("🏀 서울 삼성 선수", "삼성 선수"),
+            ],
+        ),
+        _basic_card(
+            title="🏀 경기·강원 구단 선수단",
+            description="원주 DB, 안양 정관장, 고양 소노의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+            thumbnail_url=get_team_logo("DB"),
+            buttons=[
+                _msg_btn("🏀 원주 DB 선수", "DB 선수"),
+                _msg_btn("🏀 안양 정관장 선수", "정관장 선수"),
+                _msg_btn("🏀 고양 소노 선수", "소노 선수"),
+            ],
+        ),
+        _basic_card(
+            title="🏀 영남권 구단 선수단",
+            description="창원 LG, 부산 KCC, 울산 현대모비스의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+            thumbnail_url=get_team_logo("LG"),
+            buttons=[
+                _msg_btn("🏀 창원 LG 선수", "LG 선수"),
+                _msg_btn("🏀 부산 KCC 선수", "KCC 선수"),
+                _msg_btn("🏀 현대모비스 선수", "현대모비스 선수"),
+            ],
+        ),
+        _basic_card(
+            title="🏀 대구 구단 & 관심선수 관리",
+            description="대구 한국가스공사 페가수스 선수단 및 KBL 전체 득점·어시스트 순위를 확인하세요.",
+            thumbnail_url=get_team_logo("한국가스공사"),
+            buttons=[
+                _msg_btn("🏀 한국가스공사 선수", "한국가스공사 선수"),
+                _msg_btn("⭐ 내 관심선수 목록", "관심선수"),
+                _msg_btn("🏅 KBL 선수 순위", "선수순위"),
+            ],
+        ),
+    ]
+    quick_replies = [
+        QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
+        QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
+        QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
+        QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
+        QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
+        QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
+        QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
+        QuickReply(label="🏀 삼성 선수", messageText="삼성 선수"),
+        QuickReply(label="🏀 정관장 선수", messageText="정관장 선수"),
+        QuickReply(label="🏀 가스공사 선수", messageText="한국가스공사 선수"),
+    ]
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[{"carousel": {"type": "basicCard", "items": cards}}],
+            quickReplies=quick_replies,
         )
     )
 
@@ -1442,7 +1532,7 @@ def build_favorite_players_response(
         header_title=header_title,
         items=items,
         buttons=[
-            _msg_btn("🏀 구단별 선수 보기", f"{favorite_team} 선수" if favorite_team else "KT 선수"),
+            _msg_btn("🏀 10개 구단 선수 찾기", "구단별 선수"),
             _msg_btn("🏅 전체 선수 순위", "선수순위"),
         ],
     )
@@ -1467,10 +1557,10 @@ def build_favorite_players_response(
                 )
             )
 
-    star_guards = ["허훈", "이정현", "허웅"]
+    star_guards = ["김선형", "허훈", "이정현"]
     carousel_items.append(
         _basic_card(
-            title="⭐ 인기 가드/포워드 등록",
+            title="⭐ 인기 가드 등록",
             description="버튼을 누르면 즉시 등록/해제됩니다.",
             thumbnail_url=get_team_logo("KT"),
             buttons=[_player_toggle_btn(n) for n in star_guards],
@@ -1489,13 +1579,49 @@ def build_favorite_players_response(
 
     carousel_items.append(
         _basic_card(
-            title="🏀 구단별 선수 간편 찾기",
-            description="원하는 구단을 터치하면 선수 전체 명단과 원클릭 등록 버튼이 열립니다.",
-            thumbnail_url=DEFAULT_SPORTS_LOGO,
+            title="🏀 [구단별 선수] 수도권",
+            description="서울 SK, 수원 KT, 서울 삼성 선수 명단을 확인하고 등록하세요.",
+            thumbnail_url=get_team_logo("SK"),
             buttons=[
-                _msg_btn("🏀 SK 선수단", "SK 선수"),
-                _msg_btn("🏀 KT 선수단", "KT 선수"),
-                _msg_btn("🏀 DB 선수단", "DB 선수"),
+                _msg_btn("🏀 서울 SK 선수", "SK 선수"),
+                _msg_btn("🏀 수원 KT 선수", "KT 선수"),
+                _msg_btn("🏀 서울 삼성 선수", "삼성 선수"),
+            ],
+        )
+    )
+    carousel_items.append(
+        _basic_card(
+            title="🏀 [구단별 선수] 경기·강원",
+            description="원주 DB, 안양 정관장, 고양 소노 선수 명단을 확인하고 등록하세요.",
+            thumbnail_url=get_team_logo("DB"),
+            buttons=[
+                _msg_btn("🏀 원주 DB 선수", "DB 선수"),
+                _msg_btn("🏀 안양 정관장 선수", "정관장 선수"),
+                _msg_btn("🏀 고양 소노 선수", "소노 선수"),
+            ],
+        )
+    )
+    carousel_items.append(
+        _basic_card(
+            title="🏀 [구단별 선수] 영남권",
+            description="창원 LG, 부산 KCC, 울산 현대모비스 선수 명단을 확인하고 등록하세요.",
+            thumbnail_url=get_team_logo("LG"),
+            buttons=[
+                _msg_btn("🏀 창원 LG 선수", "LG 선수"),
+                _msg_btn("🏀 부산 KCC 선수", "KCC 선수"),
+                _msg_btn("🏀 현대모비스 선수", "현대모비스 선수"),
+            ],
+        )
+    )
+    carousel_items.append(
+        _basic_card(
+            title="🏀 [구단별 선수] 대구 & 전체",
+            description="대구 한국가스공사 선수단 및 10개 구단 전체 메뉴를 확인하세요.",
+            thumbnail_url=get_team_logo("한국가스공사"),
+            buttons=[
+                _msg_btn("🏀 한국가스공사 선수", "한국가스공사 선수"),
+                _msg_btn("🏀 10개 구단 전체 메뉴", "구단별 선수"),
+                _msg_btn("🏅 KBL 선수 순위", "선수순위"),
             ],
         )
     )
@@ -1513,7 +1639,11 @@ def build_favorite_players_response(
 
     outputs = [list_card]
     if carousel_items:
-        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:5]}})
+        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:10]}})
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(outputs=outputs, quickReplies=FAVORITE_PLAYERS_QUICK_REPLIES)
+    )
 
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=FAVORITE_PLAYERS_QUICK_REPLIES)
