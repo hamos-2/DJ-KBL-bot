@@ -98,45 +98,81 @@ def get_team_logo(team: str | None) -> str:
             return url
     return DEFAULT_SPORTS_LOGO
 
-# Comprehensive KBL Star Players database across all 10 clubs (updated with 2026-27 active rosters & leaders)
+# Comprehensive KBL Star Players database across all 10 clubs (updated with 2026-27 active official rosters)
 KBL_PLAYERS: list[dict[str, Any]] = [
-    {"name": "케렘 칸터", "team": "삼성", "pos": "C", "no": "11", "pts": 26.8, "reb": 10.7, "ast": 2.7, "tpm": 0.5, "stl": 1.0, "blk": 0.3},
-    {"name": "패리스 배스", "team": "KT", "pos": "F", "no": "25", "pts": 26.3, "reb": 9.7, "ast": 4.2, "tpm": 2.1, "stl": 0.9, "blk": 1.0},
-    {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "21", "pts": 23.9, "reb": 11.8, "ast": 1.9, "tpm": 0.0, "stl": 0.6, "blk": 1.1},
-    {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "0", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.7, "blk": 0.6},
-    {"name": "자니 오브라이언트", "team": "소노", "pos": "F", "no": "9", "pts": 22.5, "reb": 7.9, "ast": 3.4, "tpm": 1.9, "stl": 1.1, "blk": 0.5},
-    {"name": "레이션 해먼즈", "team": "KT", "pos": "F", "no": "12", "pts": 22.2, "reb": 9.5, "ast": 2.5, "tpm": 1.5, "stl": 1.0, "blk": 0.4},
-    {"name": "다리우스 베즐리", "team": "현대모비스", "pos": "F", "no": "23", "pts": 21.6, "reb": 9.9, "ast": 4.3, "tpm": 1.2, "stl": 1.6, "blk": 2.0},
-    {"name": "루이스 킹", "team": "KCC", "pos": "F", "no": "7", "pts": 21.0, "reb": 5.8, "ast": 2.7, "tpm": 1.8, "stl": 1.4, "blk": 0.7},
-    {"name": "존 무니", "team": "정관장", "pos": "C", "no": "34", "pts": 20.6, "reb": 12.9, "ast": 3.6, "tpm": 0.8, "stl": 1.1, "blk": 0.7},
-    {"name": "케베 알루마", "team": "한국가스공사", "pos": "F", "no": "22", "pts": 20.0, "reb": 9.5, "ast": 3.7, "tpm": 1.6, "stl": 0.8, "blk": 1.3},
-    {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 18.8, "reb": 9.6, "ast": 5.6, "tpm": 0.9, "stl": 1.0, "blk": 1.0},
-    {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
-    {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 17.8, "reb": 5.2, "ast": 3.6, "tpm": 2.3, "stl": 3.2, "blk": 0.6},
-    {"name": "허훈", "team": "KT", "pos": "G", "no": "2", "pts": 16.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
-    {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "23", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
-    {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "0", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
-    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 11.5, "reb": 2.2, "ast": 5.9, "tpm": 1.8, "stl": 0.4, "blk": 0.1},
-    {"name": "저스틴 구탕", "team": "삼성", "pos": "F", "no": "1", "pts": 8.1, "reb": 4.6, "ast": 5.9, "tpm": 0.9, "stl": 1.7, "blk": 0.2},
-    {"name": "이정현", "team": "소노", "pos": "G", "no": "1", "pts": 21.4, "reb": 3.5, "ast": 6.4, "tpm": 3.1, "stl": 2.1, "blk": 0.3},
-    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "4", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7, "blk": 0.8},
-    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
-    {"name": "최준용", "team": "KCC", "pos": "F", "no": "35", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
-    {"name": "박지훈", "team": "정관장", "pos": "G", "no": "6", "pts": 13.8, "reb": 4.1, "ast": 5.1, "tpm": 1.5, "stl": 1.6, "blk": 0.2},
-    {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "1", "pts": 15.8, "reb": 5.4, "ast": 4.0, "tpm": 1.9, "stl": 1.2, "blk": 0.4},
+    # 서울 SK 나이츠
     {"name": "김선형", "team": "SK", "pos": "G", "no": "5", "pts": 15.2, "reb": 2.7, "ast": 5.5, "tpm": 1.1, "stl": 1.4, "blk": 0.2},
-    {"name": "김낙현", "team": "한국가스공사", "pos": "G", "no": "10", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1, "blk": 0.1},
-    {"name": "유기상", "team": "LG", "pos": "G", "no": "3", "pts": 13.5, "reb": 3.2, "ast": 1.9, "tpm": 2.9, "stl": 1.3, "blk": 0.3},
-    {"name": "한희원", "team": "KT", "pos": "F", "no": "11", "pts": 11.8, "reb": 4.1, "ast": 1.5, "tpm": 1.9, "stl": 0.9, "blk": 0.4},
+    {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 18.8, "reb": 9.6, "ast": 5.6, "tpm": 0.9, "stl": 1.0, "blk": 1.0},
+    {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 17.8, "reb": 5.2, "ast": 3.6, "tpm": 2.3, "stl": 3.2, "blk": 0.6},
+    {"name": "오재현", "team": "SK", "pos": "G", "no": "22", "pts": 10.5, "reb": 2.8, "ast": 3.2, "tpm": 1.4, "stl": 1.5, "blk": 0.1},
+    {"name": "최부경", "team": "SK", "pos": "F", "no": "14", "pts": 8.2, "reb": 5.5, "ast": 1.8, "tpm": 0.0, "stl": 0.6, "blk": 0.4},
+
+    # 수원 KT 소닉붐
+    {"name": "허훈", "team": "KT", "pos": "G", "no": "2", "pts": 16.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
     {"name": "하윤기", "team": "KT", "pos": "C", "no": "0", "pts": 14.5, "reb": 6.9, "ast": 1.8, "tpm": 0.1, "stl": 0.7, "blk": 1.0},
-    {"name": "이관희", "team": "DB", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2, "blk": 0.3},
+    {"name": "한희원", "team": "KT", "pos": "F", "no": "11", "pts": 11.8, "reb": 4.1, "ast": 1.5, "tpm": 1.9, "stl": 0.9, "blk": 0.4},
+    {"name": "문성곤", "team": "KT", "pos": "F", "no": "10", "pts": 8.5, "reb": 5.2, "ast": 2.0, "tpm": 1.4, "stl": 2.1, "blk": 0.5},
+    {"name": "문정현", "team": "KT", "pos": "F", "no": "21", "pts": 9.2, "reb": 4.8, "ast": 2.2, "tpm": 1.0, "stl": 0.8, "blk": 0.3},
+    {"name": "레이션 해먼즈", "team": "KT", "pos": "F", "no": "12", "pts": 22.2, "reb": 9.5, "ast": 2.5, "tpm": 1.5, "stl": 1.0, "blk": 0.4},
+
+    # 원주 DB 프로미
+    {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
     {"name": "강상재", "team": "DB", "pos": "F", "no": "13", "pts": 13.1, "reb": 6.3, "ast": 3.4, "tpm": 1.3, "stl": 0.8, "blk": 0.5},
     {"name": "김종규", "team": "DB", "pos": "C", "no": "15", "pts": 11.2, "reb": 6.1, "ast": 1.2, "tpm": 0.4, "stl": 0.5, "blk": 0.9},
+    {"name": "이관희", "team": "DB", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2, "blk": 0.3},
+    {"name": "치나누 오누아쿠", "team": "DB", "pos": "C", "no": "32", "pts": 17.5, "reb": 11.2, "ast": 3.8, "tpm": 0.2, "stl": 1.2, "blk": 1.5},
+
+    # 창원 LG 세이커스
+    {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "23", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
+    {"name": "유기상", "team": "LG", "pos": "G", "no": "3", "pts": 13.5, "reb": 3.2, "ast": 1.9, "tpm": 2.9, "stl": 1.3, "blk": 0.3},
+    {"name": "양준석", "team": "LG", "pos": "G", "no": "2", "pts": 11.5, "reb": 2.4, "ast": 5.8, "tpm": 1.2, "stl": 0.9, "blk": 0.1},
+    {"name": "허일영", "team": "LG", "pos": "F", "no": "12", "pts": 10.2, "reb": 3.5, "ast": 1.1, "tpm": 1.8, "stl": 0.5, "blk": 0.2},
+    {"name": "전성현", "team": "LG", "pos": "F", "no": "23", "pts": 14.8, "reb": 2.2, "ast": 1.8, "tpm": 3.1, "stl": 0.7, "blk": 0.1},
+    {"name": "칼 타마요", "team": "LG", "pos": "F", "no": "1", "pts": 12.4, "reb": 5.1, "ast": 1.5, "tpm": 1.1, "stl": 0.8, "blk": 0.4},
+
+    # 부산 KCC 이지스
+    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
+    {"name": "최준용", "team": "KCC", "pos": "F", "no": "35", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
+    {"name": "송교창", "team": "KCC", "pos": "F", "no": "11", "pts": 14.2, "reb": 5.4, "ast": 2.8, "tpm": 1.2, "stl": 0.9, "blk": 0.5},
+    {"name": "이승현", "team": "KCC", "pos": "C", "no": "1", "pts": 11.5, "reb": 6.8, "ast": 2.1, "tpm": 0.4, "stl": 0.7, "blk": 0.6},
+    {"name": "디온테 버튼", "team": "KCC", "pos": "F", "no": "0", "pts": 21.0, "reb": 8.5, "ast": 5.2, "tpm": 1.8, "stl": 1.4, "blk": 1.0},
+    {"name": "이호현", "team": "KCC", "pos": "G", "no": "6", "pts": 9.8, "reb": 2.1, "ast": 4.2, "tpm": 0.9, "stl": 0.8, "blk": 0.1},
+
+    # 대구 한국가스공사 페가수스
+    {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "0", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
+    {"name": "김낙현", "team": "한국가스공사", "pos": "G", "no": "10", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1, "blk": 0.1},
+    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "4", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7, "blk": 0.8},
     {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 10.9, "reb": 2.7, "ast": 4.8, "tpm": 1.2, "stl": 1.9, "blk": 0.1},
+    {"name": "신승민", "team": "한국가스공사", "pos": "F", "no": "8", "pts": 10.2, "reb": 4.5, "ast": 1.6, "tpm": 1.1, "stl": 0.9, "blk": 0.4},
+
+    # 울산 현대모비스 피버스
+    {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "0", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.7, "blk": 0.6},
+    {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "1", "pts": 15.8, "reb": 5.4, "ast": 4.0, "tpm": 1.9, "stl": 1.2, "blk": 0.4},
     {"name": "서명진", "team": "현대모비스", "pos": "G", "no": "3", "pts": 12.0, "reb": 3.2, "ast": 4.6, "tpm": 1.8, "stl": 1.1, "blk": 0.1},
     {"name": "박무빈", "team": "현대모비스", "pos": "G", "no": "28", "pts": 12.5, "reb": 3.6, "ast": 4.8, "tpm": 1.5, "stl": 1.0, "blk": 0.1},
+    {"name": "함지훈", "team": "현대모비스", "pos": "F", "no": "54", "pts": 8.5, "reb": 4.2, "ast": 3.5, "tpm": 0.3, "stl": 0.6, "blk": 0.3},
+    {"name": "숀 롱", "team": "현대모비스", "pos": "C", "no": "21", "pts": 18.2, "reb": 9.8, "ast": 1.5, "tpm": 0.0, "stl": 0.8, "blk": 0.6},
+
+    # 고양 소노 스카이거너스
+    {"name": "이정현", "team": "소노", "pos": "G", "no": "1", "pts": 21.4, "reb": 3.5, "ast": 6.4, "tpm": 3.1, "stl": 2.1, "blk": 0.3},
     {"name": "이재도", "team": "소노", "pos": "G", "no": "4", "pts": 12.9, "reb": 3.1, "ast": 4.9, "tpm": 1.5, "stl": 1.3, "blk": 0.1},
+    {"name": "앨런 윌리엄스", "team": "소노", "pos": "C", "no": "15", "pts": 17.8, "reb": 11.5, "ast": 2.4, "tpm": 0.0, "stl": 0.9, "blk": 1.2},
+    {"name": "정희재", "team": "소노", "pos": "F", "no": "12", "pts": 9.5, "reb": 4.2, "ast": 1.5, "tpm": 1.6, "stl": 0.6, "blk": 0.2},
+    {"name": "최승욱", "team": "소노", "pos": "F", "no": "11", "pts": 8.7, "reb": 3.8, "ast": 1.2, "tpm": 1.0, "stl": 1.1, "blk": 0.4},
+
+    # 안양 정관장 레드부스터스
+    {"name": "박지훈", "team": "정관장", "pos": "G", "no": "6", "pts": 13.8, "reb": 4.1, "ast": 5.1, "tpm": 1.5, "stl": 1.6, "blk": 0.2},
+    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 11.5, "reb": 2.2, "ast": 5.9, "tpm": 1.8, "stl": 0.4, "blk": 0.1},
     {"name": "정효근", "team": "정관장", "pos": "F", "no": "33", "pts": 11.7, "reb": 5.5, "ast": 2.3, "tpm": 1.2, "stl": 0.8, "blk": 0.6},
+    {"name": "배병준", "team": "정관장", "pos": "F", "no": "1", "pts": 10.4, "reb": 2.8, "ast": 1.5, "tpm": 2.2, "stl": 0.9, "blk": 0.1},
+    {"name": "캐디 라렌", "team": "정관장", "pos": "C", "no": "25", "pts": 16.5, "reb": 9.8, "ast": 1.8, "tpm": 0.5, "stl": 0.8, "blk": 1.4},
+
+    # 서울 삼성 썬더스
+    {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "21", "pts": 23.9, "reb": 11.8, "ast": 1.9, "tpm": 0.0, "stl": 0.6, "blk": 1.1},
+    {"name": "이정현", "team": "삼성", "pos": "G", "no": "3", "pts": 14.5, "reb": 3.2, "ast": 5.2, "tpm": 1.9, "stl": 1.1, "blk": 0.1},
+    {"name": "저스틴 구탕", "team": "삼성", "pos": "F", "no": "1", "pts": 8.1, "reb": 4.6, "ast": 5.9, "tpm": 0.9, "stl": 1.7, "blk": 0.2},
+    {"name": "이원석", "team": "삼성", "pos": "C", "no": "13", "pts": 10.2, "reb": 6.1, "ast": 1.2, "tpm": 0.2, "stl": 0.5, "blk": 1.0},
+    {"name": "최성모", "team": "삼성", "pos": "G", "no": "6", "pts": 8.5, "reb": 2.8, "ast": 3.4, "tpm": 1.1, "stl": 1.0, "blk": 0.1},
 ]
 
 
