@@ -547,6 +547,34 @@ async def test_emoji_prefixed_menu_utterances_route_correctly() -> None:
             assert expected_keyword in out, f"Keyword '{expected_keyword}' not found in response for '{emoji_utt}'"
 
 
+@pytest.mark.asyncio
+async def test_prediction_leaderboard_dispatch_and_builder():
+    """Verify '승부예측 랭킹' dispatches to prediction leaderboard response."""
+    from apps.kakao.router import _dispatch_command
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    db = AsyncMock()
+    game_svc = MagicMock()
+    user_svc = MagicMock()
+    user = MagicMock()
+    user.kakao_user_key_hmac = "test_hmac"
+    user.favorite_team = "KT"
+
+    with patch("apps.kakao.router.get_user_preferences", return_value={"favorite_team": "KT"}), \
+         patch("apps.kakao.router.get_monthly_prediction_leaderboard", return_value=[
+             {"rank": 1, "nickname": "농구도사", "team": "SK", "points": 850, "streak": 8},
+             {"rank": 2, "nickname": "점퍼마스터", "team": "DB", "points": 720, "streak": 5},
+         ]), \
+         patch("apps.kakao.router.get_user_points", return_value=150), \
+         patch("apps.kakao.router.get_user_streak", return_value=3):
+        resp = await _dispatch_command("승부예측 랭킹", db, game_svc, user_svc, user)
+        assert resp is not None
+        out = str(resp.model_dump())
+        assert "승부예측 랭킹" in out or "농구도사" in out
+        assert "listCard" in out
+
+
+
 
 
 

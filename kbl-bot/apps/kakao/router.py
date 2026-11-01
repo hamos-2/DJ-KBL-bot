@@ -419,11 +419,14 @@ async def _dispatch_command(
 
     # 4. Cheering & Match Prediction (승부예측 / 응원하기 / #승부예측 / #응원)
     if (
-        u.startswith("#승부예측")
-        or (u.startswith("승부예측") and len(u_compact) > 4)
-        or u.startswith("#응원")
-        or (u.startswith("응원") and not u.startswith("응원팀") and len(u_compact) > 2)
-        or u_compact in ("승부예측", "예측", "투표", "응원하기", "응원")
+        (
+            u.startswith("#승부예측")
+            or (u.startswith("승부예측") and len(u_compact) > 4)
+            or u.startswith("#응원")
+            or (u.startswith("응원") and not u.startswith("응원팀") and len(u_compact) > 2)
+            or u_compact in ("승부예측", "예측", "투표", "응원하기", "응원")
+        )
+        and not any(k in u_compact for k in ("랭킹", "순위", "리더보드", "결과", "전적", "내역", "이력", "포인트"))
     ):
         today_games = await game_service.get_today_games(db)
         if not today_games:
