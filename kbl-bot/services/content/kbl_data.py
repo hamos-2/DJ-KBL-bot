@@ -719,25 +719,22 @@ def build_highlights_from_games(
             if team and team in (h, a):
                 opp = a if h == team else h
                 tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
-                title = f"[{tag}] {team} vs {opp} 명장면 & 주요 클립 ({h} {hs}:{as_} {a})"
-                q_str = urllib.parse.quote(f"2026 KBL {team} {opp} 하이라이트")
+                title = f"[{tag}] {team} vs {opp} 명장면 영상 ({h} {hs}:{as_} {a})"
+                q_str = urllib.parse.quote(f"KBL {team} {opp} 하이라이트")
             else:
-                tag = "주요장면/하이라이트" if status == "FINAL" else "실시간 중계/주요장면"
-                title = f"[{tag}] {h} {hs} : {as_} {a}"
-                q_str = urllib.parse.quote(f"2026 KBL {h} {a} 하이라이트")
+                tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
+                title = f"[{tag}] {h} {hs} : {as_} {a} 하이라이트"
+                q_str = urllib.parse.quote(f"KBL {h} {a} 하이라이트")
 
-            if game_id and str(game_id).isdigit():
-                video_url = f"https://sports.daum.net/match/{game_id}"
-                source_label = "Daum 스포츠 공식 경기센터"
-            else:
-                video_url = f"https://www.youtube.com/results?search_query={q_str}"
-                source_label = "YouTube KBL TV / SPOTV 공식 영상"
+            video_url = f"https://www.youtube.com/results?search_query={q_str}"
+            source_label = "📺 SPOTV / KBL TV 공식 하이라이트"
 
             items.append(
                 {
                     "title": title,
                     "url": video_url,
-                    "arena": arena or source_label,
+                    "arena": source_label,
+                    "imageUrl": get_team_logo(h if h in KBL_TEAMS else a),
                 }
             )
 
@@ -748,17 +745,19 @@ def build_highlights_from_games(
             {
                 "title": f"🎬 {full} 최신 공식 하이라이트 영상",
                 "url": f"https://www.youtube.com/results?search_query={q_team}",
-                "arena": "KBL TV / 구단 공식 채널",
-            }
-        )
-        items.append(
-            {
-                "title": f"📺 Daum 스포츠 {team} 경기 영상 & 인터뷰",
-                "url": "https://sports.daum.net/video/kbl",
-                "arena": "Daum 스포츠 KBL 영상관",
+                "arena": "📺 SPOTV / 구단 공식 영상관",
+                "imageUrl": get_team_logo(team),
             }
         )
     else:
+        items.append(
+            {
+                "title": "🎬 KBL TV 공식 유튜브 채널 (최신 영상)",
+                "url": "https://www.youtube.com/@kbl_official/videos",
+                "arena": "📺 KBL 공식 유튜브 채널",
+                "imageUrl": DEFAULT_SPORTS_LOGO,
+            }
+        )
         items.append(
             {
                 "title": "🎬 Daum 스포츠 KBL 공식 영상관 & 명장면 모음",

@@ -1123,11 +1123,11 @@ def build_highlights_response(
     items: list[dict[str, Any]] = []
     for item in highlights[:5]:
         title = item.get("title", "KBL 경기 하이라이트")
-        url = item.get("url") or "https://sports.daum.net/video/kbl"
-        arena = item.get("arena") or "Daum 스포츠 공식 영상"
+        url = item.get("url") or "https://www.youtube.com/@kbl_official/videos"
+        arena = item.get("arena") or "📺 SPOTV / KBL TV 공식 영상"
         items.append({
             "title": title,
-            "description": f"📍 {arena}",
+            "description": f"▶️ {arena}",
             "imageUrl": item.get("imageUrl") or default_img,
             "link": {"web": url},
         })
@@ -1135,17 +1135,17 @@ def build_highlights_response(
     if not items:
         items.append({
             "title": "등록된 주요장면 영상이 없습니다.",
-            "description": "Daum 스포츠 KBL 공식 영상관에서 시청하실 수 있습니다.",
+            "description": "KBL TV 및 Daum 스포츠 공식 영상관에서 시청하실 수 있습니다.",
             "imageUrl": default_img,
-            "link": {"web": "https://sports.daum.net/video/kbl"},
+            "link": {"web": "https://www.youtube.com/@kbl_official/videos"},
         })
 
     card = _list_card(
         header_title=header,
         items=items,
         buttons=[
-            _link_btn("🎬 다음 KBL 영상관", "https://sports.daum.net/video/kbl"),
             _link_btn("📺 KBL TV 공식 유튜브", "https://www.youtube.com/@kbl_official/videos"),
+            _link_btn("🎬 다음 KBL 영상관", "https://sports.daum.net/video/kbl"),
         ],
     )
     return KakaoSkillResponse(
