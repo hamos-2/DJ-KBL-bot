@@ -587,8 +587,12 @@ def build_highlights_from_games(
     team: str | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Build KBL highlight video links from recent live/finished games and official channels.
-    Optionally tailored to user's favorite team.
+    Build high-reliability KBL highlight video links from official channels.
+    Links directly to:
+    - Official Daum match center (https://sports.daum.net/match/{game_id})
+    - Official KBL TV / SPOTV HD highlights on YouTube
+    - Official KBL VOD center (https://www.kbl.or.kr/game/vod)
+    - Official Daum KBL Video Channel (https://sports.daum.net/video/kbl)
     """
     items: list[dict[str, Any]] = []
 
@@ -607,23 +611,30 @@ def build_highlights_from_games(
             hs = g.get("home_score", 0)
             as_ = g.get("away_score", 0)
             arena = g.get("arena") or ""
+            game_id = g.get("game_id")
 
             if team and team in (h, a):
                 opp = a if h == team else h
                 tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
                 title = f"[{tag}] {team} vs {opp} 명장면 & 주요 클립 ({h} {hs}:{as_} {a})"
-                q_str = urllib.parse.quote(f"KBL {team} {opp} 하이라이트")
+                q_str = urllib.parse.quote(f"2026 KBL {team} {opp} 하이라이트")
             else:
                 tag = "주요장면/하이라이트" if status == "FINAL" else "실시간 중계/주요장면"
                 title = f"[{tag}] {h} {hs} : {as_} {a}"
-                q_str = urllib.parse.quote(f"KBL {h} {a} 하이라이트")
+                q_str = urllib.parse.quote(f"2026 KBL {h} {a} 하이라이트")
 
-            video_url = f"https://search.daum.net/search?w=vclip&q={q_str}"
+            if game_id and str(game_id).isdigit():
+                video_url = f"https://sports.daum.net/match/{game_id}"
+                source_label = "Daum 스포츠 공식 경기센터"
+            else:
+                video_url = f"https://www.youtube.com/results?search_query={q_str}"
+                source_label = "YouTube KBL TV / SPOTV 공식 영상"
+
             items.append(
                 {
                     "title": title,
                     "url": video_url,
-                    "arena": arena or "다음 동영상 클립",
+                    "arena": arena or source_label,
                 }
             )
 
@@ -632,33 +643,39 @@ def build_highlights_from_games(
         q_team = urllib.parse.quote(f"KBL {team} 하이라이트")
         items.append(
             {
-                "title": f"🎬 {full} 최신 명장면 & 하이라이트 영상",
-                "url": f"https://search.daum.net/search?w=vclip&q={q_team}",
-                "arena": f"{team} 공식 영상",
+                "title": f"🎬 {full} 최신 공식 하이라이트 영상",
+                "url": f"https://www.youtube.com/results?search_query={q_team}",
+                "arena": "KBL TV / 구단 공식 채널",
             }
         )
         items.append(
             {
-                "title": f"📺 Daum 스포츠 {team} 경기 영상 & 인터뷰 클립",
-                "url": f"https://search.daum.net/search?w=vclip&q={q_team}",
-                "arena": "Daum 스포츠",
+                "title": f"📺 Daum 스포츠 {team} 경기 영상 & 인터뷰",
+                "url": "https://sports.daum.net/video/kbl",
+                "arena": "Daum 스포츠 KBL 영상관",
             }
         )
     else:
-        q_all = urllib.parse.quote("KBL 프로농구 하이라이트")
         items.append(
             {
-                "title": "🎬 Daum 스포츠 KBL 전체 하이라이트 & 명장면 모음",
-                "url": f"https://search.daum.net/search?w=vclip&q={q_all}",
-                "arena": "Daum 스포츠 영상센터",
+                "title": "🎬 Daum 스포츠 KBL 공식 영상관 & 명장면 모음",
+                "url": "https://sports.daum.net/video/kbl",
+                "arena": "Daum 스포츠 KBL 영상관",
+            }
+        )
+        items.append(
+            {
+                "title": "🏀 KBL 공식 VOD 센터 (경기별 다시보기/하이라이트)",
+                "url": "https://www.kbl.or.kr/game/vod",
+                "arena": "KBL 공식 연맹 VOD",
             }
         )
 
     items.append(
         {
-            "title": "📺 KBL TV 공식 유튜브 전체 경기 하이라이트",
-            "url": "https://www.youtube.com/@kbl_official",
-            "arena": "KBL TV 공식 채널",
+            "title": "📺 KBL TV 공식 유튜브 채널 (풀HD 하이라이트)",
+            "url": "https://www.youtube.com/@kbl_official/videos",
+            "arena": "YouTube KBL 공식 채널",
         }
     )
     return items[:6]
