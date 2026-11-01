@@ -388,13 +388,13 @@ class TestProBasketballBotFeatures:
         resp1 = build_single_player_response(player, is_favorite=False)
         card1 = resp1.template.outputs[0]["basicCard"]
         assert "허훈" in card1["title"]
-        assert "부산 KCC" in card1["description"]
+        assert "수원 KT" in card1["description"]
         btn1 = card1["buttons"][0]
         assert "등록" in btn1["label"]
 
-        player_ksh = next(p for p in KBL_PLAYERS if p["name"] == "김선형")
-        resp_ksh = build_single_player_response(player_ksh, is_favorite=False)
-        assert "수원 KT" in resp_ksh.template.outputs[0]["basicCard"]["description"]
+        player_hw = next(p for p in KBL_PLAYERS if p["name"] == "허웅")
+        resp_hw = build_single_player_response(player_hw, is_favorite=False)
+        assert "부산 KCC" in resp_hw.template.outputs[0]["basicCard"]["description"]
 
         resp2 = build_single_player_response(player, is_favorite=True)
         card2 = resp2.template.outputs[0]["basicCard"]
@@ -541,7 +541,7 @@ class TestProBasketballBotFeatures:
         mobis_starter_names = [s["name"] for s in mobis_starters]
         assert "함지훈" not in mobis_starter_names, "Retired player 함지훈 must not be in Hyundai Mobis starters!"
         assert "장재석" in mobis_starter_names, "장재석 should be starting big man in Mobis starters!"
-        assert mobis_lineup.get("head_coach") == "양동근", "양동근 should be Hyundai Mobis head coach!"
+        assert mobis_lineup.get("head_coach") == "조동현", "조동현 should be Hyundai Mobis head coach!"
 
         # 2. Verify all 10 teams have exactly 5 starters
         all_10_teams = ["SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"]
@@ -551,31 +551,48 @@ class TestProBasketballBotFeatures:
             assert len(info["starters"]) == 5, f"{team} must have exactly 5 starters"
             assert info.get("head_coach"), f"{team} must have a valid head coach"
 
-        # 3. Verify specific updated head coaches
-        assert TEAM_LINEUPS["소노"]["head_coach"] == "손창환"
-        assert TEAM_LINEUPS["삼성"]["head_coach"] == "김상식"
-        assert TEAM_LINEUPS["정관장"]["head_coach"] == "유도훈"
-        assert TEAM_LINEUPS["KCC"]["head_coach"] == "이상민"
+        # 3. Verify specific verified real-world head coaches
+        assert TEAM_LINEUPS["소노"]["head_coach"] == "김승기"
+        assert TEAM_LINEUPS["삼성"]["head_coach"] == "김효범"
+        assert TEAM_LINEUPS["정관장"]["head_coach"] == "김상식"
+        assert TEAM_LINEUPS["KCC"]["head_coach"] == "전창진"
+        assert TEAM_LINEUPS["DB"]["head_coach"] == "김주성"
+        assert TEAM_LINEUPS["KT"]["head_coach"] == "송영진"
+        assert TEAM_LINEUPS["SK"]["head_coach"] == "전희철"
+        assert TEAM_LINEUPS["LG"]["head_coach"] == "조상현"
+        assert TEAM_LINEUPS["한국가스공사"]["head_coach"] == "강혁"
+        assert TEAM_LINEUPS["현대모비스"]["head_coach"] == "조동현"
 
-        # 4. Verify trades & departures across all clubs
-        # DB: Onuaku departed, Henry Ellenson is starting forward/center
+        # 4. Verify verified real-world rosters across clubs
+        # DB: Albano, Lee Kwan-hee, Kang Sang-jae, Onuaku, Kim Jong-kyu
         db_starters = [s["name"] for s in TEAM_LINEUPS["DB"]["starters"]]
-        assert "치나누 오누아쿠" not in all_player_names
-        assert "치나누 오누아쿠" not in db_starters
-        assert "헨리 엘런슨" in db_starters
+        assert "이선 알바노" in db_starters
+        assert "이관희" in db_starters
+        assert "치나누 오누아쿠" in db_starters
 
-        # KCC & 정관장 trade: Cady Lalanne is at KCC, Deonte Burton is at 정관장
+        # KT: Heo Hoon is starting ace guard
+        kt_starters = [s["name"] for s in TEAM_LINEUPS["KT"]["starters"]]
+        assert "허훈" in kt_starters
+        assert "하윤기" in kt_starters
+
+        # KCC: Heo Woong, Choi Jun-yong, Song Kyo-chang, Lee Seung-hyun
         kcc_starters = [s["name"] for s in TEAM_LINEUPS["KCC"]["starters"]]
-        assert "캐디 라렌" in kcc_starters
-        assert "디온테 버튼" not in kcc_starters
+        assert "허웅" in kcc_starters
+        assert "최준용" in kcc_starters
+        assert "송교창" in kcc_starters
 
-        jgj_starters = [s["name"] for s in TEAM_LINEUPS["정관장"]["starters"]]
-        assert "디온테 버튼" in jgj_starters
-        assert "캐디 라렌" not in jgj_starters
+        # 삼성: Veteran ace Lee Jung-hyun, Coburn
+        samsung_starters = [s["name"] for s in TEAM_LINEUPS["삼성"]["starters"]]
+        assert "이정현" in samsung_starters
+        assert "코피 코번" in samsung_starters
 
-        # LG: Heo Il-young departed to 정관장, Tamayo is starter
-        lg_starters = [s["name"] for s in TEAM_LINEUPS["LG"]["starters"]]
-        assert "허일영" not in lg_starters
-        assert "칼 타마요" in lg_starters
-        assert any(p["name"] == "허일영" and p["team"] == "정관장" for p in KBL_PLAYERS)
+        # 한국가스공사: Belangel, Kim Nak-hyeon, Nicholson
+        kogas_starters = [s["name"] for s in TEAM_LINEUPS["한국가스공사"]["starters"]]
+        assert "김낙현" in kogas_starters
+        assert "앤드류 니콜슨" in kogas_starters
+
+        # SK: Kim Sun-hyung must NOT be in SK starters
+        sk_starters = [s["name"] for s in TEAM_LINEUPS["SK"]["starters"]]
+        assert "김선형" not in sk_starters
+        assert "자밀 워니" in sk_starters
 

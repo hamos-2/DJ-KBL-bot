@@ -162,7 +162,7 @@ for t in teams:
     check("10-Clubs", f"{t} 선수", make_val_team(t))
 
 # -------------------------------------------------------------
-# 8. Retired & Transferred Players Checks
+# 8. Retired & Real-World Club Rosters Checks
 # -------------------------------------------------------------
 def val_retired_mobis(data, outs):
     body = json.dumps(data, ensure_ascii=False)
@@ -170,28 +170,29 @@ def val_retired_mobis(data, outs):
     assert "장재석" in body, "장재석 must be in 현대모비스 roster"
 check("Roster-Integrity", "현대모비스 선수", val_retired_mobis)
 
-def val_db_transfers(data, outs):
+def val_db_roster(data, outs):
     body = json.dumps(data, ensure_ascii=False)
-    assert "치나누 오누아쿠" not in body, "Departed 오누아쿠 must not be in DB roster"
-    assert "헨리 엘런슨" in body, "헨리 엘런슨 must be in DB roster"
-check("Roster-Integrity", "DB 선수", val_db_transfers)
+    assert "이관희" in body, "이관희 must be in DB roster"
+    assert "이선 알바노" in body, "이선 알바노 must be in DB roster"
+check("Roster-Integrity", "DB 선수", val_db_roster)
 
-def val_kcc_transfers(data, outs):
+def val_kcc_roster(data, outs):
     body = json.dumps(data, ensure_ascii=False)
-    assert "캐디 라렌" in body, "캐디 라렌 must be in KCC roster"
-    assert "디온테 버튼" not in body, "Traded 버튼 must not be in KCC roster"
-check("Roster-Integrity", "KCC 선수", val_kcc_transfers)
+    assert "허웅" in body, "허웅 must be in KCC roster"
+    assert "최준용" in body, "최준용 must be in KCC roster"
+check("Roster-Integrity", "KCC 선수", val_kcc_roster)
 
-def val_jgj_transfers(data, outs):
+def val_kt_roster(data, outs):
     body = json.dumps(data, ensure_ascii=False)
-    assert "디온테 버튼" in body, "디온테 버튼 must be in 정관장 Best 5 starters"
-    assert "캐디 라렌" not in body, "Traded 라렌 must not be in 정관장 roster"
-check("Roster-Integrity", "정관장 선수", val_jgj_transfers)
+    assert "허훈" in body, "허훈 must be in KT roster"
+    assert "하윤기" in body, "하윤기 must be in KT roster"
+check("Roster-Integrity", "KT 선수", val_kt_roster)
 
-def val_heo_jgj(data, outs):
+def val_sk_roster(data, outs):
     body = json.dumps(data, ensure_ascii=False)
-    assert "정관장" in body, "허일영 must be registered under 안양 정관장"
-check("Roster-Integrity", "허일영", val_heo_jgj)
+    assert "김선형" not in body, "김선형 must NOT be in SK roster per user constraint"
+    assert "자밀 워니" in body, "자밀 워니 must be in SK roster"
+check("Roster-Integrity", "SK 선수", val_sk_roster)
 
 # -------------------------------------------------------------
 # 9. Favorite Player Lifecycle
