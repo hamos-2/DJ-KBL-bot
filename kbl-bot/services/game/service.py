@@ -19,6 +19,7 @@ from core.cache.redis import (
     get_standings_cache,
     save_game_snapshot,
     save_matchup_cache,
+    save_player_rankings_cache,
     save_standings_cache,
 )
 from core.db.models import Game
@@ -268,11 +269,20 @@ class GameService:
 
     async def get_team_standings(self, db: AsyncSession) -> list[dict[str, Any]]:
         """
-        Return 10-team KBL standings from Redis cache, or compute from DB games if cache misses.
+        Return 10-team KBL standings from Redis cache, or query provider/DB if cache misses.
         """
         cached = await get_standings_cache()
         if cached:
             return cached
+
+        # Try live official standings from provider first
+        try:
+            provider_standings = await self._provider.get_standings("2026-27")
+            if provider_standings and len(provider_standings) >= 10:
+                await save_standings_cache(provider_standings)
+                return provider_standings
+        except Exception as exc:
+            logger.warning("Failed to fetch live standings from provider, falling back to DB", error=str(exc))
 
         stmt = select(Game).where(Game.status == "FINAL").order_by(Game.start_time.asc())
         res = await db.execute(stmt)
@@ -283,11 +293,22 @@ class GameService:
 
     async def get_player_rankings(self, category: str = "pts") -> list[dict[str, Any]]:
         """
-        Return top KBL player rankings for *category* (``pts``, ``reb``, ``ast``, ``tpm``, ``stl``).
+        Return top KBL player rankings for *category* (``pts``, ``ast``, ``reb``, ``stl``, ``blk``, ``tpm``).
         """
         cached = await get_player_rankings_cache()
         if not cached:
-            cached = get_default_player_rankings()
+            # Try fetching from provider
+            get_player_ranks_fn = getattr(self._provider, "get_player_rankings", None)
+            if callable(get_player_ranks_fn):
+                try:
+                    cached = await get_player_ranks_fn()
+                    if cached and any(cached.values()):
+                        from core.cache.redis import save_player_rankings_cache
+                        await save_player_rankings_cache(cached)
+                except Exception as exc:
+                    logger.warning("Failed to fetch player rankings from provider", error=str(exc))
+            if not cached:
+                cached = get_default_player_rankings()
         return cached.get(category, cached.get("pts", []))
 
     async def get_latest_news(

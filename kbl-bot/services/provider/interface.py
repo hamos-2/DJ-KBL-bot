@@ -89,3 +89,7 @@ class SportsDataProvider(ABC):
         """Return latest KBL news items."""
         return []
 
+    async def get_player_rankings(self) -> dict[str, list[dict[str, Any]]]:
+        """Return player rankings by category (pts, ast, reb, stl, blk)."""
+        return {}
+

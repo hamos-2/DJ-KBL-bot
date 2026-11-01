@@ -421,21 +421,27 @@ async def _dispatch_command(
         standings = await game_service.get_team_standings(db)
         return build_team_standings_response(standings, favorite_team=fav_team)
 
-    # 5. Player Rankings (선수순위 / 개인순위 / 득점순위 / 리바운드순위 / 어시스트순위)
+    # 5. Player Rankings (선수순위 / 개인순위 / 득점순위 / 리바운드순위 / 어시스트순위 / 도움순위 / 블록순위 / 스틸순위)
     if (
         "선수순위" in u_compact
         or "개인순위" in u_compact
-        or u_compact in ("득점순위", "리바운드순위", "어시스트순위", "3점슛순위", "스틸순위")
+        or u_compact in ("득점순위", "리바운드순위", "어시스트순위", "도움순위", "3점슛순위", "스틸순위", "블록순위", "블록슛순위")
+        or (
+            any(u_compact.endswith(x) for x in ("순위", "랭킹", "leaders"))
+            and any(k in u_compact for k in ("득점", "리바", "어시", "도움", "스틸", "블록", "3점", "pts", "ast", "reb", "stl", "blk", "tpm"))
+        )
     ):
         cat = "pts"
-        if "리바" in u_compact:
+        if "리바" in u_compact or "reb" in u_compact:
             cat = "reb"
-        elif "어시" in u_compact:
+        elif "어시" in u_compact or "도움" in u_compact or "ast" in u_compact:
             cat = "ast"
-        elif "3점" in u_compact:
+        elif "3점" in u_compact or "tpm" in u_compact:
             cat = "tpm"
-        elif "스틸" in u_compact:
+        elif "스틸" in u_compact or "stl" in u_compact:
             cat = "stl"
+        elif "블록" in u_compact or "blk" in u_compact:
+            cat = "blk"
         rankings = await game_service.get_player_rankings(category=cat)
         return build_player_rankings_response(rankings, category=cat)
 

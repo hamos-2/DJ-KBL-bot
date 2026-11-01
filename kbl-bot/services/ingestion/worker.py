@@ -140,10 +140,32 @@ class IngestionWorker:
                     await save_game_snapshot(str(g["game_id"]), g)
                 await db.commit()
 
-            # Compute & cache team standings, player rankings, news, highlights
-            standings = compute_standings_from_games(games)
-            await save_standings_cache(standings)
-            await save_player_rankings_cache(get_default_player_rankings())
+            # Sync & cache real-time team standings and player rankings from provider
+            try:
+                live_standings = await self._provider.get_standings("2026-27")
+                if live_standings and len(live_standings) >= 10:
+                    await save_standings_cache(live_standings)
+                else:
+                    standings = compute_standings_from_games(games)
+                    await save_standings_cache(standings)
+            except Exception as e:
+                logger.warning("Failed to fetch live standings in worker, falling back to game computation", error=str(e))
+                standings = compute_standings_from_games(games)
+                await save_standings_cache(standings)
+
+            get_player_ranks_fn = getattr(self._provider, "get_player_rankings", None)
+            if callable(get_player_ranks_fn):
+                try:
+                    live_ranks = await get_player_ranks_fn()
+                    if live_ranks and any(live_ranks.values()):
+                        await save_player_rankings_cache(live_ranks)
+                    else:
+                        await save_player_rankings_cache(get_default_player_rankings())
+                except Exception as e:
+                    logger.warning("Failed to fetch live player rankings in worker", error=str(e))
+                    await save_player_rankings_cache(get_default_player_rankings())
+            else:
+                await save_player_rankings_cache(get_default_player_rankings())
 
             recent_finished = sorted(
                 [g for g in games if g.get("status") in ("FINAL", "LIVE")],

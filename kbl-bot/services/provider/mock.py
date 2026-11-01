@@ -241,3 +241,8 @@ class MockSportsDataProvider(SportsDataProvider):
         ]
         logger.debug("Mock standings returned", season=season, count=len(standings))
         return standings
+
+    async def get_player_rankings(self) -> dict[str, list[dict[str, Any]]]:
+        """Return mock/default KBL player rankings."""
+        from services.content.kbl_data import get_default_player_rankings
+        return get_default_player_rankings()

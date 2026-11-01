@@ -43,6 +43,124 @@ _DAUM_STATUS_MAP: dict[str, str] = {
 }
 
 
+# Known team mappings for players whose club tag might be missing in Daum search HTML
+KNOWN_PLAYER_TEAMS: dict[str, str] = {
+    "존 무니": "정관장",
+    "존무니": "정관장",
+}
+
+
+def parse_daum_standings_and_rankings(
+    html_content: str,
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    """
+    Parse official KBL 10-team standings and player leaderboards from Daum Search HTML.
+
+    Tables structure on Daum Search (https://search.daum.net/search?w=tot&q=KBL+순위):
+        - Table 0: 10-Team Standings (순위, 경기, 승, 패, 승차, 승률)
+        - Table 1: PTS 득점 순위
+        - Table 2: AST 도움 순위
+        - Table 3: BLK 블록슛 순위
+        - Table 4: REB 리바운드 순위
+        - Table 5: STL 스틸 순위
+    """
+    tables = re.findall(r"<table[^>]*>.*?</table>", html_content, re.DOTALL)
+    standings: list[dict[str, Any]] = []
+    player_rankings: dict[str, list[dict[str, Any]]] = {}
+
+    if tables:
+        # Table 0: Team Standings
+        rows = re.findall(r"<tr[^>]*>.*?</tr>", tables[0], re.DOTALL)[1:]
+        for idx, r in enumerate(rows):
+            cols = [
+                re.sub(r"<[^>]+>", "", c).strip()
+                for c in re.findall(r"<t[dh][^>]*>.*?</t[dh]>", r, re.DOTALL)
+            ]
+            if not cols:
+                continue
+            rank_m = re.search(r"^\s*(\d+)\s+(.+)$", cols[0])
+            rank = int(rank_m.group(1)) if rank_m else idx + 1
+            raw_team = rank_m.group(2) if rank_m else cols[0]
+            team = normalize_team_name(raw_team)
+            games_cnt = int(cols[1]) if len(cols) > 1 and cols[1].isdigit() else 0
+            wins = int(cols[2]) if len(cols) > 2 and cols[2].isdigit() else 0
+            losses = int(cols[3]) if len(cols) > 3 and cols[3].isdigit() else 0
+            gb = cols[4] if len(cols) > 4 else "0.0"
+            wpct = (
+                float(cols[5])
+                if len(cols) > 5 and cols[5].replace(".", "", 1).isdigit()
+                else round(wins / max(1, games_cnt), 3)
+            )
+            standings.append(
+                {
+                    "rank": rank,
+                    "team": team,
+                    "games": games_cnt,
+                    "wins": wins,
+                    "losses": losses,
+                    "gb": gb,
+                    "wpct": wpct,
+                    "streak": "-",
+                    "season": "2026-27",
+                }
+            )
+
+    # Tables 1..5: Player category leaderboards
+    cat_keys = ["pts", "ast", "blk", "reb", "stl"]
+    for cat_idx, cat in enumerate(cat_keys):
+        if len(tables) <= cat_idx + 1:
+            break
+        table = tables[cat_idx + 1]
+        rows = re.findall(r"<tr[^>]*>.*?</tr>", table, re.DOTALL)[1:]
+        cat_list: list[dict[str, Any]] = []
+        for r in rows:
+            tds = re.findall(r"<t[dh][^>]*>.*?</t[dh]>", r, re.DOTALL)
+            if not tds:
+                continue
+            first_td = tds[0]
+            rank_m = re.search(r'class="rank_num[^"]*">(\d+)</strong>', first_td)
+            rank = int(rank_m.group(1)) if rank_m else len(cat_list) + 1
+            name_m = re.search(r'<span class="txt_ellip">([^<]+)</span>', first_td)
+            name = name_m.group(1).strip() if name_m else "?"
+            team_m = re.search(r'<span class="team_name txt_ellip">([^<]+)</span>', first_td)
+            raw_team = team_m.group(1).strip() if team_m else ""
+            if not raw_team and name in KNOWN_PLAYER_TEAMS:
+                raw_team = KNOWN_PLAYER_TEAMS[name]
+            team = normalize_team_name(raw_team) if raw_team else "?"
+
+            def _to_float(td_str: str) -> float:
+                txt = re.sub(r"<[^>]+>", "", td_str).strip()
+                try:
+                    return float(txt)
+                except ValueError:
+                    return 0.0
+
+            pts = _to_float(tds[1]) if len(tds) > 1 else 0.0
+            ast = _to_float(tds[2]) if len(tds) > 2 else 0.0
+            blk = _to_float(tds[3]) if len(tds) > 3 else 0.0
+            reb = _to_float(tds[4]) if len(tds) > 4 else 0.0
+            stl = _to_float(tds[5]) if len(tds) > 5 else 0.0
+
+            val_map = {"pts": pts, "ast": ast, "blk": blk, "reb": reb, "stl": stl}
+            cat_list.append(
+                {
+                    "rank": rank,
+                    "name": name,
+                    "team": team,
+                    "pos": "F" if cat in ("reb", "blk") else ("G" if cat in ("ast", "stl") else "G/F"),
+                    "value": val_map[cat],
+                    "pts": pts,
+                    "ast": ast,
+                    "reb": reb,
+                    "stl": stl,
+                    "blk": blk,
+                }
+            )
+        player_rankings[cat] = cat_list
+
+    return standings, player_rankings
+
+
 class DaumSportsDataProvider(SportsDataProvider):
     """
     Fetches KBL schedule, live scores, and standings from Daum Sports.
@@ -195,52 +313,84 @@ class DaumSportsDataProvider(SportsDataProvider):
         """
         return await self.get_game(game_id)
 
-    async def get_standings(self, season: str) -> list[dict[str, Any]]:
+    async def get_standings(self, season: str = "2026-27") -> list[dict[str, Any]]:
         """
-        Fetch KBL team standings from Daum Sports ``SPORTS_TEAM_RANK``.
-
-        Args:
-            season: Season key such as ``"20262027"`` or ``"2025-26"``.
-
-        Returns:
-            List of canonical standing dicts sorted by rank.
+        Fetch official KBL 10-team standings from Daum Search.
+        Falls back to Daum ARMS ``SPORTS_TEAM_RANK``, then ``compute_standings_from_games``.
         """
+        # Tier 1: Real-time official KBL standings from Daum Search portal
+        client = self._get_client()
+        try:
+            params = {"w": "tot", "q": "KBL 순위"}
+            resp = await client.get(_DAUM_SEARCH_URL, params=params)
+            if resp.status_code == 200:
+                standings, rankings = parse_daum_standings_and_rankings(resp.text)
+                if len(standings) >= 10:
+                    if rankings:
+                        try:
+                            from core.cache.redis import save_player_rankings_cache
+                            await save_player_rankings_cache(rankings)
+                        except Exception:
+                            pass
+                    return standings
+        except Exception as exc:
+            logger.warning("Failed to fetch standings from Daum search, falling back to ARMS", error=str(exc))
+
+        # Tier 2: Daum ARMS JSON API
         season_key = self._normalize_season_key(season)
         url = f"{_DAUM_ARMS_BASE}/SPORTS_TEAM_RANK"
         params = {"leagueCode": "kbl", "seasonKey": season_key}
 
-        client = self._get_client()
         try:
             resp = await client.get(url, params=params)
             resp.raise_for_status()
             payload = resp.json()
+            raw_list = ((payload or {}).get("document") or {}).get("list") or []
+            standings = []
+            for idx, item in enumerate(raw_list):
+                rank_info = item.get("rank") or {}
+                team_name = item.get("shortNameKo") or item.get("nameKo") or "?"
+                standings.append(
+                    {
+                        "rank": int(rank_info.get("rank") or (idx + 1)),
+                        "team": normalize_team_name(team_name),
+                        "wins": int(rank_info.get("win") or 0),
+                        "losses": int(rank_info.get("loss") or 0),
+                        "wpct": float(rank_info.get("wpct") or 0.0),
+                        "gb": str(rank_info.get("gb") or "0.0"),
+                        "streak": str(rank_info.get("streak") or "-"),
+                        "season": season_key,
+                    }
+                )
+            if standings:
+                return standings
         except Exception as exc:
-            raise ProviderError(f"Failed to fetch standings from Daum: {exc}") from exc
+            logger.warning("Failed to fetch standings from Daum ARMS, falling back to games", error=str(exc))
 
-        raw_list = ((payload or {}).get("document") or {}).get("list") or []
-        standings: list[dict[str, Any]] = []
-        for idx, item in enumerate(raw_list):
-            rank_info = item.get("rank") or {}
-            team_name = item.get("shortNameKo") or item.get("nameKo") or "?"
-            standings.append(
-                {
-                    "rank": int(rank_info.get("rank") or (idx + 1)),
-                    "team": normalize_team_name(team_name),
-                    "wins": int(rank_info.get("win") or 0),
-                    "losses": int(rank_info.get("loss") or 0),
-                    "wpct": float(rank_info.get("wpct") or 0.0),
-                    "gb": str(rank_info.get("gb") or "0.0"),
-                    "streak": str(rank_info.get("streak") or "-"),
-                    "season": season_key,
-                }
-            )
-        if not standings:
-            from services.content.kbl_data import compute_standings_from_games
-            today_d = datetime.now(_KST).date()
-            season_start = date(today_d.year if today_d.month >= 9 else today_d.year - 1, 10, 1)
-            games = await self.get_schedule_range(season_start, today_d)
-            standings = compute_standings_from_games(games)
-        return standings
+        # Tier 3: Compute from finished games
+        from services.content.kbl_data import compute_standings_from_games
+        today_d = datetime.now(_KST).date()
+        season_start = date(today_d.year if today_d.month >= 9 else today_d.year - 1, 10, 1)
+        games = await self.get_schedule_range(season_start, today_d)
+        return compute_standings_from_games(games)
+
+    async def get_player_rankings(self) -> dict[str, list[dict[str, Any]]]:
+        """
+        Fetch real-time official KBL player rankings (PTS, AST, BLK, REB, STL) from Daum Search.
+        """
+        client = self._get_client()
+        try:
+            params = {"w": "tot", "q": "KBL 순위"}
+            resp = await client.get(_DAUM_SEARCH_URL, params=params)
+            if resp.status_code == 200:
+                _, rankings = parse_daum_standings_and_rankings(resp.text)
+                if rankings and any(rankings.values()):
+                    return rankings
+        except Exception as exc:
+            logger.warning("Failed to fetch player rankings from Daum search, using defaults", error=str(exc))
+
+        from services.content.kbl_data import get_default_player_rankings
+        return get_default_player_rankings()
 
     async def get_news(
         self,

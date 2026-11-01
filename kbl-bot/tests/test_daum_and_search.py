@@ -169,6 +169,153 @@ class TestDaumSportsProviderMocked:
         assert results[0]["game_id"] == "80109251"
         assert {results[0]["home_team"], results[0]["away_team"]} == {"KT", "LG"}
 
+    @pytest.mark.asyncio
+    async def test_daum_search_standings_and_player_rankings_parsing(self) -> None:
+        """Daum Search portal HTML must be parsed into 10-team standings and 5 player leaderboards."""
+        from services.provider.daum import parse_daum_standings_and_rankings
+
+        fake_standings_html = """
+        <table>
+            <tr><th>순위</th><th>경기</th><th>승</th><th>패</th><th>승차</th><th>승률</th></tr>
+            <tr><td>1   서울 삼성</td><td>9</td><td>9</td><td>0</td><td>0.0</td><td>1.0</td></tr>
+            <tr><td>2   서울 SK</td><td>5</td><td>4</td><td>1</td><td>3.0</td><td>0.8</td></tr>
+            <tr><td>3   안양 정관장</td><td>10</td><td>6</td><td>4</td><td>3.5</td><td>0.6</td></tr>
+            <tr><td>4   대구 한국가스공사</td><td>10</td><td>5</td><td>5</td><td>4.5</td><td>0.5</td></tr>
+            <tr><td>4   원주 DB</td><td>10</td><td>5</td><td>5</td><td>4.5</td><td>0.5</td></tr>
+            <tr><td>6   창원 LG</td><td>9</td><td>4</td><td>5</td><td>5.0</td><td>0.444</td></tr>
+            <tr><td>7   고양 소노</td><td>10</td><td>4</td><td>6</td><td>5.5</td><td>0.4</td></tr>
+            <tr><td>7   수원 KT</td><td>10</td><td>4</td><td>6</td><td>5.5</td><td>0.4</td></tr>
+            <tr><td>9   울산 현대모비스</td><td>10</td><td>3</td><td>7</td><td>6.5</td><td>0.3</td></tr>
+            <tr><td>10   부산 KCC</td><td>11</td><td>3</td><td>8</td><td>7.0</td><td>0.273</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr>
+                <td><strong class="rank_num">1</strong><span class="txt_ellip">케렘 칸터</span><span class="team_name txt_ellip">서울 삼성</span></td>
+                <td>26.8</td><td>2.7</td><td>0.3</td><td>10.7</td><td>1.0</td>
+            </tr>
+            <tr>
+                <td><strong class="rank_num">2</strong><span class="txt_ellip">패리스 배스</span><span class="team_name txt_ellip">수원 KT</span></td>
+                <td>26.3</td><td>4.2</td><td>1.0</td><td>9.7</td><td>0.9</td>
+            </tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr>
+                <td><strong class="rank_num">1</strong><span class="txt_ellip">허훈</span><span class="team_name txt_ellip">부산 KCC</span></td>
+                <td>15.5</td><td>8.5</td><td>0.0</td><td>2.7</td><td>0.6</td>
+            </tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr>
+                <td><strong class="rank_num">1</strong><span class="txt_ellip">다리우스 베즐리</span><span class="team_name txt_ellip">울산 현대모비스</span></td>
+                <td>21.6</td><td>4.3</td><td>2.0</td><td>9.9</td><td>1.6</td>
+            </tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr>
+                <td><strong class="rank_num">1</strong><span class="txt_ellip">아셈 마레이</span><span class="team_name txt_ellip">창원 LG</span></td>
+                <td>15.1</td><td>6.8</td><td>0.2</td><td>14.2</td><td>0.8</td>
+            </tr>
+            <tr>
+                <td><strong class="rank_num">3</strong><span class="txt_ellip">존 무니</span><span class="team_name txt_ellip"></span></td>
+                <td>20.6</td><td>3.6</td><td>0.7</td><td>12.9</td><td>1.1</td>
+            </tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr>
+                <td><strong class="rank_num">1</strong><span class="txt_ellip">안영준</span><span class="team_name txt_ellip">서울 SK</span></td>
+                <td>17.8</td><td>3.6</td><td>0.6</td><td>5.2</td><td>3.2</td>
+            </tr>
+        </table>
+        """
+
+        standings, player_ranks = parse_daum_standings_and_rankings(fake_standings_html)
+        assert len(standings) == 10
+        assert standings[0]["team"] == "삼성"
+        assert standings[0]["rank"] == 1
+        assert standings[0]["wins"] == 9
+        assert standings[0]["losses"] == 0
+        assert standings[0]["wpct"] == 1.0
+
+        assert len(player_ranks["pts"]) == 2
+        assert player_ranks["pts"][0]["name"] == "케렘 칸터"
+        assert player_ranks["pts"][0]["team"] == "삼성"
+        assert player_ranks["pts"][0]["value"] == 26.8
+
+        assert player_ranks["ast"][0]["name"] == "허훈"
+        assert player_ranks["ast"][0]["team"] == "KCC"
+        assert player_ranks["ast"][0]["value"] == 8.5
+
+        assert player_ranks["blk"][0]["name"] == "다리우스 베즐리"
+        assert player_ranks["blk"][0]["value"] == 2.0
+
+        assert player_ranks["reb"][0]["name"] == "아셈 마레이"
+        assert player_ranks["reb"][0]["value"] == 14.2
+        # Verify John Mooney fallback team mapping
+        assert player_ranks["reb"][1]["name"] == "존 무니"
+        assert player_ranks["reb"][1]["team"] == "정관장"
+
+        assert player_ranks["stl"][0]["name"] == "안영준"
+        assert player_ranks["stl"][0]["value"] == 3.2
+
+    @pytest.mark.asyncio
+    async def test_daum_provider_get_standings_and_rankings(self) -> None:
+        """Provider get_standings and get_player_rankings must fetch via Daum search portal."""
+        fake_search_html = """
+        <table>
+            <tr><th>순위</th><th>경기</th><th>승</th><th>패</th><th>승차</th><th>승률</th></tr>
+            <tr><td>1 서울 삼성</td><td>9</td><td>9</td><td>0</td><td>0.0</td><td>1.0</td></tr>
+            <tr><td>2 서울 SK</td><td>5</td><td>4</td><td>1</td><td>3.0</td><td>0.8</td></tr>
+            <tr><td>3 안양 정관장</td><td>10</td><td>6</td><td>4</td><td>3.5</td><td>0.6</td></tr>
+            <tr><td>4 대구 한국가스공사</td><td>10</td><td>5</td><td>5</td><td>4.5</td><td>0.5</td></tr>
+            <tr><td>4 원주 DB</td><td>10</td><td>5</td><td>5</td><td>4.5</td><td>0.5</td></tr>
+            <tr><td>6 창원 LG</td><td>9</td><td>4</td><td>5</td><td>5.0</td><td>0.444</td></tr>
+            <tr><td>7 고양 소노</td><td>10</td><td>4</td><td>6</td><td>5.5</td><td>0.4</td></tr>
+            <tr><td>7 수원 KT</td><td>10</td><td>4</td><td>6</td><td>5.5</td><td>0.4</td></tr>
+            <tr><td>9 울산 현대모비스</td><td>10</td><td>3</td><td>7</td><td>6.5</td><td>0.3</td></tr>
+            <tr><td>10 부산 KCC</td><td>11</td><td>3</td><td>8</td><td>7.0</td><td>0.273</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr><td><strong class="rank_num">1</strong><span class="txt_ellip">케렘 칸터</span><span class="team_name txt_ellip">삼성</span></td><td>26.8</td><td>2.7</td><td>0.3</td><td>10.7</td><td>1.0</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr><td><strong class="rank_num">1</strong><span class="txt_ellip">허훈</span><span class="team_name txt_ellip">KCC</span></td><td>15.5</td><td>8.5</td><td>0.0</td><td>2.7</td><td>0.6</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr><td><strong class="rank_num">1</strong><span class="txt_ellip">다리우스 베즐리</span><span class="team_name txt_ellip">현대모비스</span></td><td>21.6</td><td>4.3</td><td>2.0</td><td>9.9</td><td>1.6</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr><td><strong class="rank_num">1</strong><span class="txt_ellip">아셈 마레이</span><span class="team_name txt_ellip">LG</span></td><td>15.1</td><td>6.8</td><td>0.2</td><td>14.2</td><td>0.8</td></tr>
+        </table>
+        <table>
+            <tr><th>순위</th><th>득점</th><th>도움</th><th>블록슛</th><th>리바운드</th><th>스틸</th></tr>
+            <tr><td><strong class="rank_num">1</strong><span class="txt_ellip">안영준</span><span class="team_name txt_ellip">SK</span></td><td>17.8</td><td>3.6</td><td>0.6</td><td>5.2</td><td>3.2</td></tr>
+        </table>
+        """
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, text=fake_search_html)
+
+        transport = httpx.MockTransport(handler)
+        provider = DaumSportsDataProvider(transport=transport)
+
+        standings = await provider.get_standings("2026-27")
+        assert len(standings) == 10
+        assert standings[0]["team"] == "삼성"
+        assert standings[0]["rank"] == 1
+
+        rankings = await provider.get_player_rankings()
+        assert "pts" in rankings
+        assert rankings["pts"][0]["name"] == "케렘 칸터"
+        assert rankings["ast"][0]["name"] == "허훈"
+
 
 class TestMatchupBuilderAndKakaoRule3:
     """Tests for matchup response builder and Kakao Always-200 validation guard."""

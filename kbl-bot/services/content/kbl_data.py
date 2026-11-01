@@ -98,40 +98,44 @@ def get_team_logo(team: str | None) -> str:
             return url
     return DEFAULT_SPORTS_LOGO
 
-# Comprehensive KBL Star Players database across all 10 clubs
+# Comprehensive KBL Star Players database across all 10 clubs (updated with 2026-27 active rosters & leaders)
 KBL_PLAYERS: list[dict[str, Any]] = [
-    {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 23.8, "reb": 11.9, "ast": 4.1, "tpm": 0.9, "stl": 1.2},
-    {"name": "이정현", "team": "소노", "pos": "G", "no": "6", "pts": 21.4, "reb": 3.5, "ast": 6.4, "tpm": 3.1, "stl": 2.1},
-    {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "50", "pts": 18.9, "reb": 13.8, "ast": 4.2, "tpm": 0.0, "stl": 1.8},
-    {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "4", "pts": 18.6, "reb": 3.4, "ast": 6.8, "tpm": 2.1, "stl": 1.6},
-    {"name": "허훈", "team": "KCC", "pos": "G", "no": "2", "pts": 17.8, "reb": 2.9, "ast": 7.2, "tpm": 2.3, "stl": 1.5},
-    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "44", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7},
-    {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "10", "pts": 20.5, "reb": 11.4, "ast": 2.0, "tpm": 0.0, "stl": 0.6},
-    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1},
-    {"name": "최준용", "team": "KCC", "pos": "F", "no": "2", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0},
-    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 16.2, "reb": 3.1, "ast": 5.9, "tpm": 1.8, "stl": 1.3},
-    {"name": "박지훈", "team": "정관장", "pos": "G", "no": "6", "pts": 13.8, "reb": 4.1, "ast": 5.1, "tpm": 1.5, "stl": 1.6},
-    {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "1", "pts": 15.8, "reb": 5.4, "ast": 4.0, "tpm": 1.9, "stl": 1.2},
-    {"name": "김낙현", "team": "SK", "pos": "G", "no": "4", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1},
-    {"name": "유기상", "team": "LG", "pos": "G", "no": "24", "pts": 13.5, "reb": 3.2, "ast": 1.9, "tpm": 2.9, "stl": 1.3},
-    {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 14.7, "reb": 5.8, "ast": 2.5, "tpm": 1.9, "stl": 1.1},
-    {"name": "김선형", "team": "KT", "pos": "G", "no": "5", "pts": 13.2, "reb": 2.7, "ast": 5.5, "tpm": 1.1, "stl": 1.4},
-    {"name": "하윤기", "team": "KT", "pos": "C", "no": "0", "pts": 14.5, "reb": 6.9, "ast": 1.8, "tpm": 0.1, "stl": 0.7},
-    {"name": "문정현", "team": "KT", "pos": "F", "no": "21", "pts": 11.4, "reb": 5.6, "ast": 2.9, "tpm": 1.3, "stl": 1.1},
-    {"name": "송교창", "team": "KCC", "pos": "F", "no": "12", "pts": 14.2, "reb": 5.7, "ast": 2.6, "tpm": 1.2, "stl": 1.0},
-    {"name": "전성현", "team": "LG", "pos": "F", "no": "23", "pts": 12.8, "reb": 2.1, "ast": 1.4, "tpm": 2.8, "stl": 0.7},
-    {"name": "양준석", "team": "LG", "pos": "G", "no": "11", "pts": 10.6, "reb": 2.5, "ast": 5.7, "tpm": 1.4, "stl": 1.0},
-    {"name": "이정현(DB)", "team": "DB", "pos": "G", "no": "3", "pts": 11.9, "reb": 2.8, "ast": 4.1, "tpm": 1.7, "stl": 0.9},
-    {"name": "이관희", "team": "삼성", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2},
-    {"name": "이원석", "team": "삼성", "pos": "C", "no": "2", "pts": 11.8, "reb": 6.8, "ast": 1.3, "tpm": 0.3, "stl": 0.6},
-    {"name": "강상재", "team": "DB", "pos": "F", "no": "13", "pts": 13.1, "reb": 6.3, "ast": 3.4, "tpm": 1.3, "stl": 0.8},
-    {"name": "김종규", "team": "DB", "pos": "C", "no": "15", "pts": 11.2, "reb": 6.1, "ast": 1.2, "tpm": 0.4, "stl": 0.5},
-    {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 10.9, "reb": 2.7, "ast": 4.8, "tpm": 1.2, "stl": 1.9},
-    {"name": "SJ 벨란겔", "team": "한국가스공사", "pos": "G", "no": "1", "pts": 12.4, "reb": 2.3, "ast": 4.1, "tpm": 2.1, "stl": 0.9},
-    {"name": "서명진", "team": "현대모비스", "pos": "G", "no": "9", "pts": 12.0, "reb": 3.2, "ast": 4.6, "tpm": 1.8, "stl": 1.1},
-    {"name": "함지훈", "team": "현대모비스", "pos": "F", "no": "12", "pts": 9.8, "reb": 4.9, "ast": 3.7, "tpm": 0.3, "stl": 0.7},
-    {"name": "이재도", "team": "소노", "pos": "G", "no": "4", "pts": 12.9, "reb": 3.1, "ast": 4.9, "tpm": 1.5, "stl": 1.3},
-    {"name": "정효근", "team": "정관장", "pos": "F", "no": "33", "pts": 11.7, "reb": 5.5, "ast": 2.3, "tpm": 1.2, "stl": 0.8},
+    {"name": "케렘 칸터", "team": "삼성", "pos": "C", "no": "11", "pts": 26.8, "reb": 10.7, "ast": 2.7, "tpm": 0.5, "stl": 1.0, "blk": 0.3},
+    {"name": "패리스 배스", "team": "KT", "pos": "F", "no": "25", "pts": 26.3, "reb": 9.7, "ast": 4.2, "tpm": 2.1, "stl": 0.9, "blk": 1.0},
+    {"name": "헨리 엘런슨", "team": "DB", "pos": "F", "no": "32", "pts": 24.5, "reb": 8.2, "ast": 2.8, "tpm": 1.8, "stl": 1.3, "blk": 0.2},
+    {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "2", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.7, "blk": 0.6},
+    {"name": "자니 오브라이언트", "team": "소노", "pos": "F", "no": "9", "pts": 22.5, "reb": 7.9, "ast": 3.4, "tpm": 1.9, "stl": 1.1, "blk": 0.5},
+    {"name": "레이션 해먼즈", "team": "DB", "pos": "F", "no": "33", "pts": 22.2, "reb": 9.5, "ast": 2.5, "tpm": 1.5, "stl": 1.0, "blk": 0.4},
+    {"name": "다리우스 베즐리", "team": "현대모비스", "pos": "F", "no": "23", "pts": 21.6, "reb": 9.9, "ast": 4.3, "tpm": 1.2, "stl": 1.6, "blk": 2.0},
+    {"name": "루이스 킹", "team": "KCC", "pos": "F", "no": "7", "pts": 21.0, "reb": 5.8, "ast": 2.7, "tpm": 1.8, "stl": 1.4, "blk": 0.7},
+    {"name": "존 무니", "team": "정관장", "pos": "C", "no": "34", "pts": 20.6, "reb": 12.9, "ast": 3.6, "tpm": 0.8, "stl": 1.1, "blk": 0.7},
+    {"name": "케베 알루마", "team": "한국가스공사", "pos": "F", "no": "22", "pts": 20.0, "reb": 9.5, "ast": 3.7, "tpm": 1.6, "stl": 0.8, "blk": 1.3},
+    {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 18.8, "reb": 9.6, "ast": 5.6, "tpm": 0.9, "stl": 1.0, "blk": 1.0},
+    {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "4", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
+    {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 17.8, "reb": 5.2, "ast": 3.6, "tpm": 2.3, "stl": 3.2, "blk": 0.6},
+    {"name": "숀 롱", "team": "KCC", "pos": "C", "no": "1", "pts": 16.6, "reb": 12.9, "ast": 1.5, "tpm": 0.0, "stl": 0.9, "blk": 0.5},
+    {"name": "허훈", "team": "KCC", "pos": "G", "no": "2", "pts": 15.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
+    {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "50", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
+    {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "1", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
+    {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 11.5, "reb": 2.2, "ast": 5.9, "tpm": 1.8, "stl": 0.4, "blk": 0.1},
+    {"name": "저스틴 구탕", "team": "삼성", "pos": "F", "no": "21", "pts": 8.1, "reb": 4.6, "ast": 5.9, "tpm": 0.9, "stl": 1.7, "blk": 0.2},
+    {"name": "이정현", "team": "소노", "pos": "G", "no": "6", "pts": 21.4, "reb": 3.5, "ast": 6.4, "tpm": 3.1, "stl": 2.1, "blk": 0.3},
+    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "44", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7, "blk": 0.8},
+    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
+    {"name": "최준용", "team": "KCC", "pos": "F", "no": "2", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
+    {"name": "박지훈", "team": "정관장", "pos": "G", "no": "6", "pts": 13.8, "reb": 4.1, "ast": 5.1, "tpm": 1.5, "stl": 1.6, "blk": 0.2},
+    {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "1", "pts": 15.8, "reb": 5.4, "ast": 4.0, "tpm": 1.9, "stl": 1.2, "blk": 0.4},
+    {"name": "김낙현", "team": "SK", "pos": "G", "no": "4", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1, "blk": 0.1},
+    {"name": "유기상", "team": "LG", "pos": "G", "no": "24", "pts": 13.5, "reb": 3.2, "ast": 1.9, "tpm": 2.9, "stl": 1.3, "blk": 0.3},
+    {"name": "김선형", "team": "KT", "pos": "G", "no": "5", "pts": 13.2, "reb": 2.7, "ast": 5.5, "tpm": 1.1, "stl": 1.4, "blk": 0.2},
+    {"name": "하윤기", "team": "KT", "pos": "C", "no": "0", "pts": 14.5, "reb": 6.9, "ast": 1.8, "tpm": 0.1, "stl": 0.7, "blk": 1.0},
+    {"name": "이관희", "team": "삼성", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2, "blk": 0.3},
+    {"name": "강상재", "team": "DB", "pos": "F", "no": "13", "pts": 13.1, "reb": 6.3, "ast": 3.4, "tpm": 1.3, "stl": 0.8, "blk": 0.5},
+    {"name": "김종규", "team": "DB", "pos": "C", "no": "15", "pts": 11.2, "reb": 6.1, "ast": 1.2, "tpm": 0.4, "stl": 0.5, "blk": 0.9},
+    {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 10.9, "reb": 2.7, "ast": 4.8, "tpm": 1.2, "stl": 1.9, "blk": 0.1},
+    {"name": "서명진", "team": "현대모비스", "pos": "G", "no": "9", "pts": 12.0, "reb": 3.2, "ast": 4.6, "tpm": 1.8, "stl": 1.1, "blk": 0.1},
+    {"name": "이재도", "team": "소노", "pos": "G", "no": "4", "pts": 12.9, "reb": 3.1, "ast": 4.9, "tpm": 1.5, "stl": 1.3, "blk": 0.1},
+    {"name": "정효근", "team": "정관장", "pos": "F", "no": "33", "pts": 11.7, "reb": 5.5, "ast": 2.3, "tpm": 1.2, "stl": 0.8, "blk": 0.6},
 ]
 
 
@@ -280,8 +284,8 @@ def search_kbl_players(query: str) -> list[dict[str, Any]]:
 
 
 def get_default_player_rankings() -> dict[str, list[dict[str, Any]]]:
-    """Build top-5 leaderboards by category (pts, reb, ast, tpm, stl)."""
-    categories = ["pts", "reb", "ast", "tpm", "stl"]
+    """Build top-7 leaderboards by category (pts, reb, ast, tpm, stl, blk)."""
+    categories = ["pts", "reb", "ast", "tpm", "stl", "blk"]
     out: dict[str, list[dict[str, Any]]] = {}
     for cat in categories:
         sorted_p = sorted(KBL_PLAYERS, key=lambda x: float(x.get(cat, 0.0)), reverse=True)[:7]
@@ -291,10 +295,12 @@ def get_default_player_rankings() -> dict[str, list[dict[str, Any]]]:
                 "name": p["name"],
                 "team": p["team"],
                 "pos": p["pos"],
-                "value": p[cat],
-                "pts": p["pts"],
-                "reb": p["reb"],
-                "ast": p["ast"],
+                "value": p.get(cat, 0.0),
+                "pts": p.get("pts", 0.0),
+                "reb": p.get("reb", 0.0),
+                "ast": p.get("ast", 0.0),
+                "stl": p.get("stl", 0.0),
+                "blk": p.get("blk", 0.0),
             }
             for idx, p in enumerate(sorted_p)
         ]

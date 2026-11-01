@@ -241,7 +241,7 @@ class TestProBasketballBotFeatures:
         ranks = get_default_player_rankings()["pts"]
         resp = build_player_rankings_response(ranks, category="pts")
         card = resp.template.outputs[0]["listCard"]
-        assert any("자밀 워니" in it["title"] for it in card["items"])
+        assert any(("케렘 칸터" in it["title"] or "자밀 워니" in it["title"]) for it in card["items"])
         assert "득점" in card["header"]["title"]
 
     def test_cheering_and_settings_builders(self) -> None:

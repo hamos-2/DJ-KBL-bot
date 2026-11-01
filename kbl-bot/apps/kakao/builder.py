@@ -970,9 +970,10 @@ def build_player_rankings_response(
     cat_labels = {
         "pts": ("득점", "점"),
         "reb": ("리바운드", "개"),
-        "ast": ("어시스트", "개"),
+        "ast": ("도움/어시스트", "개"),
         "tpm": ("3점슛", "개"),
         "stl": ("스틸", "개"),
+        "blk": ("블록슛", "개"),
     }
     label, unit = cat_labels.get(category, ("득점", "점"))
 
@@ -996,8 +997,15 @@ def build_player_rankings_response(
             "imageUrl": DEFAULT_SPORTS_LOGO,
         })
 
-    next_cat = "ast" if category == "pts" else "pts"
-    next_label = "어시스트" if category == "pts" else "득점"
+    next_cat_map = {
+        "pts": ("ast", "도움(어시스트)"),
+        "ast": ("reb", "리바운드"),
+        "reb": ("stl", "스틸"),
+        "stl": ("blk", "블록슛"),
+        "blk": ("pts", "득점"),
+        "tpm": ("pts", "득점"),
+    }
+    next_cat, next_label = next_cat_map.get(category, ("ast", "어시스트"))
 
     card = _list_card(
         header_title=f"🏅 KBL 선수 순위 [{label} TOP 5]",
