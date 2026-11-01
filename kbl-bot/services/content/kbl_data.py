@@ -421,7 +421,7 @@ def parse_daum_news_html(
             continue
         seen_urls.add(url)
         items.append({"title": title, "url": url, "source": "Daum 스포츠"})
-        if len(items) >= 5:
+        if len(items) >= 10:
             break
 
     # If team is specified, prioritize articles mentioning the team or its key players
@@ -436,9 +436,9 @@ def parse_daum_news_html(
 
         team_articles = [it for it in items if _is_team_relevant(it)]
         other_articles = [it for it in items if not _is_team_relevant(it)]
-        items = (team_articles + other_articles)[:5]
+        items = (team_articles + other_articles)[:10]
 
-    if recent_games and len(items) < 5:
+    if recent_games and len(items) < 10:
         # Prioritize games involving the favorite team
         candidate_games = recent_games
         if team:
@@ -446,8 +446,8 @@ def parse_daum_news_html(
             o_games = [g for g in recent_games if team not in (g.get("home_team"), g.get("away_team"))]
             candidate_games = t_games + o_games
 
-        for g in candidate_games[:4]:
-            if len(items) >= 5:
+        for g in candidate_games[:8]:
+            if len(items) >= 10:
                 break
             status = g.get("status")
             h = g.get("home_team", "?")
@@ -502,45 +502,83 @@ def parse_daum_news_html(
                         }
                     )
 
-    if len(items) < 5:
+    if len(items) < 10:
         if team:
             full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
             club_url = TEAM_INFO.get(team, {}).get("club_url", "https://sports.daum.net/basketball")
-            items.extend(
-                [
-                    {
-                        "title": f"{full} 구단 소식 및 공식 영상 모아보기",
-                        "url": club_url,
-                        "source": "구단 공식",
-                    },
-                    {
-                        "title": f"[{team}] 선수단 주요 기록 및 정규리그 팀 순위표",
-                        "url": "https://sports.daum.net/basketball",
-                        "source": "Daum 스포츠",
-                    },
-                    {
-                        "title": "KBL 프로농구 전체 최신 뉴스 및 라운드 결산",
-                        "url": "https://sports.daum.net/basketball",
-                        "source": "Daum 스포츠",
-                    },
-                ]
-            )
+            coach = TEAM_LINEUPS.get(team, {}).get("head_coach", "감독")
+            team_players = [p["name"] for p in KBL_PLAYERS if p.get("team") == team]
+            star = team_players[0] if team_players else "주전 라인업"
+            extra_items = [
+                {
+                    "title": f"[{team} 포커스] {coach} 감독의 승리 전략과 선수단 집중 분석",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": f"[{team} 주역] '{star}' 에이스의 맹활약... 팀 전력의 핵심",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": f"[KBL 순위] {full}, 치열한 2026-27 정규리그 순위 레이스",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": f"{full} 구단 소식 및 공식 하이라이트 영상 모아보기",
+                    "url": club_url,
+                    "source": "구단 공식",
+                },
+                {
+                    "title": f"[{team}] 선수단 주요 기록 및 정규리그 경기 일정표",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": "KBL 프로농구 전체 최신 뉴스 및 라운드 결산",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+            ]
+            for ext in extra_items:
+                if len(items) >= 10:
+                    break
+                items.append(ext)
         else:
-            items.extend(
-                [
-                    {
-                        "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
-                        "url": "https://sports.daum.net/basketball",
-                        "source": "Daum 스포츠",
-                    },
-                    {
-                        "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
-                        "url": "https://www.kbl.or.kr/news/kbl-news",
-                        "source": "KBL 공식",
-                    },
-                ]
-            )
-    return items[:5]
+            generic_items = [
+                {
+                    "title": "[KBL 주간전망] 10개 구단 순위 경쟁 점입가경... 주말 빅매치 총정리",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": "[기록실] 득점·어시스트 부문별 1위 누구? KBL 개인 타이틀 레이스",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": "KBL 프로농구 최신 뉴스 및 구단별 소식 모아보기",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+                {
+                    "title": "KBL 공식 리그 소식 및 라운드 프리뷰/리뷰",
+                    "url": "https://www.kbl.or.kr/news/kbl-news",
+                    "source": "KBL 공식",
+                },
+                {
+                    "title": "[이슈] 2026-27 KBL 농구팬 직관 열기 후끈... 흥행 신바람",
+                    "url": "https://sports.daum.net/basketball",
+                    "source": "Daum 스포츠",
+                },
+            ]
+            for ext in generic_items:
+                if len(items) >= 10:
+                    break
+                items.append(ext)
+
+    return items[:10]
 
 
 def build_highlights_from_games(

@@ -906,21 +906,33 @@ def build_game_results_response(
 def build_news_response(
     news_items: list[dict[str, Any]],
     favorite_team: str | None = None,
+    page: int = 1,
 ) -> KakaoSkillResponse:
     """
     Build response for '뉴스'.
+    Supports 5 news items immediately (Page 1) and additional 5 news items via '뉴스 더보기' (Page 2).
     Returns pure listCard with verified official logos and action buttons.
     """
     if favorite_team:
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
-        header = f"📰 [{full_name}] 최신 뉴스"
         default_img = get_team_logo(favorite_team)
     else:
-        header = "📰 KBL 프로농구 최신 뉴스"
+        full_name = "KBL 프로농구"
         default_img = DEFAULT_SPORTS_LOGO
 
+    if page == 2:
+        slice_items = news_items[5:10] if len(news_items) > 5 else news_items[:5]
+        header = f"📰 [{full_name}] 뉴스 더보기 (2/2)" if favorite_team else "📰 KBL 프로농구 뉴스 더보기 (2/2)"
+        toggle_btn = _msg_btn("📰 최신 뉴스로", f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
+        qr_news = QuickReply(label="📰 처음 뉴스로", messageText=f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
+    else:
+        slice_items = news_items[:5]
+        header = f"📰 [{full_name}] 최신 뉴스" if favorite_team else "📰 KBL 프로농구 최신 뉴스"
+        toggle_btn = _msg_btn("📰 뉴스 더보기", f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
+        qr_news = QuickReply(label="📰 뉴스 더보기", messageText=f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
+
     items: list[dict[str, Any]] = []
-    for item in news_items[:5]:
+    for item in slice_items:
         title = item.get("title", "프로농구 소식")
         url = item.get("url", "https://sports.daum.net/basketball")
         items.append({
@@ -942,14 +954,15 @@ def build_news_response(
         header_title=header,
         items=items,
         buttons=[
-            _link_btn("🌐 다음 농구홈 바로가기", "https://sports.daum.net/basketball"),
-            _msg_btn("🎬 주요장면 보기", "주요장면"),
+            toggle_btn,
+            _link_btn("🌐 다음 농구홈", "https://sports.daum.net/basketball"),
         ],
     )
+    custom_qr = [qr_news] + [qr for qr in MAIN_MENU_QUICK_REPLIES if qr.label != "뉴스"][:9]
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[card],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            quickReplies=custom_qr,
         )
     )
 

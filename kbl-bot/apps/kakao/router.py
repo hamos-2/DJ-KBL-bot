@@ -498,11 +498,12 @@ async def _dispatch_command(
         rankings = await game_service.get_player_rankings(category=cat)
         return build_player_rankings_response(rankings, category=cat)
 
-    # 6. News (뉴스 / 팀별 맞춤 뉴스)
+    # 6. News (뉴스 / 팀별 맞춤 뉴스 / 뉴스 더보기)
     if (
         "뉴스" in u_compact
         or "소식" in u_compact
         or "기사" in u_compact
+        or u_compact in ("더보기", "뉴스더보기", "다음뉴스")
     ):
         requested_team = None
         for t in KBL_TEAMS:
@@ -510,8 +511,10 @@ async def _dispatch_command(
                 requested_team = t
                 break
         target_team = requested_team or fav_team
+        is_page_2 = any(k in u_compact for k in ("더보기", "다음", "2페이지", "more")) and not any(k in u_compact for k in ("처음", "이전", "1페이지"))
+        page = 2 if is_page_2 else 1
         news_items = await game_service.get_latest_news(db, team=target_team)
-        return build_news_response(news_items, favorite_team=target_team)
+        return build_news_response(news_items, favorite_team=target_team, page=page)
 
     # 7. Highlights (주요장면 / 하이라이트 / 영상 / 팀별 맞춤 하이라이트)
     if (

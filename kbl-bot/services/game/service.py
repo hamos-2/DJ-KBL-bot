@@ -369,7 +369,7 @@ class GameService:
         except Exception:
             pass
 
-        recent = await self.get_recent_results(db, team=team, limit=4) if db is not None else []
+        recent = await self.get_recent_results(db, team=team, limit=8) if db is not None else []
         get_news_fn = getattr(self._provider, "get_news", None)
         if callable(get_news_fn):
             items = await get_news_fn(team=team, recent_games=recent)
