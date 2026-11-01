@@ -998,27 +998,39 @@ def build_player_rankings_response(
         })
 
     next_cat_map = {
-        "pts": ("ast", "도움(어시스트)"),
-        "ast": ("reb", "리바운드"),
-        "reb": ("stl", "스틸"),
-        "stl": ("blk", "블록슛"),
-        "blk": ("pts", "득점"),
-        "tpm": ("pts", "득점"),
+        "pts": ("ast", "도움(어시스트)", "어시스트순위"),
+        "ast": ("reb", "리바운드", "리바운드순위"),
+        "reb": ("stl", "스틸", "스틸순위"),
+        "stl": ("blk", "블록슛", "블록순위"),
+        "blk": ("pts", "득점", "득점순위"),
+        "tpm": ("pts", "득점", "득점순위"),
     }
-    next_cat, next_label = next_cat_map.get(category, ("ast", "어시스트"))
+    next_cat, next_label, next_msg = next_cat_map.get(category, ("ast", "어시스트", "어시스트순위"))
 
     card = _list_card(
         header_title=f"🏅 KBL 선수 순위 [{label} TOP 5]",
         items=items,
         buttons=[
-            _msg_btn(f"🏀 {next_label} TOP 5", f"선수순위 {next_cat}"),
+            _msg_btn(f"🏀 {next_label} TOP 5", next_msg),
             _link_btn("📊 선수 기록 전체보기", "https://sports.daum.net/record/kbl"),
         ],
     )
+
+    player_rank_quick_replies: list[QuickReply] = [
+        QuickReply(label="🏀 득점", messageText="득점순위"),
+        QuickReply(label="🏀 어시스트", messageText="어시스트순위"),
+        QuickReply(label="🏀 리바운드", messageText="리바운드순위"),
+        QuickReply(label="🏀 블록슛", messageText="블록순위"),
+        QuickReply(label="🏀 스틸", messageText="스틸순위"),
+        QuickReply(label="🏀 3점슛", messageText="3점슛순위"),
+        QuickReply(label="🏆 팀순위", messageText="팀순위"),
+        QuickReply(label="📅 오늘 경기", messageText="오늘 경기"),
+    ]
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[card],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            quickReplies=player_rank_quick_replies,
         )
     )
 

@@ -271,3 +271,45 @@ async def test_visual_cards_onboarding_lineup_and_summary():
     assert "daumcdn.net" in s_card["imageTitle"]["imageUrl"]
     assert "SK" in s_card["imageTitle"]["title"]
 
+
+@pytest.mark.asyncio
+async def test_player_ranking_category_utterances():
+    """Direct utterances like '어시스트', '도움', '블록', '리바운드' must route to leaderboards."""
+    class MockGameSvc:
+        async def get_player_rankings(self, category="pts"):
+            return [
+                {"rank": 1, "name": f"1위선수_{category}", "team": "KT", "value": 9.9}
+            ]
+
+    game_svc = MockGameSvc()
+    user = User(kakao_user_key_hmac="test", encrypted_kakao_user_key="enc", favorite_team="KT")
+    db = AsyncMock()
+    user_svc = AsyncMock()
+
+    # 1. '어시스트' -> ast
+    resp = await _dispatch_command("어시스트", db, game_svc, user_svc, user)
+    card = resp.template.outputs[0]["listCard"]
+    assert "도움" in card["header"]["title"] or "어시스트" in card["header"]["title"]
+    assert "1위선수_ast" in card["items"][0]["title"]
+    # Check that specialized category quick replies are provided
+    qr_labels = [qr.label for qr in resp.template.quickReplies]
+    assert any("어시스트" in q for q in qr_labels)
+    assert any("득점" in q for q in qr_labels)
+
+    # 2. '도움' -> ast
+    resp_ast2 = await _dispatch_command("도움", db, game_svc, user_svc, user)
+    assert "1위선수_ast" in resp_ast2.template.outputs[0]["listCard"]["items"][0]["title"]
+
+    # 3. '리바운드' -> reb
+    resp_reb = await _dispatch_command("리바운드", db, game_svc, user_svc, user)
+    assert "1위선수_reb" in resp_reb.template.outputs[0]["listCard"]["items"][0]["title"]
+
+    # 4. '블록' -> blk
+    resp_blk = await _dispatch_command("블록", db, game_svc, user_svc, user)
+    assert "1위선수_blk" in resp_blk.template.outputs[0]["listCard"]["items"][0]["title"]
+
+    # 5. '스틸' -> stl
+    resp_stl = await _dispatch_command("스틸", db, game_svc, user_svc, user)
+    assert "1위선수_stl" in resp_stl.template.outputs[0]["listCard"]["items"][0]["title"]
+
+
