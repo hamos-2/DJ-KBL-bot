@@ -1364,11 +1364,22 @@ def build_team_players_response(
 ) -> KakaoSkillResponse:
     """
     Build response listing players of a specific team.
-    Returns listCard overview + basicCard 1-tap registration buttons.
+    Returns listCard overview + 2-card carousel covering all Best 5 starters.
     """
     full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+    starters_info = TEAM_LINEUPS.get(team, {}).get("starters", [])
+    starter_names = [s["name"] for s in starters_info] if starters_info else [p["name"] for p in players[:5]]
+
+    # Ensure Best 5 starters come first
+    def _player_sort_key(p: dict[str, Any]) -> int:
+        if p["name"] in starter_names:
+            return starter_names.index(p["name"])
+        return 100
+
+    sorted_players = sorted(players, key=_player_sort_key)
+
     items = []
-    for p in players[:5]:
+    for p in sorted_players[:5]:
         star = "⭐ " if p["name"] in fav_players else ""
         items.append({
             "title": f"{star}{p['name']} ({p['pos']} #{p['no']})",
@@ -1384,7 +1395,7 @@ def build_team_players_response(
         })
 
     list_card = _list_card(
-        header_title=f"🏀 [{full}] 주요 선수 목록",
+        header_title=f"🏀 [{full}] 공식 베스트 5 (Best 5)",
         items=items,
         buttons=[
             _msg_btn("🏀 다른 구단 선수 찾기", "구단별 선수"),
@@ -1397,11 +1408,19 @@ def build_team_players_response(
             return _msg_btn(f"➖ {name} 해제", f"#관심선수 삭제 {name}")
         return _msg_btn(f"➕ {name} 등록", f"#관심선수 {name}")
 
-    reg_card = _basic_card(
-        title=f"⭐ [{team}] 관심선수 원클릭 등록",
-        description=f"버튼을 터치하면 {full} 선수가 내 관심선수로 즉시 등록/해제됩니다.",
+    card1 = _basic_card(
+        title=f"⭐ [{team}] Best 5 등록 (1/2)",
+        description=f"⭐️ {full} 베스트 5 주전 멤버 (1~3)",
         thumbnail_url=get_team_logo(team),
-        buttons=[_p_toggle_btn(p["name"]) for p in players[:3]],
+        buttons=[_p_toggle_btn(name) for name in starter_names[:3]],
+    )
+    b2 = [_p_toggle_btn(name) for name in starter_names[3:5]]
+    b2.append(_msg_btn("🏀 다른 구단 찾기", "구단별 선수"))
+    card2 = _basic_card(
+        title=f"⭐ [{team}] Best 5 등록 (2/2)",
+        description=f"⭐️ {full} 베스트 5 주전 멤버 (4~5)",
+        thumbnail_url=get_team_logo(team),
+        buttons=b2,
     )
 
     team_quick_replies = [
@@ -1415,7 +1434,7 @@ def build_team_players_response(
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[list_card, {"basicCard": reg_card}],
+            outputs=[list_card, {"carousel": {"type": "basicCard", "items": [card1, card2]}}],
             quickReplies=team_quick_replies,
         )
     )
@@ -1545,15 +1564,27 @@ def build_favorite_players_response(
     carousel_items: list[dict[str, Any]] = []
 
     if favorite_team:
-        team_p = [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:3]
-        if team_p:
-            full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
+        starters_info = TEAM_LINEUPS.get(favorite_team, {}).get("starters", [])
+        starter_names = [s["name"] for s in starters_info] if starters_info else [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:5]
+        full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
+        if len(starter_names) >= 3:
             carousel_items.append(
                 _basic_card(
-                    title=f"❤️ [{favorite_team}] 응원팀 선수",
-                    description=f"{full_t} 선수를 관심선수로 등록하세요.",
+                    title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (1/2)",
+                    description=f"{full_t} 선발 주전 멤버 (1~3)를 관심선수로 등록하세요.",
                     thumbnail_url=get_team_logo(favorite_team),
-                    buttons=[_player_toggle_btn(p_name) for p_name in team_p],
+                    buttons=[_player_toggle_btn(p_name) for p_name in starter_names[:3]],
+                )
+            )
+        if len(starter_names) >= 4:
+            b2 = [_player_toggle_btn(p_name) for p_name in starter_names[3:5]]
+            b2.append(_msg_btn(f"🏀 {favorite_team} 선수 전체", f"{favorite_team} 선수"))
+            carousel_items.append(
+                _basic_card(
+                    title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (2/2)",
+                    description=f"{full_t} 선발 주전 멤버 (4~5)를 관심선수로 등록하세요.",
+                    thumbnail_url=get_team_logo(favorite_team),
+                    buttons=b2,
                 )
             )
 

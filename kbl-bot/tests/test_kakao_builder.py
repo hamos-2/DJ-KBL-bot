@@ -407,10 +407,13 @@ class TestProBasketballBotFeatures:
         assert "원주 DB" in card3["header"]["title"]
         assert len(card3["buttons"]) >= 1
         assert any("다른 구단" in b["label"] for b in card3["buttons"])
-        # Second output is 1-tap registration basicCard
+        # Second output is 1-tap registration carousel for Best 5
         assert len(team_resp.template.outputs) == 2
-        card4 = team_resp.template.outputs[1]["basicCard"]
-        assert "관심선수" in card4["title"]
+        reg_cards = team_resp.template.outputs[1]["carousel"]["items"]
+        assert len(reg_cards) == 2
+        assert "Best 5" in reg_cards[0]["title"]
+        all_reg_btns = [b["label"] for c in reg_cards for b in c["buttons"]]
+        assert any("알바노" in b for b in all_reg_btns)
 
     def test_team_players_menu_and_10_clubs_selection(self) -> None:
         """Verify 10-team player selection menu and quick replies."""
