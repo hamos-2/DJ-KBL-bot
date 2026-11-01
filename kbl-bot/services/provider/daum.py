@@ -9,6 +9,13 @@ import httpx
 
 from core.exceptions import ProviderError
 from core.logging import get_logger
+from core.season import (
+    get_current_season,
+    get_current_season_full,
+    get_current_season_key,
+    get_season_date_range,
+    parse_season_string,
+)
 from services.provider.interface import SportsDataProvider
 from services.search.parser import normalize_team_name
 
@@ -101,7 +108,7 @@ def parse_daum_standings_and_rankings(
                     "gb": gb,
                     "wpct": wpct,
                     "streak": "-",
-                    "season": "2026-27",
+                    "season": get_current_season(),
                 }
             )
 
@@ -314,31 +321,40 @@ class DaumSportsDataProvider(SportsDataProvider):
         """
         return await self.get_game(game_id)
 
-    async def get_standings(self, season: str = "2026-27") -> list[dict[str, Any]]:
+    async def get_standings(self, season: str | None = None) -> list[dict[str, Any]]:
         """
         Fetch official KBL 10-team standings from Daum Search.
-        Falls back to Daum ARMS ``SPORTS_TEAM_RANK``, then ``compute_standings_from_games``.
+        Prioritizes active season search queries (e.g. "2026-2027 KBL 순위"),
+        falling back to unversioned portal search, then Daum ARMS JSON API,
+        and finally direct game computation.
         """
-        # Tier 1: Real-time official KBL standings from Daum Search portal
+        season_2d = season or get_current_season()
+        season_full = get_current_season_full()
         client = self._get_client()
-        try:
-            params = {"w": "tot", "q": "KBL 순위"}
-            resp = await client.get(_DAUM_SEARCH_URL, params=params)
-            if resp.status_code == 200:
-                standings, rankings = parse_daum_standings_and_rankings(resp.text)
-                if len(standings) >= 10:
-                    if rankings:
-                        try:
-                            from core.cache.redis import save_player_rankings_cache
-                            await save_player_rankings_cache(rankings)
-                        except Exception:
-                            pass
-                    return standings
-        except Exception as exc:
-            logger.warning("Failed to fetch standings from Daum search, falling back to ARMS", error=str(exc))
+
+        # Tier 1: Real-time official KBL standings from Daum Search portal
+        candidate_queries = [f"{season_full} KBL 순위", f"{season_2d} KBL 순위", "KBL 순위"]
+        for q in candidate_queries:
+            try:
+                params = {"w": "tot", "q": q}
+                resp = await client.get(_DAUM_SEARCH_URL, params=params)
+                if resp.status_code == 200:
+                    standings, rankings = parse_daum_standings_and_rankings(resp.text)
+                    if len(standings) >= 10:
+                        for s in standings:
+                            s["season"] = season_2d
+                        if rankings:
+                            try:
+                                from core.cache.redis import save_player_rankings_cache
+                                await save_player_rankings_cache(rankings)
+                            except Exception:
+                                pass
+                        return standings
+            except Exception as exc:
+                logger.warning("Failed to fetch standings from Daum search", query=q, error=str(exc))
 
         # Tier 2: Daum ARMS JSON API
-        season_key = self._normalize_season_key(season)
+        season_key = self._normalize_season_key(season_2d)
         url = f"{_DAUM_ARMS_BASE}/SPORTS_TEAM_RANK"
         params = {"leagueCode": "kbl", "seasonKey": season_key}
 
@@ -360,7 +376,7 @@ class DaumSportsDataProvider(SportsDataProvider):
                         "wpct": float(rank_info.get("wpct") or 0.0),
                         "gb": str(rank_info.get("gb") or "0.0"),
                         "streak": str(rank_info.get("streak") or "-"),
-                        "season": season_key,
+                        "season": season_2d,
                     }
                 )
             if standings:
@@ -368,27 +384,33 @@ class DaumSportsDataProvider(SportsDataProvider):
         except Exception as exc:
             logger.warning("Failed to fetch standings from Daum ARMS, falling back to games", error=str(exc))
 
-        # Tier 3: Compute from finished games
+        # Tier 3: Compute from finished games within active season date range
         from services.content.kbl_data import compute_standings_from_games
+        season_start, season_end = get_season_date_range()
         today_d = datetime.now(_KST).date()
-        season_start = date(today_d.year if today_d.month >= 9 else today_d.year - 1, 10, 1)
-        games = await self.get_schedule_range(season_start, today_d)
+        effective_end = min(today_d, season_end)
+        games = await self.get_schedule_range(season_start, effective_end)
         return compute_standings_from_games(games)
 
     async def get_player_rankings(self) -> dict[str, list[dict[str, Any]]]:
         """
         Fetch real-time official KBL player rankings (PTS, AST, BLK, REB, STL) from Daum Search.
+        Prioritizes the active season search query (e.g. "2026-2027 KBL 순위").
         """
+        season_full = get_current_season_full()
+        season_2d = get_current_season()
         client = self._get_client()
-        try:
-            params = {"w": "tot", "q": "KBL 순위"}
-            resp = await client.get(_DAUM_SEARCH_URL, params=params)
-            if resp.status_code == 200:
-                _, rankings = parse_daum_standings_and_rankings(resp.text)
-                if rankings and any(rankings.values()):
-                    return rankings
-        except Exception as exc:
-            logger.warning("Failed to fetch player rankings from Daum search, using defaults", error=str(exc))
+        candidate_queries = [f"{season_full} KBL 순위", f"{season_2d} KBL 순위", "KBL 순위"]
+        for q in candidate_queries:
+            try:
+                params = {"w": "tot", "q": q}
+                resp = await client.get(_DAUM_SEARCH_URL, params=params)
+                if resp.status_code == 200:
+                    _, rankings = parse_daum_standings_and_rankings(resp.text)
+                    if rankings and any(rankings.values()):
+                        return rankings
+            except Exception as exc:
+                logger.warning("Failed to fetch player rankings from Daum search", query=q, error=str(exc))
 
         from services.content.kbl_data import get_default_player_rankings
         return get_default_player_rankings()
@@ -400,24 +422,34 @@ class DaumSportsDataProvider(SportsDataProvider):
     ) -> list[dict[str, Any]]:
         """
         Fetch latest KBL news articles from Daum Search, enriched with recent game recaps.
+        Prioritizes the active season search query (e.g. "2026-2027 KBL 프로농구").
         """
         from services.content.kbl_data import parse_daum_news_html
-        query = f"프로농구 {team}" if team else "KBL 프로농구"
-        params = {"w": "news", "q": query}
+        season_full = get_current_season_full()
+        queries = (
+            [f"{season_full} 프로농구 {team}", f"프로농구 {team}"]
+            if team
+            else [f"{season_full} KBL 프로농구", "KBL 프로농구"]
+        )
         client = self._get_client()
-        try:
-            resp = await client.get(_DAUM_SEARCH_URL, params=params)
-            resp.raise_for_status()
-            return parse_daum_news_html(resp.text, recent_games=recent_games, team=team)
-        except Exception as exc:
-            logger.warning("Failed to fetch Daum news, using fallback", error=str(exc))
-            return parse_daum_news_html("", recent_games=recent_games, team=team)
+        for q in queries:
+            try:
+                params = {"w": "news", "q": q}
+                resp = await client.get(_DAUM_SEARCH_URL, params=params)
+                resp.raise_for_status()
+                items = parse_daum_news_html(resp.text, recent_games=recent_games, team=team)
+                if items:
+                    return items
+            except Exception as exc:
+                logger.warning("Failed to fetch Daum news for query", query=q, error=str(exc))
+
+        return parse_daum_news_html("", recent_games=recent_games, team=team)
 
     async def search_matchup_via_daum_portal(
         self, team_a: str, team_b: str | None = None
     ) -> list[dict[str, Any]]:
         """
-        Tier 3 fallback: search ``search.daum.net`` for ``"{team_a} vs {team_b} 프로농구"``,
+        Tier 3 fallback: search ``search.daum.net`` with season context for matchup details,
         extract Daum Sports match IDs from the portal result page, and fetch match details.
 
         Args:
@@ -427,16 +459,25 @@ class DaumSportsDataProvider(SportsDataProvider):
         Returns:
             List of canonical game dicts discovered via Daum Search.
         """
-        query = f"{team_a} vs {team_b} 프로농구" if team_b else f"{team_a} 프로농구 일정"
-        params = {"w": "tot", "q": query}
+        season_full = get_current_season_full()
+        base = f"{team_a} vs {team_b} 프로농구" if team_b else f"{team_a} 프로농구 일정"
+        queries = [f"{season_full} {base}", base]
 
         client = self._get_client()
-        try:
-            resp = await client.get(_DAUM_SEARCH_URL, params=params)
-            resp.raise_for_status()
-            html = resp.text
-        except Exception as exc:
-            raise ProviderError(f"Daum portal search failed: {exc}") from exc
+        html = ""
+        for query in queries:
+            try:
+                params = {"w": "tot", "q": query}
+                resp = await client.get(_DAUM_SEARCH_URL, params=params)
+                resp.raise_for_status()
+                html = resp.text
+                if "sports.daum.net/match/" in html:
+                    break
+            except Exception as exc:
+                logger.warning("Daum matchup search failed for query", query=query, error=str(exc))
+
+        if not html:
+            raise ProviderError(f"Daum portal search failed for matchup {team_a} vs {team_b}")
 
         match_ids = list(dict.fromkeys(re.findall(r"sports\.daum\.net/match/(\d+)", html)))
         results: list[dict[str, Any]] = []
@@ -626,8 +667,13 @@ class DaumSportsDataProvider(SportsDataProvider):
         return datetime.now(UTC)
 
     @staticmethod
-    def _normalize_season_key(season: str) -> str:
-        """Convert ``'2026-27'`` or ``'2024-25'`` to Daum 8-digit ``'20262027'``."""
+    def _normalize_season_key(season: str | None = None) -> str:
+        """Convert any season format (e.g. '2026-27', '2026-2027') to Daum 8-digit '20262027'."""
+        if not season:
+            return get_current_season_key()
+        parsed = parse_season_string(season)
+        if parsed:
+            return f"{parsed[0]}{parsed[1]}"
         digits = re.sub(r"\D", "", season)
         if len(digits) == 8:
             return digits
@@ -637,4 +683,4 @@ class DaumSportsDataProvider(SportsDataProvider):
         if len(digits) == 4:
             year = int(digits)
             return f"{year}{year + 1}"
-        return "20262027"
+        return get_current_season_key()

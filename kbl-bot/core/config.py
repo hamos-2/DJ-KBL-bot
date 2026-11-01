@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Provider ("daum" or "mock")
     provider_mode: str = Field(default="daum")
 
+    # Optional Season override (default None -> automatically determined by current date)
+    current_season: str | None = Field(default=None)
+
     # Kakao
     kakao_skill_secret: str = Field(default="")
 

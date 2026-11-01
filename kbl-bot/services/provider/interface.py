@@ -70,12 +70,12 @@ class SportsDataProvider(ABC):
         """
 
     @abstractmethod
-    async def get_standings(self, season: str) -> list[dict[str, Any]]:
+    async def get_standings(self, season: str | None = None) -> list[dict[str, Any]]:
         """
         Return the current season standings.
 
         Args:
-            season: Season identifier, e.g. ``"2026-27"``.
+            season: Optional season identifier, e.g. ``"2026-27"``. If omitted, defaults to active season.
 
         Returns:
             List of team standing dicts sorted by rank.

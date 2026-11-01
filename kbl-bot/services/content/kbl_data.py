@@ -5,6 +5,7 @@ import re
 import urllib.parse
 from typing import Any
 
+from core.season import get_current_season
 from services.search.parser import KBL_TEAMS
 
 # Full display names, logos, and home arenas for all 10 KBL clubs (official Kakao CDN emblems)
@@ -434,7 +435,7 @@ def compute_standings_from_games(games: list[dict[str, Any]]) -> list[dict[str, 
                 "wpct": r["wpct"],
                 "gb": gb_str,
                 "streak": r["streak"],
-                "season": "2026-27",
+                "season": get_current_season(),
             }
         )
     return standings
@@ -630,7 +631,7 @@ def parse_daum_news_html(
                     "source": "Daum 스포츠",
                 },
                 {
-                    "title": f"[KBL 순위] {full}, 치열한 2026-27 정규리그 순위 레이스",
+                    "title": f"[KBL 순위] {full}, 치열한 {get_current_season()} 정규리그 순위 레이스",
                     "url": "https://sports.daum.net/basketball",
                     "source": "Daum 스포츠",
                 },
@@ -677,7 +678,7 @@ def parse_daum_news_html(
                     "source": "KBL 공식",
                 },
                 {
-                    "title": "[이슈] 2026-27 KBL 농구팬 직관 열기 후끈... 흥행 신바람",
+                    "title": f"[이슈] {get_current_season()} KBL 농구팬 직관 열기 후끈... 흥행 신바람",
                     "url": "https://sports.daum.net/basketball",
                     "source": "Daum 스포츠",
                 },

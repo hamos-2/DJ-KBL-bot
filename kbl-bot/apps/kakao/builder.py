@@ -10,6 +10,7 @@ from apps.kakao.schemas import (
     KakaoTemplate,
     QuickReply,
 )
+from core.season import get_current_season
 from services.content.kbl_data import (
     DEFAULT_SPORTS_LOGO,
     KBL_PLAYERS,
@@ -1203,7 +1204,7 @@ def build_team_standings_response(
     bottom_items = [_make_item(s, i) for i, s in enumerate(standings[5:10], start=6)]
 
     card1 = _list_card(
-        header_title="🏆 2026-27 KBL 순위 (1~5위 상위권)",
+        header_title=f"🏆 {get_current_season()} KBL 순위 (1~5위 상위권)",
         items=top_items or [{
             "title": "순위 집계 중",
             "description": "KBL 순위 데이터",
@@ -1218,7 +1219,7 @@ def build_team_standings_response(
     outputs = [card1]
     if bottom_items:
         card2 = _list_card(
-            header_title="🔥 KBL 6강 PO 경쟁 (6~10위)",
+            header_title=f"🔥 {get_current_season()} KBL 6강 PO 경쟁 (6~10위)",
             items=bottom_items,
             buttons=[
                 _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),

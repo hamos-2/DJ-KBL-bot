@@ -25,6 +25,7 @@ from core.cache.redis import (
 from core.db.models import Game
 from core.exceptions import GameNotFoundError
 from core.logging import get_logger
+from core.season import get_current_season
 from services.content.kbl_data import (
     build_highlights_from_games,
     compute_standings_from_games,
@@ -355,7 +356,7 @@ class GameService:
 
         # Try live official standings from provider first
         try:
-            provider_standings = await self._provider.get_standings("2026-27")
+            provider_standings = await self._provider.get_standings(get_current_season())
             if provider_standings and len(provider_standings) >= 10:
                 await save_standings_cache(provider_standings)
                 return provider_standings

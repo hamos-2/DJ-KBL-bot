@@ -367,3 +367,46 @@ class TestMatchupBuilderAndKakaoRule3:
             await worker._detect_transition("TEST-G01", {"status": "FINAL", "home_team": "SK", "away_team": "KT"})
             mock_invalidate.assert_awaited_once()
             assert worker._last_status["TEST-G01"] == "FINAL"
+
+
+class TestSeasonAwareSearch:
+    """Verify that search queries prioritize the 2026-2027 season and automatically adapt."""
+
+    @pytest.mark.asyncio
+    async def test_search_queries_include_season_prefix(self) -> None:
+        """Search requests to Daum must include the full 4-digit season string (2026-2027)."""
+        requested_queries: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            q = request.url.params.get("q", "")
+            requested_queries.append(q)
+            # Minimal HTML with 10 standings to satisfy parser
+            dummy_html = "<table><tr><th>순위</th><th>경기</th><th>승</th><th>패</th><th>승차</th><th>승률</th></tr>"
+            for i in range(1, 11):
+                dummy_html += f"<tr><td>{i} 팀{i}</td><td>10</td><td>5</td><td>5</td><td>0.0</td><td>0.500</td></tr>"
+            dummy_html += "</table>"
+            return httpx.Response(200, text=dummy_html)
+
+        transport = httpx.MockTransport(handler)
+        provider = DaumSportsDataProvider(transport=transport)
+
+        # 1. Standings search without season argument -> must search "2026-2027 KBL 순위"
+        standings = await provider.get_standings()
+        assert len(standings) == 10
+        assert any("2026-2027 KBL 순위" in q for q in requested_queries)
+        assert standings[0]["season"] == "2026-27"
+
+        # 2. Player rankings search -> must search "2026-2027 KBL 순위"
+        requested_queries.clear()
+        await provider.get_player_rankings()
+        assert any("2026-2027 KBL 순위" in q for q in requested_queries)
+
+        # 3. News search -> must search "2026-2027 KBL 프로농구"
+        requested_queries.clear()
+        await provider.get_news()
+        assert any("2026-2027 KBL 프로농구" in q for q in requested_queries)
+
+        # 4. Club news search -> must search "2026-2027 프로농구 SK"
+        requested_queries.clear()
+        await provider.get_news(team="SK")
+        assert any("2026-2027 프로농구 SK" in q for q in requested_queries)

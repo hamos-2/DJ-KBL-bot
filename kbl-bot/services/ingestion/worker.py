@@ -18,6 +18,7 @@ from core.cache.redis import (
 from core.db.session import get_session_factory
 from core.exceptions import ProviderError
 from core.logging import get_logger
+from core.season import get_current_season
 from services.content.kbl_data import (
     build_highlights_from_games,
     compute_standings_from_games,
@@ -148,7 +149,7 @@ class IngestionWorker:
 
             # Sync & cache real-time team standings and player rankings from provider
             try:
-                live_standings = await self._provider.get_standings("2026-27")
+                live_standings = await self._provider.get_standings(get_current_season())
                 if live_standings and len(live_standings) >= 10:
                     await save_standings_cache(live_standings)
                 else:

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from core.exceptions import ProviderError
 from core.logging import get_logger
+from core.season import get_current_season
 from services.provider.interface import SportsDataProvider
 
 logger = get_logger("provider.mock")
@@ -218,16 +219,17 @@ class MockSportsDataProvider(SportsDataProvider):
         logger.debug("Mock live score ticked", **score)
         return score
 
-    async def get_standings(self, season: str) -> list[dict[str, Any]]:
+    async def get_standings(self, season: str | None = None) -> list[dict[str, Any]]:
         """
         Return mock KBL standings for *season*.
 
         Args:
-            season: Season string, e.g. ``"2026-27"``.
+            season: Optional season string, e.g. ``"2026-27"``. If omitted, uses current season.
 
         Returns:
             List of team standing dicts.
         """
+        target_season = season or get_current_season()
         teams = _KBL_TEAMS.copy()
         standings: list[dict[str, Any]] = [
             {
@@ -235,11 +237,11 @@ class MockSportsDataProvider(SportsDataProvider):
                 "team": team,
                 "wins": max(0, 20 - idx * 2 + random.randint(-1, 1)),
                 "losses": min(20, idx * 2 + random.randint(-1, 1)),
-                "season": season,
+                "season": target_season,
             }
             for idx, team in enumerate(teams)
         ]
-        logger.debug("Mock standings returned", season=season, count=len(standings))
+        logger.debug("Mock standings returned", season=target_season, count=len(standings))
         return standings
 
     async def get_player_rankings(self) -> dict[str, list[dict[str, Any]]]:
