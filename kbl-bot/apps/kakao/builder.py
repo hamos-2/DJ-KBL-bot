@@ -9,7 +9,15 @@ from apps.kakao.schemas import (
     KakaoTemplate,
     QuickReply,
 )
-from services.content.kbl_data import KBL_PLAYERS, TEAM_INFO, TEAM_LINEUPS, get_team_lineup
+from services.content.kbl_data import (
+    DEFAULT_SPORTS_LOGO,
+    KBL_PLAYERS,
+    TEAM_INFO,
+    TEAM_LINEUPS,
+    TEAM_LOGOS,
+    get_team_lineup,
+    get_team_logo,
+)
 from services.search.parser import KBL_TEAMS, MatchupQuery
 
 _KST = ZoneInfo("Asia/Seoul")
@@ -75,6 +83,82 @@ def _link_btn(label: str, url: str) -> dict[str, str]:
     }
 
 
+def _list_card(
+    header_title: str,
+    items: list[dict[str, Any]],
+    buttons: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Build native Kakao listCard component (max 5 items, max 2 buttons)."""
+    card_items = []
+    for it in items[:5]:
+        item_dict: dict[str, Any] = {"title": str(it.get("title", ""))[:35]}
+        if it.get("description"):
+            item_dict["description"] = str(it["description"])[:30]
+        if it.get("imageUrl"):
+            item_dict["imageUrl"] = str(it["imageUrl"])
+        if it.get("link"):
+            item_dict["link"] = it["link"]
+        card_items.append(item_dict)
+
+    card: dict[str, Any] = {
+        "header": {"title": header_title[:30]},
+        "items": card_items,
+    }
+    if buttons:
+        card["buttons"] = buttons[:2]
+    return {"listCard": card}
+
+
+def _item_card(
+    head_title: str | None = None,
+    image_title: dict[str, str] | None = None,
+    item_list: list[dict[str, str]] | None = None,
+    summary: dict[str, str] | None = None,
+    buttons: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Build native Kakao itemCard component (table key-values, title <= 6 chars)."""
+    card: dict[str, Any] = {}
+    if head_title:
+        card["head"] = {"title": head_title[:15]}
+    if image_title:
+        card["imageTitle"] = {
+            "title": str(image_title.get("title", ""))[:30],
+            "description": str(image_title.get("description", ""))[:30],
+            "imageUrl": str(image_title.get("imageUrl", "")),
+        }
+    if item_list:
+        card["itemList"] = [
+            {"title": str(it.get("title", ""))[:6], "description": str(it.get("description", ""))[:30]}
+            for it in item_list[:10]
+        ]
+    if summary:
+        card["itemListSummary"] = {
+            "title": str(summary.get("title", ""))[:6],
+            "description": str(summary.get("description", ""))[:30],
+        }
+    if buttons:
+        card["buttons"] = buttons[:3]
+    return {"itemCard": card}
+
+
+def _basic_card(
+    title: str,
+    description: str,
+    thumbnail_url: str | None = None,
+    buttons: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Build a single basicCard dict (with official Daum logo thumbnail)."""
+    card: dict[str, Any] = {
+        "title": title[:30],
+        "description": description[:400],
+    }
+    if thumbnail_url:
+        card["thumbnail"] = {"imageUrl": thumbnail_url}
+    if buttons:
+        card["buttons"] = buttons[:3]
+    return card
+
+
 def build_simple_response(
     text: str,
     quick_replies: list[QuickReply] | None = None,
@@ -127,48 +211,52 @@ def build_home_menu_response(
             "응원팀을 설정하시면 오늘 경기, 일정, 결과, 실시간 스코어, 승부예측이 [응원팀 맞춤]으로 제공됩니다."
         )
         team_cards = [
-            {
-                "title": "❤️ 응원팀 선택 (수도권 구단)",
-                "description": "응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
-                "buttons": [
+            _basic_card(
+                title="❤️ 응원팀 선택 (수도권 구단)",
+                description="서울 SK, 수원 KT, 서울 삼성\n응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
+                thumbnail_url=TEAM_LOGOS.get("SK", DEFAULT_SPORTS_LOGO),
+                buttons=[
                     _msg_btn("❤️ 서울 SK", "#응원팀 SK"),
                     _msg_btn("❤️ 수원 KT", "#응원팀 KT"),
                     _msg_btn("❤️ 서울 삼성", "#응원팀 삼성"),
                 ],
-            },
-            {
-                "title": "❤️ 응원팀 선택 (경기·강원 구단)",
-                "description": "선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                "buttons": [
+            ),
+            _basic_card(
+                title="❤️ 응원팀 선택 (경기·강원 구단)",
+                description="원주 DB, 안양 정관장, 고양 소노\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
+                thumbnail_url=TEAM_LOGOS.get("DB", DEFAULT_SPORTS_LOGO),
+                buttons=[
                     _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                     _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
                     _msg_btn("❤️ 고양 소노", "#응원팀 소노"),
                 ],
-            },
-            {
-                "title": "❤️ 응원팀 선택 (영남권 구단)",
-                "description": "선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                "buttons": [
+            ),
+            _basic_card(
+                title="❤️ 응원팀 선택 (영남권 구단)",
+                description="창원 LG, 부산 KCC, 울산 현대모비스\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
+                thumbnail_url=TEAM_LOGOS.get("LG", DEFAULT_SPORTS_LOGO),
+                buttons=[
                     _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
                     _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
                     _msg_btn("❤️ 울산 현대모비스", "#응원팀 현대모비스"),
                 ],
-            },
-            {
-                "title": "❤️ 응원팀 선택 (대구 한국가스공사)",
-                "description": "대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
-                "buttons": [
+            ),
+            _basic_card(
+                title="❤️ 응원팀 선택 (대구 한국가스공사)",
+                description="대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
+                thumbnail_url=TEAM_LOGOS.get("한국가스공사", DEFAULT_SPORTS_LOGO),
+                buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
                     _msg_btn("🏆 정규리그 순위표", "팀순위"),
                 ],
-            },
+            ),
         ]
         return KakaoSkillResponse(
             template=KakaoTemplate(
                 outputs=[
                     {"simpleText": {"text": welcome_text}},
-                    {"carousel": {"type": "textCard", "items": team_cards}},
+                    {"carousel": {"type": "basicCard", "items": team_cards}},
                 ],
                 quickReplies=MAIN_MENU_QUICK_REPLIES,
             )
@@ -196,15 +284,16 @@ def build_home_menu_response(
         "💡 하단 메뉴 버튼을 누르거나 키워드를 입력해 보세요!"
     )
     action_card = {
-        "textCard": {
-            "title": f"🏀 {favorite_team} 중심 빠른 바로가기",
-            "description": f"현재 응원팀: {full_team}\n원하시는 기능을 선택하세요.",
-            "buttons": [
+        "basicCard": _basic_card(
+            title=f"🏀 {favorite_team} 중심 빠른 바로가기",
+            description=f"현재 응원팀: {full_team}\n원하시는 기능을 선택하세요.",
+            thumbnail_url=get_team_logo(favorite_team),
+            buttons=[
                 _msg_btn("📅 오늘 경기", "오늘 경기"),
                 _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
                 _msg_btn("📋 선발 라인업", "라인업"),
             ],
-        }
+        )
     }
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -278,19 +367,20 @@ def build_lineup_response(
         h_card_names = "/".join(s["name"] for s in h_starters[:3])
         a_card_names = "/".join(s["name"] for s in a_starters[:3])
         cards.append(
-            {
-                "title": f"📋 {home} vs {away} 선발 라인업",
-                "description": (
+            _basic_card(
+                title=f"📋 {home} vs {away} 선발 라인업",
+                description=(
                     f"• {home}: {h_card_names} 외 2명\n"
                     f"• {away}: {a_card_names} 외 2명\n"
                     f"※ 경기 시작 약 1시간 전 공식 확정"
                 ),
-                "buttons": [
+                thumbnail_url=get_team_logo(home),
+                buttons=[
                     _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
                     _msg_btn("🔴 실시간 스코어", "실시간 점수"),
                     _msg_btn("🔔 라인업 알림설정", "알림설정"),
                 ],
-            }
+            )
         )
 
     lines.append("💡 경기 시작 약 1시간 전 KBL 공식 확정 라인업이 반영됩니다.")
@@ -299,7 +389,7 @@ def build_lineup_response(
         {"simpleText": {"text": "\n".join(lines).strip()}},
     ]
     if cards:
-        outputs.append({"carousel": {"type": "textCard", "items": cards}})
+        outputs.append({"carousel": {"type": "basicCard", "items": cards}})
 
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
@@ -358,21 +448,29 @@ def build_game_summary_response(
         f"💡 전체 하이라이트 영상 및 주요 장면은 '주요장면' 메뉴에서 시청하실 수 있습니다.",
     ]
 
-    card = {
-        "textCard": {
-            "title": f"🎬 {home} vs {away} 하이라이트 & 요약",
-            "description": f"승리팀: {winner} ({hs}:{as_})\nMVP: {mvp['name']} ({mvp['pts']}점)",
-            "buttons": [
-                _msg_btn("🎬 주요장면 영상", f"{winner} 주요장면"),
-                _msg_btn("🏆 정규리그 순위표", "팀순위"),
-                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
-            ],
-        }
-    }
+    item_card_output = _item_card(
+        head_title="📋 경기 요약",
+        image_title={
+            "title": f"👑 {winner} 승리 ({hs}:{as_})",
+            "description": f"{home} vs {away} 경기 리캡",
+            "imageUrl": get_team_logo(winner),
+        },
+        item_list=[
+            {"title": "경기MVP", "description": f"{mvp['name']} ({mvp['pts']}점 {mvp['reb']}리바)"},
+            {"title": "승리구단", "description": f"{winner} ({diff}점 차 승)"},
+            {"title": "승부처", "description": ("접전 역전승" if diff <= 5 else f"{diff}점 차 완승")},
+        ],
+        summary={"title": "한줄평", "description": clutch_msg[:30]},
+        buttons=[
+            _msg_btn("🎬 주요장면 영상", f"{winner} 주요장면"),
+            _msg_btn("🏆 정규리그 순위표", "팀순위"),
+            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+        ],
+    )
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[{"simpleText": {"text": "\n".join(lines).strip()}}, card],
+            outputs=[{"simpleText": {"text": "\n".join(lines).strip()}}, item_card_output],
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )
@@ -441,9 +539,52 @@ def build_today_games_response(
         else:
             lines.append(f"{fav_mark}• {time_str}  {home} vs {away}{arena_suffix}")
 
-    return build_simple_response(
-        "\n".join(lines).strip(),
-        quick_replies=MAIN_MENU_QUICK_REPLIES,
+    items: list[dict[str, Any]] = []
+    for g in sorted_games[:5]:
+        home = g.get("home_team", "?")
+        away = g.get("away_team", "?")
+        status = g.get("status", "")
+        time_str = _format_kst_datetime(g.get("start_time"), include_date=False) or "14:00"
+        arena = _short_arena(g.get("arena"))
+        arena_str = f" [{arena}]" if arena else ""
+        gid = g.get("game_id", "")
+        match_url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/basketball"
+
+        if status == "LIVE":
+            title = f"🔴 {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
+            desc = f"{time_str}{arena_str} | {g.get('period', '?')}Q 진행중"
+        elif status == "FINAL":
+            title = f"✅ {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
+            desc = f"{time_str}{arena_str} | 최종 종료"
+        else:
+            title = f"📅 {home} vs {away}"
+            desc = f"{time_str}{arena_str} | 경기 예정"
+
+        logo_team = away if (favorite_team and home != favorite_team and away == favorite_team) else home
+        items.append({
+            "title": title,
+            "description": desc,
+            "imageUrl": get_team_logo(logo_team),
+            "link": {"web": match_url},
+        })
+
+    list_card_output = _list_card(
+        header_title=f"🏀 오늘의 KBL 경기{date_label}"[:30],
+        items=items,
+        buttons=[
+            _msg_btn("🔴 실시간 점수", "실시간 점수"),
+            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+        ],
+    )
+
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[
+                {"simpleText": {"text": "\n".join(lines).strip()}},
+                list_card_output,
+            ],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
     )
 
 
@@ -981,23 +1122,24 @@ def build_cheering_response(
         lines.append(f"   {bar}\n")
 
         cards.append(
-            {
-                "title": f"🏀 {home} vs {away} 승부예측",
-                "description": (
+            _basic_card(
+                title=f"🏀 {home} vs {away} 승부예측",
+                description=(
                     f"{home} {h_pct}% ({h_votes}표) vs {away} {a_pct}% ({a_votes}표)\n"
                     f"{bar}"
                     + (f"\n✅ 내 선택: {user_pick}" if user_pick else "\n승리할 팀을 예측 투표(+10P)하세요!")
                 ),
-                "buttons": [
+                thumbnail_url=get_team_logo(home),
+                buttons=[
                     _msg_btn(f"🗳️ {home} 승리", f"#승부예측 {home}"),
                     _msg_btn(f"🗳️ {away} 승리", f"#승부예측 {away}"),
                 ],
-            }
+            )
         )
 
     outputs: list[dict[str, Any]] = [
         {"simpleText": {"text": "\n".join(lines).strip()}},
-        {"carousel": {"type": "textCard", "items": cards}},
+        {"carousel": {"type": "basicCard", "items": cards}},
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
@@ -1248,20 +1390,32 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
         f"💡 포털 실시간 문자중계는 아래 버튼을 눌러 시청하세요."
     )
 
-    card = {
-        "textCard": {
-            "title": f"🏀 {home} vs {away} 실시간 톡중계",
-            "description": f"{status_line}\n쿼터별 득점과 포털 라이브 중계를 확인하세요.",
-            "buttons": [
-                _link_btn("📺 다음 톡중계 보기", daum_url),
-                _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
-                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
-            ],
-        }
-    }
+    item_card_output = _item_card(
+        head_title="🔴 LIVE 톡중계" if status == "LIVE" else ("✅ 경기 종료" if status == "FINAL" else "📅 경기 예정"),
+        image_title={
+            "title": f"{home} {h_score} : {a_score} {away}",
+            "description": f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | {period}쿼터 {clock_str}".strip(),
+            "imageUrl": get_team_logo(home),
+        },
+        item_list=[
+            {"title": "1쿼터", "description": f"{home[:3]} {hq[0]} : {aq[0]} {away[:3]}"},
+            {"title": "2쿼터", "description": f"{home[:3]} {hq[1]} : {aq[1]} {away[:3]}"},
+            {"title": "3쿼터", "description": f"{home[:3]} {hq[2]} : {aq[2]} {away[:3]}"},
+            {"title": "4쿼터", "description": f"{home[:3]} {hq[3]} : {aq[3]} {away[:3]}"},
+        ],
+        summary={
+            "title": "최종점수" if status == "FINAL" else "현재점수",
+            "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
+        },
+        buttons=[
+            _link_btn("📺 다음 톡중계 보기", daum_url),
+            _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
+            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+        ],
+    )
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[{"simpleText": {"text": text}}, card],
+            outputs=[{"simpleText": {"text": text}}, item_card_output],
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )

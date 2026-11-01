@@ -200,6 +200,82 @@ async def test_live_score_quarter_boxscore():
     text = resp.template.outputs[0]["simpleText"]["text"]
     assert "쿼터별 스코어" in text
     assert "1Q" in text and "4Q" in text
-    card = resp.template.outputs[1]["textCard"]
+    card = resp.template.outputs[1].get("itemCard") or resp.template.outputs[1].get("textCard")
+    assert card is not None
+    assert "daumcdn.net" in card.get("imageTitle", {}).get("imageUrl", "")
     card_btn_labels = [b["label"] for b in card["buttons"]]
     assert "📺 다음 톡중계 보기" in card_btn_labels
+
+
+@pytest.mark.asyncio
+async def test_today_games_includes_native_list_card_with_daum_logos():
+    """build_today_games_response must include native listCard with official Daum logos and action buttons."""
+    from apps.kakao.builder import build_today_games_response
+    games = [
+        {
+            "game_id": "G001",
+            "home_team": "SK",
+            "away_team": "KT",
+            "home_score": 75,
+            "away_score": 70,
+            "status": "LIVE",
+            "period": 3,
+            "start_time": "2026-11-01T05:00:00Z",
+            "arena": "잠실학생",
+        },
+        {
+            "game_id": "G002",
+            "home_team": "DB",
+            "away_team": "LG",
+            "status": "SCHEDULED",
+            "start_time": "2026-11-01T07:00:00Z",
+            "arena": "원주",
+        },
+    ]
+    resp = build_today_games_response(games, favorite_team="SK")
+    assert len(resp.template.outputs) == 2
+    assert "simpleText" in resp.template.outputs[0]
+    list_card = resp.template.outputs[1].get("listCard")
+    assert list_card is not None
+    assert "오늘의 KBL 경기" in list_card["header"]["title"]
+    assert len(list_card["items"]) == 2
+    assert "daumcdn.net" in list_card["items"][0]["imageUrl"]
+    btn_labels = [b["label"] for b in list_card["buttons"]]
+    assert "🔴 실시간 점수" in btn_labels
+    assert "🗳️ 오늘 승부예측" in btn_labels
+
+
+@pytest.mark.asyncio
+async def test_visual_cards_onboarding_lineup_and_summary():
+    """Lineup, summary, and onboarding responses must embed official Daum logos in cards."""
+    from apps.kakao.builder import (
+        build_game_summary_response,
+        build_home_menu_response,
+        build_lineup_response,
+    )
+    # 1. Onboarding
+    onboard_resp = build_home_menu_response(favorite_team=None)
+    carousel = onboard_resp.template.outputs[1]["carousel"]
+    assert carousel["type"] == "basicCard"
+    for item in carousel["items"]:
+        assert "thumbnail" in item
+        assert "daumcdn.net" in item["thumbnail"]["imageUrl"]
+
+    # 2. Lineup
+    sample_games = [
+        {"game_id": "1", "home_team": "SK", "away_team": "DB", "start_time": "2026-11-01T05:00:00Z", "arena": "잠실학생"}
+    ]
+    lineup_resp = build_lineup_response(sample_games, favorite_team="SK")
+    l_carousel = lineup_resp.template.outputs[1]["carousel"]
+    assert l_carousel["type"] == "basicCard"
+    assert "daumcdn.net" in l_carousel["items"][0]["thumbnail"]["imageUrl"]
+
+    # 3. Game Summary
+    finished_games = [
+        {"game_id": "1", "home_team": "SK", "away_team": "KT", "home_score": 82, "away_score": 78, "status": "FINAL"}
+    ]
+    summary_resp = build_game_summary_response(finished_games, favorite_team="SK")
+    s_card = summary_resp.template.outputs[1]["itemCard"]
+    assert "daumcdn.net" in s_card["imageTitle"]["imageUrl"]
+    assert "SK" in s_card["imageTitle"]["title"]
+
