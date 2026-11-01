@@ -24,6 +24,7 @@ from apps.kakao.builder import (
     build_matchup_search_response,
     build_my_schedule_response,
     build_news_response,
+    build_notice_response,
     build_player_rankings_response,
     build_settings_response,
     build_single_player_response,
@@ -139,6 +140,24 @@ async def _dispatch_command(
     ):
         prefs = await get_user_preferences(user_hmac)
         return build_home_menu_response(fav_team, prefs.get("favorite_players", []))
+
+    # 0.5 Channel Notices & Announcements (공지 / 소식 / 채널소개 / 이벤트)
+    if u_compact in (
+        "공지",
+        "공지사항",
+        "채널소식",
+        "채널안내",
+        "채널소개",
+        "채널정보",
+        "봇소개",
+        "소개",
+        "채널",
+        "이벤트",
+        "안내",
+        "소식",
+        "포스트",
+    ):
+        return build_notice_response()
 
     # 1. Settings & Onboarding (#응원팀, #알림, 알림설정, 설정)
     if u_compact in (

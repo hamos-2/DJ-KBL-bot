@@ -396,4 +396,15 @@ class TestProBasketballBotFeatures:
         assert s1 == s2
         assert 45 <= s1 < 125
 
+    def test_notice_builder(self) -> None:
+        """build_notice_response must return listCard with channel announcements."""
+        from apps.kakao.builder import build_notice_response
+        resp = build_notice_response()
+        assert resp.version == "2.0"
+        card = resp.template.outputs[0]["listCard"]
+        assert "KBL봇 채널 소식" in card["header"]["title"]
+        assert len(card["items"]) >= 3
+        assert len(resp.template.quickReplies) == 10
+
+
 

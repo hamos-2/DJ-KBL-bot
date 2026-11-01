@@ -1596,3 +1596,51 @@ def build_health_response(
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )
+
+
+def build_notice_response() -> KakaoSkillResponse:
+    """
+    Build response for '공지' / '소식' / '채널소개'.
+    Returns pure listCard with channel announcements matching 프로야구봇 (_HhRnC).
+    """
+    items = [
+        {
+            "title": "🏀 KBL 프로농구봇 정식 오픈 안내",
+            "description": "카톡에서 실시간 스코어·일정·승부예측까지!",
+            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://pf.kakao.com/_pxgeWX"},
+        },
+        {
+            "title": "🗳️ 오늘의 KBL 경기 승부예측 이벤트",
+            "description": "매일 경기 승리팀 예측하고 포인트 적립 배틀!",
+            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://sports.daum.net/basketball"},
+        },
+        {
+            "title": "📋 경기 1시간 전 선발 라인업 알림",
+            "description": "내 응원팀의 당일 Best 5 스타팅 라인업 제공",
+            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://pf.kakao.com/_pxgeWX"},
+        },
+        {
+            "title": "⚙️ 내 응원팀 설정 & 맞춤 알림 안내",
+            "description": "시작·종료·클러치 상황별 맞춤 푸시 알림",
+            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://pf.kakao.com/_pxgeWX"},
+        },
+    ]
+
+    card = _list_card(
+        header_title="📢 KBL봇 채널 소식 & 공식 공지",
+        items=items,
+        buttons=[
+            _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
+            _link_btn("🏠 채널 홈 바로가기", "https://pf.kakao.com/_pxgeWX"),
+        ],
+    )
+    return KakaoSkillResponse(
+        template=KakaoTemplate(
+            outputs=[card],
+            quickReplies=MAIN_MENU_QUICK_REPLIES,
+        )
+    )
