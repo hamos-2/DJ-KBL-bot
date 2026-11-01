@@ -81,7 +81,11 @@ class SportsDataProvider(ABC):
             List of team standing dicts sorted by rank.
         """
 
-    async def get_news(self, team: str | None = None) -> list[dict[str, Any]]:
+    async def get_news(
+        self,
+        team: str | None = None,
+        recent_games: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
         """Return latest KBL news items."""
         return []
 

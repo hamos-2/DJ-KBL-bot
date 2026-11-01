@@ -418,17 +418,22 @@ class DaumSportsDataProvider(SportsDataProvider):
 
     @staticmethod
     def _parse_period(period_type: Any, status: str) -> int | None:
-        """Convert Daum periodType (e.g. 'Q1'..'Q4', 'END') to integer period."""
+        """Convert Daum periodType (e.g. 'Q1'..'Q4', 'OT1', 'END') to integer period."""
         if status == "SCHEDULED":
             return None
         if status == "FINAL":
             return 4
         if not period_type:
             return 1
-        digits = re.findall(r"\d+", str(period_type))
+        pt = str(period_type).upper().strip()
+        if "OT" in pt or "연장" in pt:
+            digits = re.findall(r"\d+", pt)
+            ot_num = int(digits[0]) if digits else 1
+            return 4 + ot_num
+        digits = re.findall(r"\d+", pt)
         if digits:
             return int(digits[0])
-        return 4 if str(period_type).upper() == "END" else 1
+        return 4 if pt == "END" else 1
 
     @staticmethod
     def _parse_start_time(start_date: str, start_time: str) -> datetime:

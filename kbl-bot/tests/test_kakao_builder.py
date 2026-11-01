@@ -373,9 +373,13 @@ class TestProBasketballBotFeatures:
         resp1 = build_single_player_response(player, is_favorite=False)
         card1 = resp1.template.outputs[0]["basicCard"]
         assert "허훈" in card1["title"]
-        assert "수원 KT" in card1["description"]
+        assert "부산 KCC" in card1["description"]
         btn1 = card1["buttons"][0]
         assert "등록" in btn1["label"]
+
+        player_ksh = next(p for p in KBL_PLAYERS if p["name"] == "김선형")
+        resp_ksh = build_single_player_response(player_ksh, is_favorite=False)
+        assert "수원 KT" in resp_ksh.template.outputs[0]["basicCard"]["description"]
 
         resp2 = build_single_player_response(player, is_favorite=True)
         card2 = resp2.template.outputs[0]["basicCard"]

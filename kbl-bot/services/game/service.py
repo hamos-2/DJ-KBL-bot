@@ -1,5 +1,6 @@
 """Game domain service — strictly separates Read Path (DB/Redis) from Worker Ingestion."""
 
+import json
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -14,6 +15,7 @@ from core.cache.redis import (
     get_matchup_cache,
     get_news_cache,
     get_player_rankings_cache,
+    get_redis,
     get_standings_cache,
     save_game_snapshot,
     save_matchup_cache,

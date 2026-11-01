@@ -98,7 +98,7 @@ async def test_lineup_feature_parity(dummy_user):
     assert resp is not None
     cards = resp.template.outputs[0]["carousel"]["items"]
     assert len(cards) >= 1
-    assert any("김선형" in c["description"] or "이선 알바노" in c["description"] for c in cards)
+    assert any("김낙현" in c["description"] or "이선 알바노" in c["description"] for c in cards)
 
 
 @pytest.mark.asyncio
