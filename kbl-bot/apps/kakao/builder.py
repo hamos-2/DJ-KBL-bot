@@ -1,6 +1,6 @@
 """Factory functions for building Kakao Skill response payloads (Pro Basketball Bot MVP)."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -357,7 +357,24 @@ def build_lineup_response(
         h_coach = home_lineup.get("head_coach", "")
         a_coach = away_lineup.get("head_coach", "")
 
-        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str})")
+        # Check if game is within 25 min of start or already started/live
+        is_confirmed = False
+        start_time_raw = g.get("start_time")
+        status = g.get("status", "")
+        if status in ("LIVE", "FINAL"):
+            is_confirmed = True
+        elif start_time_raw:
+            try:
+                g_start = datetime.fromisoformat(str(start_time_raw).replace("Z", "+00:00"))
+                if datetime.now(UTC) >= g_start - timedelta(minutes=25):
+                    is_confirmed = True
+            except Exception:
+                pass
+
+        status_badge = "✅ [공식 확정 라인업]" if is_confirmed else "📋 [예상 스타팅 Best 5]"
+        status_guide = "※ 경기 20분 전 KBL 본부석 제출 확정 선발" if is_confirmed else "※ KBL 규정에 따라 경기 시작 20분 전 공식 확정"
+
+        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {status_badge}")
         if h_starters:
             h_str = ", ".join(f"{s['pos']} {s['name']} #{s['no']}" for s in h_starters)
             h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
@@ -368,15 +385,19 @@ def build_lineup_response(
             lines.append(f"• {away}{a_coach_str}:\n  {a_str}")
         lines.append("")
 
-        h_card_names = "/".join(s["name"] for s in h_starters[:3])
-        a_card_names = "/".join(s["name"] for s in a_starters[:3])
+        h_names_str = "·".join(s["name"] for s in h_starters) or "출전 명단 확인 중"
+        a_names_str = "·".join(s["name"] for s in a_starters) or "출전 명단 확인 중"
+        h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
+        a_coach_str = f" ({a_coach} 감독)" if a_coach else ""
+
         cards.append(
             _basic_card(
                 title=f"📋 {home} vs {away} 선발 라인업",
                 description=(
-                    f"• {home}: {h_card_names} 외 2명\n"
-                    f"• {away}: {a_card_names} 외 2명\n"
-                    f"※ 경기 시작 약 1시간 전 공식 확정"
+                    f"{status_badge}\n"
+                    f"• {home}{h_coach_str}:\n  {h_names_str}\n"
+                    f"• {away}{a_coach_str}:\n  {a_names_str}\n"
+                    f"{status_guide}"
                 ),
                 thumbnail_url=get_team_logo(home),
                 buttons=[
@@ -387,8 +408,11 @@ def build_lineup_response(
             )
         )
 
+    lines.append("📢 KBL 공식 경기규칙: 경기 시작 20분 전까지 각 팀 감독이 스코어시트에 서명하여 공식 스타팅 5인을 경기 본부석에 최종 제출합니다.")
+
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards}},
+        {"simpleText": {"text": "\n".join(lines).strip()}},
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)

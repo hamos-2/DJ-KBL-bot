@@ -113,8 +113,8 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 18.8, "reb": 9.6, "ast": 5.6, "tpm": 0.9, "stl": 1.0, "blk": 1.0},
     {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "4", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
     {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 17.8, "reb": 5.2, "ast": 3.6, "tpm": 2.3, "stl": 3.2, "blk": 0.6},
-    {"name": "숀 롱", "team": "KCC", "pos": "C", "no": "1", "pts": 16.6, "reb": 12.9, "ast": 1.5, "tpm": 0.0, "stl": 0.9, "blk": 0.5},
-    {"name": "허훈", "team": "KCC", "pos": "G", "no": "2", "pts": 15.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
+    {"name": "숀 롱", "team": "현대모비스", "pos": "C", "no": "21", "pts": 16.6, "reb": 12.9, "ast": 1.5, "tpm": 0.0, "stl": 0.9, "blk": 0.5},
+    {"name": "허훈", "team": "KT", "pos": "G", "no": "2", "pts": 15.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
     {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "50", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
     {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "1", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
     {"name": "변준형", "team": "정관장", "pos": "G", "no": "5", "pts": 11.5, "reb": 2.2, "ast": 5.9, "tpm": 1.8, "stl": 0.4, "blk": 0.1},
@@ -164,15 +164,15 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "key_bench": ["박인웅", "이정현(DB)", "서민수"],
     },
     "KT": {
-        "head_coach": "문경은",
+        "head_coach": "송영진",
         "starters": [
             {"pos": "G", "name": "김선형", "no": "5"},
-            {"pos": "G", "name": "최창진", "no": "1"},
+            {"pos": "G", "name": "허훈", "no": "2"},
             {"pos": "F", "name": "문정현", "no": "21"},
-            {"pos": "F", "name": "한희원", "no": "11"},
+            {"pos": "F", "name": "문성곤", "no": "10"},
             {"pos": "C", "name": "하윤기", "no": "0"},
         ],
-        "key_bench": ["레이션 해먼즈", "문성곤", "정창영", "이두원"],
+        "key_bench": ["레이션 해먼즈", "한희원", "최진광", "박지원", "이두원"],
     },
     "LG": {
         "head_coach": "조상현",
@@ -199,13 +199,13 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     "KCC": {
         "head_coach": "전창진",
         "starters": [
-            {"pos": "G", "name": "허훈", "no": "2"},
+            {"pos": "G", "name": "이호현", "no": "6"},
             {"pos": "G", "name": "허웅", "no": "3"},
             {"pos": "F", "name": "최준용", "no": "2"},
             {"pos": "F", "name": "송교창", "no": "12"},
-            {"pos": "C", "name": "디온테 버튼", "no": "1"},
+            {"pos": "F", "name": "이승현", "no": "11"},
         ],
-        "key_bench": ["이승현", "이호현", "켈빈 에피스톨라"],
+        "key_bench": ["디온테 버튼", "정창영", "켈빈 에피스톨라"],
     },
     "한국가스공사": {
         "head_coach": "강혁",
