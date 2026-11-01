@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.kakao.builder import (
+    MAIN_MENU_QUICK_REPLIES,
     build_cheering_response,
     build_error_response,
     build_favorite_players_response,
@@ -214,7 +215,7 @@ async def _dispatch_command(
                 msg = f"❌ 감독 변경 실패: {e}"
         else:
             msg = "💡 사용법: `#감독변경 [구단명] [신임감독명]`\n예시: `#감독변경 삼성 김효범`"
-        return build_simple_response(msg)
+        return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u.startswith("#트레이드") or u.startswith("트레이드"):
         parts = re.sub(r"^#?트레이드\s*", "", u).strip().split()
@@ -236,7 +237,7 @@ async def _dispatch_command(
                 msg = f"❌ 트레이드 처리 실패: {e}"
         else:
             msg = "💡 사용법: `#트레이드 [선수명] [이적구단명]`\n예시: `#트레이드 이관희 DB`"
-        return build_simple_response(msg)
+        return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u_compact in ("#로스터동기화", "로스터동기화", "#로스터갱신", "로스터갱신"):
         from services.roster.manager import get_roster_manager
@@ -258,7 +259,7 @@ async def _dispatch_command(
             f"• 실시간 기록 갱신 선수: {updated_cnt}명\n"
             f"• 10개 구단 공식 감독 및 베스트 5 최신화 완료"
         )
-        return build_simple_response(msg)
+        return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u_compact in ("#로스터변경이력", "로스터변경이력", "로스터이력"):
         from core.cache.redis import get_roster_transaction_logs
@@ -279,7 +280,7 @@ async def _dispatch_command(
                 else:
                     lines.append(f"• [{ts}] {entry.get('player', '')} {entry.get('reason', '')}")
             msg = "\n".join(lines)
-        return build_simple_response(msg)
+        return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u_compact in ("#데이터정합성", "데이터정합성", "#데이터무결성", "데이터무결성", "데이터검증", "#데이터검증"):
         from services.roster.manager import get_roster_manager
@@ -305,7 +306,7 @@ async def _dispatch_command(
                 "────────────────────\n"
                 + "\n".join(f"• {e}" for e in errors[:5])
             )
-        return build_simple_response(text)
+        return build_simple_response(text, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     # 1. Settings & Onboarding (#응원팀, #알림, 알림설정, 설정)
     if u_compact in (

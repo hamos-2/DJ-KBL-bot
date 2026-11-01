@@ -537,18 +537,19 @@ def build_lineup_response(
             )
         )
 
-    lines.append("📢 KBL 공식 경기규칙: 경기 시작 20분 전까지 각 팀 감독이 스코어시트에 서명하여 공식 스타팅 5인을 경기 본부석에 최종 제출합니다. 경기 시작 20~30분 전부터 공식 확정 라인업이 실시간 반영됩니다.")
-
-    text_content = "\n".join(lines).strip()
-    if len(text_content) > 1000:
-        text_content = text_content[:996] + "..."
-
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards}},
-        {"simpleText": {"text": text_content}},
+    ]
+    lineup_qrs = [
+        QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
+        QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+        QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+        QuickReply(label="🏆 팀순위", messageText="팀순위"),
+        QuickReply(label="⭐ 관심선수", messageText="관심선수"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
     return KakaoSkillResponse(
-        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+        template=KakaoTemplate(outputs=outputs, quickReplies=lineup_qrs)
     )
 
 
@@ -1163,6 +1164,7 @@ def build_team_standings_response(
     """
     Build pure card response for '팀순위' (10-team KBL regular season standings).
     Uses 2 listCards (Rank 1-5 and Rank 6-10) with verified team logos and buttons.
+    Highlights KBL 6강 플레이오프 threshold and streak indicators.
     """
     team_alias = {
         "한국가스공사": "가스공사",
@@ -1182,9 +1184,17 @@ def build_team_standings_response(
         gb_str = "선두" if str(gb) in ("0", "0.0", "-") else f"{gb}차"
         fav = "⭐" if favorite_team and raw_team == favorite_team else ""
         wpct_str = f"{wpct:.3f}".lstrip("0") if wpct < 1.0 else "1.000"
+
+        streak = s.get("streak", "")
+        streak_str = ""
+        if streak and streak != "-":
+            streak_str = f" | {streak}🔥" if "연승" in streak else (f" | {streak}❄️" if "연패" in streak else f" | {streak}")
+
+        po_tag = " [PO마지노선]" if rank == 6 else ""
+
         return {
-            "title": f"{rank}위 {fav}{team}",
-            "description": f"{wins}승 {losses}패 (승률 {wpct_str}) | {gb_str}",
+            "title": f"{rank}위 {fav}{team}{po_tag}"[:35],
+            "description": f"{wins}승 {losses}패 ({wpct_str}) | {gb_str}{streak_str}"[:30],
             "imageUrl": get_team_logo(raw_team),
             "link": {"web": "https://sports.daum.net/record/kbl"},
         }
@@ -1193,7 +1203,7 @@ def build_team_standings_response(
     bottom_items = [_make_item(s, i) for i, s in enumerate(standings[5:10], start=6)]
 
     card1 = _list_card(
-        header_title="🏆 2026-27 KBL 순위 (1~5위)",
+        header_title="🏆 2026-27 KBL 순위 (1~5위 상위권)",
         items=top_items or [{
             "title": "순위 집계 중",
             "description": "KBL 순위 데이터",
@@ -1208,7 +1218,7 @@ def build_team_standings_response(
     outputs = [card1]
     if bottom_items:
         card2 = _list_card(
-            header_title="🏆 2026-27 KBL 순위 (6~10위)",
+            header_title="🔥 KBL 6강 PO 경쟁 (6~10위)",
             items=bottom_items,
             buttons=[
                 _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
@@ -1489,16 +1499,16 @@ def build_team_players_menu_response(
         ),
     ]
     quick_replies = [
-        QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
         QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
         QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
         QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
-        QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
         QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
+        QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
+        QuickReply(label="🏀 소노 선수", messageText="소노 선수"),
         QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
-        QuickReply(label="🏀 삼성 선수", messageText="삼성 선수"),
         QuickReply(label="🏀 정관장 선수", messageText="정관장 선수"),
         QuickReply(label="🏀 가스공사 선수", messageText="한국가스공사 선수"),
+        QuickReply(label="🏀 삼성 선수", messageText="삼성 선수"),
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -2254,6 +2264,34 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
         img_title = f"{home} vs {away}"
         img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 경기 시작 전"
 
+    if status == "LIVE":
+        contextual_qrs = [
+            QuickReply(label="🔄 점수 새로고침", messageText="실시간 점수"),
+            QuickReply(label="📋 라인업", messageText="라인업"),
+            QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+            QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+            QuickReply(label="🏆 팀순위", messageText="팀순위"),
+            QuickReply(label="🏠 홈으로", messageText="처음으로"),
+        ]
+    elif status == "FINAL":
+        contextual_qrs = [
+            QuickReply(label="📊 경기 요약", messageText="경기 요약"),
+            QuickReply(label="🎬 주요장면", messageText="주요장면"),
+            QuickReply(label="🏆 팀순위", messageText="팀순위"),
+            QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+            QuickReply(label="📅 다음 일정", messageText="일정"),
+            QuickReply(label="🏠 홈으로", messageText="처음으로"),
+        ]
+    else:  # SCHEDULED
+        contextual_qrs = [
+            QuickReply(label="📋 라인업", messageText="라인업"),
+            QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+            QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+            QuickReply(label="📅 일정", messageText="일정"),
+            QuickReply(label="🏆 팀순위", messageText="팀순위"),
+            QuickReply(label="🏠 홈으로", messageText="처음으로"),
+        ]
+
     item_card_output = _item_card(
         head_title=head_title,
         image_title={
@@ -2275,7 +2313,7 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[item_card_output],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            quickReplies=contextual_qrs,
         )
     )
 

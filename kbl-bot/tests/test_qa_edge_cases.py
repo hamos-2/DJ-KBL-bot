@@ -48,9 +48,7 @@ class TestKakaoProtocolBoundaries:
             })
 
         resp = build_lineup_response(games)
-        simple_text = resp.template.outputs[1]["simpleText"]["text"]
-
-        assert len(simple_text) <= 1000, f"simpleText exceeded 1000 chars: {len(simple_text)}"
+        assert len(resp.template.outputs) == 1, "Lineup response must output single carousel to prevent scroll fatigue"
         assert isinstance(resp.template.outputs[0]["carousel"]["items"], list)
         assert len(resp.template.outputs[0]["carousel"]["items"]) <= 10
 
