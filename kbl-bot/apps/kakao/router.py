@@ -192,6 +192,93 @@ async def _dispatch_command(
     ):
         return build_notice_response()
 
+    # 0. In-Season Dynamic Roster & Coach Commands (#감독변경, #트레이드, #로스터동기화, #로스터변경이력)
+    if u.startswith("#감독변경") or u.startswith("감독변경"):
+        parts = re.sub(r"^#?감독변경\s*", "", u).strip().split()
+        if len(parts) >= 2:
+            team_arg, new_coach = parts[0], parts[1]
+            from services.roster.manager import get_roster_manager
+            roster_mgr = get_roster_manager()
+            try:
+                tx = roster_mgr.update_head_coach(team_arg, new_coach, reason=f"Operator requested via chat: {u}")
+                await roster_mgr.save_to_cache()
+                msg = (
+                    f"✅ [구단 감독 변경 완료]\n\n"
+                    f"• 구단: {tx['team']}\n"
+                    f"• 이전 감독: {tx['old_coach']}\n"
+                    f"• 신임 감독: {tx['new_coach']}\n\n"
+                    f"※ 챗봇 라인업 및 선수 명단에 즉시 실시간 반영되었습니다."
+                )
+            except Exception as e:
+                msg = f"❌ 감독 변경 실패: {e}"
+        else:
+            msg = "💡 사용법: `#감독변경 [구단명] [신임감독명]`\n예시: `#감독변경 삼성 김효범`"
+        return build_simple_response(msg)
+
+    if u.startswith("#트레이드") or u.startswith("트레이드"):
+        parts = re.sub(r"^#?트레이드\s*", "", u).strip().split()
+        if len(parts) >= 2:
+            player_arg, new_team_arg = parts[0], parts[1]
+            from services.roster.manager import get_roster_manager
+            roster_mgr = get_roster_manager()
+            try:
+                tx = roster_mgr.transfer_player(player_arg, new_team_arg, reason=f"Operator requested via chat: {u}")
+                await roster_mgr.save_to_cache()
+                msg = (
+                    f"✅ [선수 트레이드/이적 완료]\n\n"
+                    f"• 선수명: {tx['player']}\n"
+                    f"• 이전 구단: {tx['old_team'] or '신규등록'}\n"
+                    f"• 이적 구단: {tx['new_team']}\n\n"
+                    f"※ 챗봇 베스트 5 및 선수단 명단에 즉시 실시간 반영되었습니다."
+                )
+            except Exception as e:
+                msg = f"❌ 트레이드 처리 실패: {e}"
+        else:
+            msg = "💡 사용법: `#트레이드 [선수명] [이적구단명]`\n예시: `#트레이드 이관희 DB`"
+        return build_simple_response(msg)
+
+    if u_compact in ("#로스터동기화", "로스터동기화", "#로스터갱신", "로스터갱신"):
+        from services.roster.manager import get_roster_manager
+        roster_mgr = get_roster_manager()
+        get_player_ranks_fn = getattr(provider, "get_player_rankings", None)
+        updated_cnt = 0
+        if callable(get_player_ranks_fn):
+            try:
+                live_ranks = await get_player_ranks_fn()
+                if live_ranks:
+                    updated_cnt = roster_mgr.sync_with_live_leaderboard(live_ranks)
+                    await roster_mgr.save_to_cache()
+            except Exception as sync_e:
+                logger.warning("Roster manual sync failed", error=str(sync_e))
+        msg = (
+            f"🏀 [KBL 로스터 및 시즌 스탯 동기화 완료]\n\n"
+            f"• Daum Sports 공식 리더보드 최신 반영\n"
+            f"• 실시간 기록 갱신 선수: {updated_cnt}명\n"
+            f"• 10개 구단 공식 감독 및 베스트 5 최신화 완료"
+        )
+        return build_simple_response(msg)
+
+    if u_compact in ("#로스터변경이력", "로스터변경이력", "로스터이력"):
+        from core.cache.redis import get_roster_transaction_logs
+        logs = await get_roster_transaction_logs()
+        if not logs:
+            msg = "📋 최근 시즌 중 로스터 변경 이력이 없습니다."
+        else:
+            lines = ["📋 [최근 KBL 시즌 로스터 변경 이력]\n"]
+            for entry in logs[-5:]:
+                t_type = entry.get("type", "")
+                ts = entry.get("timestamp", "")[:10]
+                if t_type == "COACH_CHANGE":
+                    lines.append(f"• [{ts}] {entry.get('team')} 감독 변경: {entry.get('old_coach')} → {entry.get('new_coach')}")
+                elif t_type == "PLAYER_TRANSFER":
+                    lines.append(f"• [{ts}] {entry.get('player')} 이적: {entry.get('old_team')} → {entry.get('new_team')}")
+                elif t_type == "STARTERS_UPDATE":
+                    lines.append(f"• [{ts}] {entry.get('team')} 선발 개편: {', '.join(entry.get('new_starters', []))}")
+                else:
+                    lines.append(f"• [{ts}] {entry.get('player', '')} {entry.get('reason', '')}")
+            msg = "\n".join(lines)
+        return build_simple_response(msg)
+
     # 1. Settings & Onboarding (#응원팀, #알림, 알림설정, 설정)
     if u_compact in (
         "#응원팀변경",

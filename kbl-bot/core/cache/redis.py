@@ -530,3 +530,55 @@ async def settle_prediction_hit(
     pts = await client.get(points_key)
     return False, int(pts or 0)
 
+
+# ---------------------------------------------------------------------------
+# Dynamic in-season roster & lineup cache
+# ---------------------------------------------------------------------------
+
+_ROSTER_DYNAMIC_KEY = "kbl:roster:dynamic_store"
+_ROSTER_TRANSACTIONS_KEY = "kbl:roster:transactions"
+
+
+async def save_dynamic_roster_cache(data: dict[str, Any]) -> None:
+    """Persist the dynamic roster and lineup state (with 30-day physical TTL)."""
+    try:
+        client = await get_redis()
+        await client.set(_ROSTER_DYNAMIC_KEY, json.dumps(data, ensure_ascii=False), ex=30 * 86400)
+    except Exception as exc:
+        logger.warning("Failed to save dynamic roster cache in Redis", error=str(exc))
+
+
+async def get_dynamic_roster_cache() -> dict[str, Any] | None:
+    """Retrieve the dynamic roster and lineup state from Redis if available."""
+    try:
+        client = await get_redis()
+        raw = await client.get(_ROSTER_DYNAMIC_KEY)
+        if raw:
+            return json.loads(raw)
+    except Exception as exc:
+        logger.warning("Failed to get dynamic roster cache from Redis", error=str(exc))
+    return None
+
+
+async def append_roster_transaction_log(entry: dict[str, Any]) -> None:
+    """Append a timestamped transaction log entry for in-season roster moves."""
+    try:
+        client = await get_redis()
+        await client.rpush(_ROSTER_TRANSACTIONS_KEY, json.dumps(entry, ensure_ascii=False))
+        # Keep latest 100 transaction logs
+        await client.ltrim(_ROSTER_TRANSACTIONS_KEY, -100, -1)
+    except Exception as exc:
+        logger.warning("Failed to append roster transaction log to Redis", error=str(exc))
+
+
+async def get_roster_transaction_logs() -> list[dict[str, Any]]:
+    """Retrieve recent in-season roster transaction logs."""
+    try:
+        client = await get_redis()
+        raw_list = await client.lrange(_ROSTER_TRANSACTIONS_KEY, 0, -1)
+        return [json.loads(r) for r in raw_list]
+    except Exception as exc:
+        logger.warning("Failed to get roster transaction logs from Redis", error=str(exc))
+        return []
+
+

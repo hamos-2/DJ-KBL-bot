@@ -165,6 +165,16 @@ class IngestionWorker:
                     live_ranks = await get_player_ranks_fn()
                     if live_ranks and any(live_ranks.values()):
                         await save_player_rankings_cache(live_ranks)
+                        # Dynamically synchronize player stats & in-season leaderboard data into RosterManager
+                        try:
+                            from services.roster.manager import get_roster_manager
+                            roster_mgr = get_roster_manager()
+                            updated_stats_cnt = roster_mgr.sync_with_live_leaderboard(live_ranks)
+                            if updated_stats_cnt > 0:
+                                await roster_mgr.save_to_cache()
+                                logger.info("Live leaderboard stats synced to active roster", updated_players=updated_stats_cnt)
+                        except Exception as r_err:
+                            logger.warning("Failed to sync leaderboard stats to RosterManager", error=str(r_err))
                     else:
                         await save_player_rankings_cache(get_default_player_rankings())
                 except Exception as e:

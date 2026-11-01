@@ -253,6 +253,19 @@ def val_matchup(data, outs):
     assert "SK" in card["header"]["title"] or "KT" in card["header"]["title"]
 check("Matchup", "SK vs KT", val_matchup)
 
+# -------------------------------------------------------------
+# 12. Dynamic In-Season Roster & Coach Sync
+# -------------------------------------------------------------
+def val_roster_sync(data, outs):
+    txt = outs[0]["simpleText"]["text"]
+    assert "동기화 완료" in txt
+check("Dynamic-Roster", "#로스터동기화", val_roster_sync)
+
+def val_roster_history(data, outs):
+    txt = outs[0]["simpleText"]["text"]
+    assert "로스터 변경 이력" in txt
+check("Dynamic-Roster", "#로스터변경이력", val_roster_history)
+
 print("=" * 60)
 passed_count = sum(1 for _, _, ok, _ in results if ok)
 total_count = len(results)

@@ -99,6 +99,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 5. Inject services into router and start worker
     set_services(game_service, user_service, worker)
+
+    # 6. Load dynamic in-season roster state from Redis cache
+    from services.roster.manager import get_roster_manager
+    roster_mgr = get_roster_manager()
+    try:
+        loaded = await roster_mgr.load_from_cache()
+        if loaded:
+            _logger.info("Restored dynamic in-season roster updates from Redis")
+    except Exception as exc:
+        _logger.warning("Could not load dynamic roster cache", error=str(exc))
+
     worker.start()
     _logger.info("Ingestion worker started", provider=type(provider).__name__)
 
