@@ -84,37 +84,55 @@ class GameService:
     ) -> list[dict[str, Any]]:
         """
         Return today's KBL games from PostgreSQL overlaid with fresh Redis live snapshots.
-        If DB has no games for today, falls back to provider schedule and upserts.
+        Uses a short 30-second Redis outline cache to avoid repeated DB scans.
         """
         query_date = target_date or today_kst()
-        start_utc, end_utc = kst_day_bounds_utc(query_date)
+        cache_key = f"game:today_outline:{query_date.isoformat()}"
+        cached_outline = None
+        try:
+            client = await get_redis()
+            raw = await client.get(cache_key)
+            if raw:
+                cached_outline = json.loads(raw)
+        except Exception:
+            pass
 
-        stmt = (
-            select(Game)
-            .where(Game.start_time >= start_utc, Game.start_time < end_utc)
-            .order_by(Game.start_time.asc())
-        )
-        result = await db.execute(stmt)
-        db_games = list(result.scalars().all())
+        if cached_outline is None:
+            start_utc, end_utc = kst_day_bounds_utc(query_date)
+            stmt = (
+                select(Game)
+                .where(Game.start_time >= start_utc, Game.start_time < end_utc)
+                .order_by(Game.start_time.asc())
+            )
+            result = await db.execute(stmt)
+            db_games = list(result.scalars().all())
 
-        if not db_games:
-            try:
-                provider_games = await self._provider.get_schedule(query_date)
-                for pg in provider_games:
-                    await self._upsert_game(db, pg)
-                    await save_game_snapshot(str(pg["game_id"]), pg)
-                await db.commit()
-                if provider_games:
-                    return provider_games
-            except Exception as exc:
-                logger.warning("Provider fallback for today games failed", error=str(exc))
+            if not db_games:
+                try:
+                    provider_games = await self._provider.get_schedule(query_date)
+                    for pg in provider_games:
+                        await self._upsert_game(db, pg)
+                        await save_game_snapshot(str(pg["game_id"]), pg)
+                    await db.commit()
+                    if provider_games:
+                        return provider_games
+                except Exception as exc:
+                    logger.warning("Provider fallback for today games failed", error=str(exc))
 
-        snap_map = await get_game_snapshots_bulk([g.provider_id for g in db_games])
+            cached_outline = [self._game_to_dict(g) for g in db_games]
+            if cached_outline:
+                try:
+                    client = await get_redis()
+                    await client.set(cache_key, json.dumps(cached_outline), ex=30)
+                except Exception:
+                    pass
+
+        snap_map = await get_game_snapshots_bulk([g["game_id"] for g in cached_outline])
 
         games_out: list[dict[str, Any]] = []
-        for g in db_games:
-            item = self._game_to_dict(g)
-            snapshot = snap_map.get(g.provider_id)
+        for g in cached_outline:
+            item = dict(g)
+            snapshot = snap_map.get(g["game_id"])
             if snapshot is not None:
                 item.update(snapshot)
             games_out.append(item)
@@ -122,19 +140,31 @@ class GameService:
 
     async def get_live_snapshot(self, game_id: str) -> dict[str, Any]:
         """
-        Return the live snapshot for *game_id*, refreshing on-demand from provider if missing or stale.
+        Return the live snapshot for *game_id*, refreshing on-demand from provider if missing.
+        Uses stale-while-revalidate to return cached data immediately (< 5ms) without blocking on HTTP.
         """
         snapshot = await get_game_snapshot(game_id)
-        if snapshot is None or snapshot.get("stale"):
+        if snapshot is None:
             try:
                 fresh = await self._provider.get_live_score(game_id)
                 await save_game_snapshot(game_id, fresh)
                 return fresh
             except Exception as exc:
                 logger.warning("On-demand live score refresh failed", game_id=game_id, error=str(exc))
-        if snapshot is None:
-            raise GameNotFoundError(game_id)
+                raise GameNotFoundError(game_id)
+
+        if snapshot.get("stale"):
+            asyncio.create_task(self._background_refresh_snapshot(game_id))
+
         return snapshot
+
+    async def _background_refresh_snapshot(self, game_id: str) -> None:
+        """Asynchronously refresh snapshot in Redis without blocking user response."""
+        try:
+            fresh = await self._provider.get_live_score(game_id)
+            await save_game_snapshot(game_id, fresh)
+        except Exception as exc:
+            logger.debug("Background snapshot refresh failed", game_id=game_id, error=str(exc))
 
     async def search_matchup(
         self,

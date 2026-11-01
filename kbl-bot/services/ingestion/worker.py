@@ -108,23 +108,28 @@ class IngestionWorker:
         """Main polling loop — runs until :attr:`_running` is False."""
         logger.info("Ingestion loop entered")
         while self._running:
+            sleep_sec = self._live_interval
             try:
                 await self._sync_upcoming_window_if_due()
-                await self._poll_all_games()
+                has_live = await self._poll_all_games()
+                sleep_sec = self._live_interval if has_live else min(self._scheduled_interval, 30)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 logger.error("Unexpected error in ingestion loop", exc_info=exc)
-            await asyncio.sleep(self._live_interval)
+                sleep_sec = self._live_interval
+            await asyncio.sleep(sleep_sec)
 
     async def _sync_upcoming_window_if_due(self) -> None:
-        """Sync the upcoming schedule window (today - 1d .. today + lookahead_days) periodically."""
+        """Sync the upcoming schedule window (today - 1d .. today + lookahead_days) periodically (every 10m)."""
         if not self._persist_db:
             return
         now_mono = time.monotonic()
+        # Schedule window does not change often; sync every 600s (10 min) to avoid I/O starvation
+        sync_interval = max(self._scheduled_interval, 600)
         if (
             self._last_window_sync_at > 0.0
-            and (now_mono - self._last_window_sync_at) < self._scheduled_interval
+            and (now_mono - self._last_window_sync_at) < sync_interval
         ):
             return
 
@@ -191,23 +196,27 @@ class IngestionWorker:
         except Exception as exc:
             logger.error("Failed to sync upcoming schedule window", error=str(exc))
 
-    async def _poll_all_games(self) -> None:
-        """Fetch today's KST schedule and poll due games concurrently."""
+    async def _poll_all_games(self) -> bool:
+        """Fetch today's KST schedule and poll due games concurrently. Returns True if any game is LIVE."""
         try:
             games: list[dict[str, Any]] = await self._provider.get_schedule(today_kst())
         except ProviderError as exc:
             logger.error("Provider error fetching schedule", error=str(exc))
-            return
+            return False
 
         now_mono = time.monotonic()
         coros = []
+        has_live = False
 
         for game in games:
             game_id: str = str(game["game_id"])
             status: str = game.get("status", _STATUS_SCHEDULED)
 
-            if status == _STATUS_FINAL and self._last_status.get(game_id) == _STATUS_FINAL:
-                # Already recorded as FINAL; no further polling needed
+            if status == _STATUS_LIVE:
+                has_live = True
+
+            if status == _STATUS_FINAL:
+                self._last_status[game_id] = _STATUS_FINAL
                 continue
 
             interval = (
@@ -224,6 +233,8 @@ class IngestionWorker:
 
         if coros:
             await asyncio.gather(*coros, return_exceptions=True)
+
+        return has_live
 
     async def _ingest_game(self, game_id: str, current_status: str) -> None:
         """

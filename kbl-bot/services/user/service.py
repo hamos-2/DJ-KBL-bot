@@ -27,6 +27,7 @@ class UserService:
             crypto: Configured CryptoService instance.
         """
         self._crypto = crypto
+        self._user_cache: dict[str, User] = {}
 
     async def get_or_create(
         self,
@@ -51,12 +52,19 @@ class UserService:
             Tuple of (User, created) where *created* is True for new users.
         """
         key_hmac = self._crypto.hmac_sha256(kakao_user_key)
+        cached_user = self._user_cache.get(key_hmac)
+        if cached_user is not None:
+            return cached_user, False
+
         stmt = select(User).where(User.kakao_user_key_hmac == key_hmac)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
 
         if user is not None:
             logger.debug("Existing user found", hmac_prefix=key_hmac[:8])
+            if len(self._user_cache) >= 5000:
+                self._user_cache.clear()
+            self._user_cache[key_hmac] = user
             return user, False
 
         encrypted_key = self._crypto.encrypt(kakao_user_key, aad=key_hmac)
@@ -85,6 +93,9 @@ class UserService:
         created = bool(insert_res.rowcount and insert_res.rowcount > 0)
         if created:
             logger.info("New user created", hmac_prefix=key_hmac[:8])
+        if len(self._user_cache) >= 5000:
+            self._user_cache.clear()
+        self._user_cache[key_hmac] = user
         return user, created
 
     async def get_by_kakao_key(self, db: AsyncSession, kakao_user_key: str) -> User:

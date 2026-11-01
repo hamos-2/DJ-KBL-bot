@@ -199,6 +199,7 @@ class DaumSportsDataProvider(SportsDataProvider):
                 verify=self._verify_ssl,
                 follow_redirects=True,
                 transport=self._transport,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=30.0),
             )
         return self._client
 
