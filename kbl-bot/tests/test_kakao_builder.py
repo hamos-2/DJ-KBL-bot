@@ -528,7 +528,32 @@ class TestProBasketballBotFeatures:
         assert any("응원팀 선수" in t for t in c_titles)
         assert any("구단별 선수" in t for t in c_titles)
 
+    def test_all_10_teams_rosters_and_best5_up_to_date(self) -> None:
+        """Verify that all 10 teams' Best 5 and rosters are up to date and retired players (e.g. 함지훈) are excluded."""
+        from services.content.kbl_data import KBL_PLAYERS, TEAM_LINEUPS
 
+        # 1. Ham Ji-hoon must NEVER be in any active player roster or starters
+        all_player_names = [p["name"] for p in KBL_PLAYERS]
+        assert "함지훈" not in all_player_names, "Retired player 함지훈 must not be in active player roster!"
 
+        mobis_lineup = TEAM_LINEUPS.get("현대모비스", {})
+        mobis_starters = mobis_lineup.get("starters", [])
+        mobis_starter_names = [s["name"] for s in mobis_starters]
+        assert "함지훈" not in mobis_starter_names, "Retired player 함지훈 must not be in Hyundai Mobis starters!"
+        assert "장재석" in mobis_starter_names, "장재석 should be starting big man in Mobis starters!"
+        assert mobis_lineup.get("head_coach") == "양동근", "양동근 should be Hyundai Mobis head coach!"
 
+        # 2. Verify all 10 teams have exactly 5 starters
+        all_10_teams = ["SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"]
+        for team in all_10_teams:
+            assert team in TEAM_LINEUPS, f"Team {team} missing from TEAM_LINEUPS"
+            info = TEAM_LINEUPS[team]
+            assert len(info["starters"]) == 5, f"{team} must have exactly 5 starters"
+            assert info.get("head_coach"), f"{team} must have a valid head coach"
+
+        # 3. Verify specific updated head coaches
+        assert TEAM_LINEUPS["소노"]["head_coach"] == "손창환"
+        assert TEAM_LINEUPS["삼성"]["head_coach"] == "김상식"
+        assert TEAM_LINEUPS["정관장"]["head_coach"] == "유도훈"
+        assert TEAM_LINEUPS["KCC"]["head_coach"] == "이상민"
 

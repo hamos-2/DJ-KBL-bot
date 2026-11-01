@@ -156,12 +156,13 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "전성현", "team": "LG", "pos": "F", "no": "23", "pts": 14.8, "reb": 2.2, "ast": 1.8, "tpm": 3.1, "stl": 0.7, "blk": 0.1},
     {"name": "칼 타마요", "team": "LG", "pos": "F", "no": "1", "pts": 12.4, "reb": 5.1, "ast": 1.5, "tpm": 1.1, "stl": 0.8, "blk": 0.4},
 
-    # 울산 현대모비스 피버스
+    # 울산 현대모비스 피버스 (장재석·정준원)
     {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "0", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.7, "blk": 0.6},
     {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "1", "pts": 15.8, "reb": 5.4, "ast": 4.0, "tpm": 1.9, "stl": 1.2, "blk": 0.4},
     {"name": "서명진", "team": "현대모비스", "pos": "G", "no": "3", "pts": 12.0, "reb": 3.2, "ast": 4.6, "tpm": 1.8, "stl": 1.1, "blk": 0.1},
     {"name": "박무빈", "team": "현대모비스", "pos": "G", "no": "28", "pts": 12.5, "reb": 3.6, "ast": 4.8, "tpm": 1.5, "stl": 1.0, "blk": 0.1},
-    {"name": "함지훈", "team": "현대모비스", "pos": "F", "no": "54", "pts": 8.5, "reb": 4.2, "ast": 3.5, "tpm": 0.3, "stl": 0.6, "blk": 0.3},
+    {"name": "장재석", "team": "현대모비스", "pos": "C", "no": "31", "pts": 9.4, "reb": 5.8, "ast": 1.6, "tpm": 0.0, "stl": 0.5, "blk": 0.8},
+    {"name": "정준원", "team": "현대모비스", "pos": "F", "no": "11", "pts": 7.2, "reb": 3.1, "ast": 1.4, "tpm": 1.2, "stl": 0.6, "blk": 0.2},
     {"name": "숀 롱", "team": "현대모비스", "pos": "C", "no": "21", "pts": 18.2, "reb": 9.8, "ast": 1.5, "tpm": 0.0, "stl": 0.8, "blk": 0.6},
 
     # 고양 소노 스카이거너스
@@ -224,10 +225,10 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "F", "name": "허일영", "no": "12"},
             {"pos": "C", "name": "아셈 마레이", "no": "23"},
         ],
-        "key_bench": ["칼 타마요", "전성현", "두경민", "대릴 먼로"],
+        "key_bench": ["칼 타마요", "전성현", "대릴 먼로", "이승우", "정희현"],
     },
     "정관장": {
-        "head_coach": "김상식",
+        "head_coach": "유도훈",
         "starters": [
             {"pos": "G", "name": "박지훈", "no": "6"},
             {"pos": "G", "name": "변준형", "no": "5"},
@@ -238,7 +239,7 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "key_bench": ["최성원", "한승희", "마이클 영", "표승빈"],
     },
     "KCC": {
-        "head_coach": "전창진",
+        "head_coach": "이상민",
         "starters": [
             {"pos": "G", "name": "허훈", "no": "2"},
             {"pos": "G", "name": "허웅", "no": "3"},
@@ -260,18 +261,18 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "key_bench": ["김국찬", "차바위", "전현우", "유슈 은도예", "양재혁"],
     },
     "현대모비스": {
-        "head_coach": "조동현",
+        "head_coach": "양동근",
         "starters": [
             {"pos": "G", "name": "서명진", "no": "3"},
             {"pos": "G", "name": "박무빈", "no": "28"},
             {"pos": "F", "name": "이우석", "no": "1"},
-            {"pos": "F", "name": "함지훈", "no": "54"},
+            {"pos": "F", "name": "장재석", "no": "31"},
             {"pos": "C", "name": "게이지 프림", "no": "0"},
         ],
-        "key_bench": ["숀 롱", "장재석", "정준원", "이우정", "미구엘 옥존"],
+        "key_bench": ["숀 롱", "정준원", "최강민", "이우정", "미구엘 옥존"],
     },
     "소노": {
-        "head_coach": "김승기",
+        "head_coach": "손창환",
         "starters": [
             {"pos": "G", "name": "이재도", "no": "4"},
             {"pos": "G", "name": "이정현", "no": "1"},
@@ -282,7 +283,7 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "key_bench": ["DJ 번즈", "김민욱", "임동섭", "백지웅"],
     },
     "삼성": {
-        "head_coach": "김효범",
+        "head_coach": "김상식",
         "starters": [
             {"pos": "G", "name": "이관희", "no": "5"},
             {"pos": "G", "name": "최성모", "no": "6"},
