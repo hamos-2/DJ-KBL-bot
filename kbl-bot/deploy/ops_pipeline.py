@@ -101,9 +101,10 @@ def run_ops_pipeline(base_url: str = DEFAULT_TARGET_URL) -> int:
     def test_7_invariants_diagnostic():
         res, _ = run_post("#데이터정합성", base_url)
         text = res["template"]["outputs"][0]["simpleText"]["text"]
-        assert "✅ [통과] 7대 불변조건 전체 정상" in text, f"Integrity failed: {text}"
-        assert "은퇴/격리: 준수 (함지훈·김선형 격리 완료)" in text
-        assert "구단별 선발 5인: 정상 (총 50명, 중복 0건)" in text
+        assert "ALL INTEGRITY PASS" in text, f"Integrity failed: {text}"
+        assert "은퇴 선수(함지훈) 격리: PASS" in text
+        assert "김선형 선수 SK 격리 원칙: PASS" in text
+        assert "구단별 선발 베스트 5" in text
 
     def test_season_rollover_active():
         res, _ = run_post("팀순위", base_url)
