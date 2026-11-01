@@ -322,7 +322,7 @@ class TestProBasketballBotFeatures:
             build_my_schedule_response(sample_games, sample_games, favorite_team="KT"),
             build_game_results_response(sample_games, favorite_team="KT"),
             build_news_response([{"title": "KT 승리", "url": "https://sports.daum.net/basketball"}], favorite_team="KT"),
-            build_highlights_response([{"title": "하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}]),
+            build_highlights_response([{"title": "하이라이트", "url": "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8", "arena": "수원"}]),
             build_team_standings_response([{"rank": 1, "team": "KT", "wins": 5, "losses": 1, "wpct": 0.833, "gb": "0.0", "streak": "3연승"}], favorite_team="KT"),
         ]:
             assert "listCard" in resp.template.outputs[0]
@@ -350,7 +350,7 @@ class TestProBasketballBotFeatures:
         """build_highlights_response must customize header and advice when favorite_team is provided."""
         from apps.kakao.builder import build_highlights_response
         team_resp = build_highlights_response(
-            [{"title": "SK 워니 덩크슛", "url": "https://sports.daum.net/video/kbl", "arena": "잠실"}],
+            [{"title": "SK 워니 덩크슛", "url": "https://search.daum.net/search?w=vclip&q=SK+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8", "arena": "잠실"}],
             favorite_team="SK",
         )
         card = team_resp.template.outputs[0]["listCard"]
@@ -358,7 +358,7 @@ class TestProBasketballBotFeatures:
         assert "SK 워니" in card["items"][0]["title"]
 
         gen_resp = build_highlights_response(
-            [{"title": "전체 하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}],
+            [{"title": "전체 하이라이트", "url": "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8", "arena": "수원"}],
             favorite_team=None,
         )
         gen_card = gen_resp.template.outputs[0]["listCard"]

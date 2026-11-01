@@ -857,8 +857,8 @@ def build_highlights_response(
     items: list[dict[str, Any]] = []
     for item in highlights[:5]:
         title = item.get("title", "KBL 경기 하이라이트")
-        url = item.get("url", "https://sports.daum.net/video/kbl")
-        arena = item.get("arena") or "KBL 명장면"
+        url = item.get("url") or "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
+        arena = item.get("arena") or "다음 동영상 클립"
         items.append({
             "title": title,
             "description": f"📍 {arena}",
@@ -871,15 +871,15 @@ def build_highlights_response(
             "title": "등록된 주요장면 영상이 없습니다.",
             "description": "Daum 스포츠 영상 센터에서 시청하실 수 있습니다.",
             "imageUrl": default_img,
-            "link": {"web": "https://sports.daum.net/video/kbl"},
+            "link": {"web": "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"},
         })
 
     card = _list_card(
         header_title=header,
         items=items,
         buttons=[
-            _link_btn("▶️ 다음 영상 전체보기", "https://sports.daum.net/video/kbl"),
-            _msg_btn("📰 최신 뉴스 보기", "뉴스"),
+            _link_btn("🎬 다음 영상 전체보기", "https://search.daum.net/search?w=vclip&q=KBL+%ED%94%84%EB%A1%9C%EB%86%8D%EA%B5%AC+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"),
+            _link_btn("📺 KBL TV 공식 유튜브", "https://www.youtube.com/@kbl_official"),
         ],
     )
     return KakaoSkillResponse(

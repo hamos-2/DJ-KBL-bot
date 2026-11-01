@@ -2,6 +2,7 @@
 
 import html
 import re
+import urllib.parse
 from typing import Any
 
 from services.search.parser import KBL_TEAMS
@@ -12,70 +13,70 @@ TEAM_INFO: dict[str, dict[str, str]] = {
         "full_name": "서울 SK 나이츠",
         "arena": "잠실학생체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/383",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%84%9C%EC%9A%B8%20SK%20%EB%82%98%EC%9D%B4%EC%8A%87",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F55_300300.png",
     },
     "KT": {
         "full_name": "수원 KT 소닉붐",
         "arena": "수원 KT 소닉붐 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/386",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%88%98%EC%9B%90%20KT%20%EC%86%8C%EB%8B%89%E1%84%87%E1%85%AE%E1%86%B7",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F06_300300.png",
     },
     "KCC": {
         "full_name": "부산 KCC 이지스",
         "arena": "부산사직체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/385",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EB%B6%80%EC%82%B0%20KCC%20%EC%9D%B4%EC%A7%80%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F60_300300.png",
     },
     "LG": {
         "full_name": "창원 LG 세이커스",
         "arena": "창원실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/384",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%B0%BD%EC%9B%90%20LG%20%EC%84%B8%EC%9D%B4%EC%BB%A4%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F50_300300.png",
     },
     "정관장": {
         "full_name": "안양 정관장 레드부스터스",
         "arena": "안양 정관장 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/387",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%95%88%EC%96%91%20%EC%A0%95%EA%B4%80%EC%9E%A5%20%EB%A0%88%EB%93%9C%EB%B6%80%EC%8A%A4%ED%84%B0%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F70_300300.png",
     },
     "소노": {
         "full_name": "고양 소노 스카이거너스",
         "arena": "고양 소노 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/389",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EA%B3%A0%EC%96%91%20%EC%86%8C%EB%85%B8%20%EC%8A%A4%EC%B9%B4%EC%9D%B4%EA%B1%B0%EB%84%88%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F66_300300.png",
     },
     "DB": {
         "full_name": "원주 DB 프로미",
         "arena": "원주종합체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/381",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%9B%90%EC%A3%BC%20DB%20%ED%94%84%EB%A1%9C%EB%8F%88",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F16_300300.png",
     },
     "삼성": {
         "full_name": "서울 삼성 썬더스",
         "arena": "잠실실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/382",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%84%9C%EC%9A%B8%20%EC%82%BC%EC%84%B1%20%EC%8D%AC%EB%8D%94%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F35_300300.png",
     },
     "현대모비스": {
         "full_name": "울산 현대모비스 피버스",
         "arena": "울산동천체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/380",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EC%9A%B8%EC%82%B0%20%ED%98%84%EB%8C%80%EB%AA%A8%EB%B9%84%EC%8A%A4%20%ED%94%BC%EB%B2%84%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F10_300300.png",
     },
     "한국가스공사": {
         "full_name": "대구 한국가스공사 페가수스",
         "arena": "대구실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
-        "club_url": "https://sports.daum.net/team/kbl/388",
+        "club_url": "https://search.daum.net/search?w=tot&q=%EB%8C%80%EA%B5%AC%20%ED%95%9C%EA%B5%AD%EA%B0%80%EC%8A%A4%EA%B3%B5%EC%82%AC%20%ED%8E%98%EA%B0%80%EC%88%98%EC%8A%A4",
         "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F64_300300.png",
     },
 }
@@ -561,47 +562,50 @@ def build_highlights_from_games(
             a = g.get("away_team", "?")
             hs = g.get("home_score", 0)
             as_ = g.get("away_score", 0)
-            gid = g.get("game_id", "")
             arena = g.get("arena") or ""
 
             if team and team in (h, a):
                 opp = a if h == team else h
                 tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
                 title = f"[{tag}] {team} vs {opp} 명장면 & 주요 클립 ({h} {hs}:{as_} {a})"
+                q_str = urllib.parse.quote(f"KBL {team} {opp} 하이라이트")
             else:
                 tag = "주요장면/하이라이트" if status == "FINAL" else "실시간 중계/주요장면"
                 title = f"[{tag}] {h} {hs} : {as_} {a}"
+                q_str = urllib.parse.quote(f"KBL {h} {a} 하이라이트")
 
+            video_url = f"https://search.daum.net/search?w=vclip&q={q_str}"
             items.append(
                 {
                     "title": title,
-                    "url": f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/video/kbl",
-                    "arena": arena,
+                    "url": video_url,
+                    "arena": arena or "다음 동영상 클립",
                 }
             )
 
     if team:
         full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
-        club_url = TEAM_INFO.get(team, {}).get("club_url", "https://sports.daum.net/video/kbl")
+        q_team = urllib.parse.quote(f"KBL {team} 하이라이트")
         items.append(
             {
-                "title": f"🎬 {full} 공식 하이라이트 & 선수단 영상",
-                "url": club_url,
-                "arena": "구단 공식 채널",
+                "title": f"🎬 {full} 최신 명장면 & 하이라이트 영상",
+                "url": f"https://search.daum.net/search?w=vclip&q={q_team}",
+                "arena": f"{team} 공식 영상",
             }
         )
         items.append(
             {
                 "title": f"📺 Daum 스포츠 {team} 경기 영상 & 인터뷰 클립",
-                "url": "https://sports.daum.net/video/kbl",
+                "url": f"https://search.daum.net/search?w=vclip&q={q_team}",
                 "arena": "Daum 스포츠",
             }
         )
     else:
+        q_all = urllib.parse.quote("KBL 프로농구 하이라이트")
         items.append(
             {
                 "title": "🎬 Daum 스포츠 KBL 전체 하이라이트 & 명장면 모음",
-                "url": "https://sports.daum.net/video/kbl",
+                "url": f"https://search.daum.net/search?w=vclip&q={q_all}",
                 "arena": "Daum 스포츠 영상센터",
             }
         )
@@ -609,8 +613,8 @@ def build_highlights_from_games(
     items.append(
         {
             "title": "📺 KBL TV 공식 유튜브 전체 경기 하이라이트",
-            "url": "https://www.youtube.com/@KBLTV/videos",
-            "arena": "KBL TV",
+            "url": "https://www.youtube.com/@kbl_official",
+            "arena": "KBL TV 공식 채널",
         }
     )
     return items[:6]
