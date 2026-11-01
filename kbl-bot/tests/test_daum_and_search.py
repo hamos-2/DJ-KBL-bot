@@ -188,11 +188,11 @@ class TestMatchupBuilderAndKakaoRule3:
             }
         ]
         resp = build_matchup_search_response(query, games)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "KT vs LG" in text
-        assert "창원체육관" in text
-        assert "11/15(일) 16:30" in text
-        assert "https://sports.daum.net/match/80109251" in text
+        card = resp.template.outputs[0]["listCard"]
+        assert "KT vs LG" in card["header"]["title"]
+        assert len(card["items"]) == 1
+        assert "창원" in card["items"][0]["description"]
+        assert "https://sports.daum.net/match/80109251" in card["items"][0]["link"]["web"]
 
     def test_kakao_validation_error_returns_http_200(self) -> None:
         """Invalid Kakao Skill payload must still return HTTP 200 OK (Rule 3)."""

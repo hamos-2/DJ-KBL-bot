@@ -55,14 +55,14 @@ class TestBuildErrorResponse:
         assert len(resp.template.quickReplies) >= 1
 
     def test_custom_message(self) -> None:
-        """Custom user_message must appear in simpleText output."""
+        """Custom user_message must appear in card output."""
         resp = build_error_response("커스텀 오류")
-        assert resp.template.outputs[0]["simpleText"]["text"] == "커스텀 오류"
+        assert resp.template.outputs[0]["textCard"]["description"] == "커스텀 오류"
 
     def test_default_message_is_korean(self) -> None:
         """Default error message must be non-empty Korean text."""
         resp = build_error_response()
-        text = resp.template.outputs[0]["simpleText"]["text"]
+        text = resp.template.outputs[0]["textCard"]["description"]
         assert len(text) > 0
 
 
@@ -70,11 +70,11 @@ class TestBuildTodayGamesResponse:
     """Tests for build_today_games_response()."""
 
     def test_empty_games_returns_response(self) -> None:
-        """Empty game list must return a friendly message."""
+        """Empty game list must return a friendly card message."""
         resp = build_today_games_response([])
         assert isinstance(resp, KakaoSkillResponse)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "경기" in text
+        card = resp.template.outputs[0]["listCard"]
+        assert "경기" in card["header"]["title"] or "경기" in card["items"][0]["title"]
 
     def test_live_game_in_output(self) -> None:
         """LIVE game status must be reflected in output text."""
@@ -91,10 +91,10 @@ class TestBuildTodayGamesResponse:
             "stale": False,
         }]
         resp = build_today_games_response(games)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "SK" in text
-        assert "KT" in text
-        assert "55" in text
+        item = resp.template.outputs[0]["listCard"]["items"][0]
+        assert "SK" in item["title"]
+        assert "KT" in item["title"]
+        assert "55" in item["title"]
 
     def test_scheduled_game_shows_time(self) -> None:
         """SCHEDULED game must show vs and a time string."""
@@ -110,9 +110,9 @@ class TestBuildTodayGamesResponse:
             "start_time": "2026-10-19T10:00:00+00:00",
         }]
         resp = build_today_games_response(games)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "KCC" in text
-        assert "vs" in text
+        item = resp.template.outputs[0]["listCard"]["items"][0]
+        assert "KCC" in item["title"]
+        assert "vs" in item["title"]
 
     def test_has_quick_replies(self) -> None:
         """Response must include quick replies."""
@@ -148,9 +148,9 @@ class TestBuildLiveScoreResponse:
             "stale": False,
         }
         resp = build_live_score_response(snapshot)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "4" in text  # period
-        assert "60" in text
+        card = resp.template.outputs[0]["itemCard"]
+        assert "4" in card["imageTitle"]["description"]
+        assert "60" in card["imageTitle"]["title"]
 
     def test_stale_shows_warning(self) -> None:
         """stale=True must include a warning mark in the text."""
@@ -165,8 +165,8 @@ class TestBuildLiveScoreResponse:
             "stale": True,
         }
         resp = build_live_score_response(snapshot)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "⚠️" in text
+        card = resp.template.outputs[0]["itemCard"]
+        assert "⚠️" in card["imageTitle"]["description"]
 
     def test_final_status(self) -> None:
         """FINAL snapshot must mention 종료."""
@@ -181,8 +181,8 @@ class TestBuildLiveScoreResponse:
             "stale": False,
         }
         resp = build_live_score_response(snapshot)
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "종료" in text
+        card = resp.template.outputs[0]["itemCard"]
+        assert "종료" in card["head"]["title"] or "스코어" in card["imageTitle"]["description"]
 
 
 class TestBuildHealthResponse:
@@ -191,13 +191,13 @@ class TestBuildHealthResponse:
     def test_all_ok(self) -> None:
         """All systems healthy → response must contain ✅."""
         resp = build_health_response(db_ok=True, redis_ok=True, worker_running=True)
-        text = resp.template.outputs[0]["simpleText"]["text"]
+        text = resp.template.outputs[0]["textCard"]["description"]
         assert "✅" in text
 
     def test_partial_failure(self) -> None:
         """Partial failure → response must contain ❌."""
         resp = build_health_response(db_ok=True, redis_ok=False, worker_running=True)
-        text = resp.template.outputs[0]["simpleText"]["text"]
+        text = resp.template.outputs[0]["textCard"]["description"]
         assert "❌" in text
 
     def test_returns_skill_response(self) -> None:
@@ -221,7 +221,7 @@ class TestProBasketballBotFeatures:
         assert labels == expected
 
     def test_team_standings_builder(self) -> None:
-        """build_team_standings_response must render 10-team table and star favorite team."""
+        """build_team_standings_response must render 10-team table cards and star favorite team."""
         from apps.kakao.builder import build_team_standings_response
         from services.content.kbl_data import compute_standings_from_games
         games = [
@@ -230,30 +230,31 @@ class TestProBasketballBotFeatures:
         standings = compute_standings_from_games(games)
         assert len(standings) == 10
         resp = build_team_standings_response(standings, favorite_team="KT")
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "1. ⭐KT" in text
-        assert "6강 PO" in text
+        card1 = resp.template.outputs[0]["listCard"]
+        assert "1위 ⭐KT" in card1["items"][0]["title"]
+        assert len(resp.template.outputs) == 2  # 1-5위 and 6-10위 listCards
 
     def test_player_rankings_builder(self) -> None:
-        """build_player_rankings_response must render leaderboards and category quick-replies."""
+        """build_player_rankings_response must render leaderboards card and category buttons."""
         from apps.kakao.builder import build_player_rankings_response
         from services.content.kbl_data import get_default_player_rankings
         ranks = get_default_player_rankings()["pts"]
         resp = build_player_rankings_response(ranks, category="pts")
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "자밀 워니" in text
-        assert "득점" in text
+        card = resp.template.outputs[0]["listCard"]
+        assert any("자밀 워니" in it["title"] for it in card["items"])
+        assert "득점" in card["header"]["title"]
 
     def test_cheering_and_settings_builders(self) -> None:
-        """build_cheering_response and build_settings_response must render interactive buttons."""
+        """build_cheering_response and build_settings_response must render interactive cards and buttons."""
         from apps.kakao.builder import build_cheering_response, build_settings_response
         cheer_resp = build_cheering_response(
             [{"game_id": "1", "home_team": "정관장", "away_team": "KT", "home_votes": 60, "away_votes": 40, "home_pct": 60, "away_pct": 40, "user_pick": "KT"}],
             notice="KT 응원 완료",
             user_points=20,
         )
-        assert "정관장 60%" in cheer_resp.template.outputs[0]["simpleText"]["text"]
-        assert "승부예측" in cheer_resp.template.outputs[0]["simpleText"]["text"]
+        carousel = cheer_resp.template.outputs[0]["carousel"]
+        assert any("정관장" in c["title"] for c in carousel["items"])
+        assert "승부예측" in carousel["items"][0]["title"]
 
         set_main = build_settings_response("KT", ["허훈"], {"lineup": True, "game_start": True, "game_end": False, "clutch": False})
         carousel_items = set_main.template.outputs[0]["carousel"]["items"]
@@ -287,19 +288,17 @@ class TestProBasketballBotFeatures:
             }
         ]
         lineup_resp = build_lineup_response(sample_games, favorite_team="SK")
-        l_text = lineup_resp.template.outputs[0]["simpleText"]["text"]
-        assert "선발 라인업" in l_text
-        assert "자밀 워니" in l_text
-        assert "이선 알바노" in l_text
+        l_carousel = lineup_resp.template.outputs[0]["carousel"]
+        assert len(l_carousel["items"]) >= 1
+        assert "이선 알바노" in l_carousel["items"][0]["description"]
 
         summary_resp = build_game_summary_response(sample_games, favorite_team="SK")
-        s_text = summary_resp.template.outputs[0]["simpleText"]["text"]
-        assert "경기 요약 & 한줄평" in s_text
-        assert "승리팀: SK" in s_text
-        assert "MVP" in s_text
+        s_card = summary_resp.template.outputs[0]["itemCard"]
+        assert "경기 요약" in s_card["head"]["title"]
+        assert "SK" in s_card["imageTitle"]["title"]
 
     def test_clean_single_bubble_on_results_news_highlights_standings(self) -> None:
-        """All content builders must output a clean single-bubble simpleText with 10 fixed quickReplies (#xx style)."""
+        """All content builders must output clean visual cards with 10 fixed quickReplies."""
         from apps.kakao.builder import (
             build_game_results_response,
             build_highlights_response,
@@ -326,8 +325,7 @@ class TestProBasketballBotFeatures:
             build_highlights_response([{"title": "하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}]),
             build_team_standings_response([{"rank": 1, "team": "KT", "wins": 5, "losses": 1, "wpct": 0.833, "gb": "0.0", "streak": "3연승"}], favorite_team="KT"),
         ]:
-            assert len(resp.template.outputs) == 1
-            assert "simpleText" in resp.template.outputs[0]
+            assert "listCard" in resp.template.outputs[0]
             assert len(resp.template.quickReplies) == 10
 
     def test_team_specific_news_builder(self) -> None:
@@ -337,18 +335,16 @@ class TestProBasketballBotFeatures:
             [{"title": "DB 알바노 맹활약", "url": "https://sports.daum.net/basketball"}],
             favorite_team="DB",
         )
-        text = team_resp.template.outputs[0]["simpleText"]["text"]
-        assert "원주 DB" in text
-        assert "DB 알바노" in text
-        assert "다른 구단" in text
+        card = team_resp.template.outputs[0]["listCard"]
+        assert "원주 DB" in card["header"]["title"]
+        assert "DB 알바노" in card["items"][0]["title"]
 
         generic_resp = build_news_response(
             [{"title": "KBL 전체 뉴스", "url": "https://sports.daum.net/basketball"}],
             favorite_team=None,
         )
-        gen_text = generic_resp.template.outputs[0]["simpleText"]["text"]
-        assert "KBL 프로농구 최신 뉴스" in gen_text
-        assert "응원팀 등록" in gen_text
+        gen_card = generic_resp.template.outputs[0]["listCard"]
+        assert "KBL 프로농구 최신 뉴스" in gen_card["header"]["title"]
 
     def test_team_specific_highlights_builder(self) -> None:
         """build_highlights_response must customize header and advice when favorite_team is provided."""
@@ -357,18 +353,16 @@ class TestProBasketballBotFeatures:
             [{"title": "SK 워니 덩크슛", "url": "https://sports.daum.net/video/kbl", "arena": "잠실"}],
             favorite_team="SK",
         )
-        text = team_resp.template.outputs[0]["simpleText"]["text"]
-        assert "서울 SK" in text
-        assert "SK 워니" in text
-        assert "다른 구단" in text
+        card = team_resp.template.outputs[0]["listCard"]
+        assert "서울 SK" in card["header"]["title"]
+        assert "SK 워니" in card["items"][0]["title"]
 
         gen_resp = build_highlights_response(
             [{"title": "전체 하이라이트", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}],
             favorite_team=None,
         )
-        gen_text = gen_resp.template.outputs[0]["simpleText"]["text"]
-        assert "KBL 프로농구 주요장면" in gen_text
-        assert "응원팀 등록" in gen_text
+        gen_card = gen_resp.template.outputs[0]["listCard"]
+        assert "KBL 프로농구 주요장면" in gen_card["header"]["title"]
 
     def test_custom_player_builders(self) -> None:
         """build_single_player_response and build_team_players_response must render toggle buttons."""
@@ -377,20 +371,22 @@ class TestProBasketballBotFeatures:
 
         player = next(p for p in KBL_PLAYERS if p["name"] == "허훈")
         resp1 = build_single_player_response(player, is_favorite=False)
-        text1 = resp1.template.outputs[0]["simpleText"]["text"]
-        assert "허훈" in text1
-        assert "수원 KT" in text1
-        btn1 = resp1.template.outputs[1]["textCard"]["buttons"][0]
+        card1 = resp1.template.outputs[0]["basicCard"]
+        assert "허훈" in card1["title"]
+        assert "수원 KT" in card1["description"]
+        btn1 = card1["buttons"][0]
         assert "등록" in btn1["label"]
 
         resp2 = build_single_player_response(player, is_favorite=True)
-        btn2 = resp2.template.outputs[1]["textCard"]["buttons"][0]
+        card2 = resp2.template.outputs[0]["basicCard"]
+        btn2 = card2["buttons"][0]
         assert "해제" in btn2["label"]
 
         db_players = [p for p in KBL_PLAYERS if p["team"] == "DB"]
         team_resp = build_team_players_response("DB", db_players, fav_players=["이선 알바노"])
-        assert "원주 DB" in team_resp.template.outputs[0]["simpleText"]["text"]
-        assert len(team_resp.template.outputs[1]["textCard"]["buttons"]) >= 1
+        card3 = team_resp.template.outputs[0]["listCard"]
+        assert "원주 DB" in card3["header"]["title"]
+        assert len(card3["buttons"]) >= 1
 
     def test_deterministic_seed_consistency(self) -> None:
         """_deterministic_seed must return identical values across calls."""

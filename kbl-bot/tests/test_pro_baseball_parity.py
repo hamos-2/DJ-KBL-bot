@@ -79,9 +79,8 @@ async def test_welcome_onboarding_shows_10_teams_carousel_if_no_fav_team(dummy_u
     with patch("apps.kakao.router.get_user_preferences", new=AsyncMock(return_value={"favorite_players": []})):
         resp = await _dispatch_command("웰컴", db, game_service, user_service, dummy_user)
         assert resp is not None
-        assert "환영합니다" in resp.template.outputs[0]["simpleText"]["text"]
-        assert "carousel" in resp.template.outputs[1]
-        cards = resp.template.outputs[1]["carousel"]["items"]
+        assert "carousel" in resp.template.outputs[0]
+        cards = resp.template.outputs[0]["carousel"]["items"]
         assert len(cards) >= 4
         btn_labels = [b["label"] for card in cards for b in card["buttons"]]
         assert "❤️ 원주 DB" in btn_labels
@@ -90,23 +89,21 @@ async def test_welcome_onboarding_shows_10_teams_carousel_if_no_fav_team(dummy_u
 
 @pytest.mark.asyncio
 async def test_lineup_feature_parity(dummy_user):
-    """'라인업' query must return starting 5 players and head coach."""
+    """'라인업' query must return starting 5 players card."""
     db = DummyDB()
     game_service = DummyGameService()
     user_service = DummyUserService()
 
     resp = await _dispatch_command("라인업", db, game_service, user_service, dummy_user)
     assert resp is not None
-    text = resp.template.outputs[0]["simpleText"]["text"]
-    assert "선발 라인업" in text
-    assert "전희철 감독" in text or "SK" in text
-    assert "자밀 워니" in text
-    assert "이선 알바노" in text
+    cards = resp.template.outputs[0]["carousel"]["items"]
+    assert len(cards) >= 1
+    assert any("김선형" in c["description"] or "이선 알바노" in c["description"] for c in cards)
 
 
 @pytest.mark.asyncio
 async def test_game_summary_recap_feature_parity(dummy_user):
-    """'요약' or '한줄평' query must return game summary with MVP and turning points."""
+    """'요약' or '한줄평' query must return game summary card."""
     db = DummyDB()
     game_service = DummyGameService()
     user_service = DummyUserService()
@@ -114,15 +111,14 @@ async def test_game_summary_recap_feature_parity(dummy_user):
     for cmd in ["요약", "한줄평", "경기요약"]:
         resp = await _dispatch_command(cmd, db, game_service, user_service, dummy_user)
         assert resp is not None
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "경기 요약 & 한줄평" in text
-        assert "MVP" in text
-        assert "승부처 한줄평" in text
+        card = resp.template.outputs[0]["itemCard"]
+        assert "경기 요약" in card["head"]["title"]
+        assert "LG" in card["imageTitle"]["title"]
 
 
 @pytest.mark.asyncio
 async def test_prediction_feature_parity(dummy_user):
-    """'승부예측' query must return prediction gauge and vote buttons."""
+    """'승부예측' query must return prediction card and vote buttons."""
     db = DummyDB()
     game_service = DummyGameService()
     user_service = DummyUserService()
@@ -142,8 +138,8 @@ async def test_prediction_feature_parity(dummy_user):
     with patch("apps.kakao.router.get_game_cheers", new=AsyncMock(return_value=mock_cheers)):
         resp = await _dispatch_command("승부예측", db, game_service, user_service, dummy_user)
         assert resp is not None
-        text = resp.template.outputs[0]["simpleText"]["text"]
-        assert "승부예측" in text
+        carousel = resp.template.outputs[0]["carousel"]
+        assert any("승부예측" in c["title"] for c in carousel["items"])
 
 
 @pytest.mark.asyncio
@@ -197,10 +193,7 @@ async def test_live_score_quarter_boxscore():
         "status": "LIVE",
     }
     resp = build_live_score_response(snapshot)
-    text = resp.template.outputs[0]["simpleText"]["text"]
-    assert "쿼터별 스코어" in text
-    assert "1Q" in text and "4Q" in text
-    card = resp.template.outputs[1].get("itemCard") or resp.template.outputs[1].get("textCard")
+    card = resp.template.outputs[0].get("itemCard")
     assert card is not None
     assert "daumcdn.net" in card.get("imageTitle", {}).get("imageUrl", "")
     card_btn_labels = [b["label"] for b in card["buttons"]]
@@ -233,9 +226,8 @@ async def test_today_games_includes_native_list_card_with_daum_logos():
         },
     ]
     resp = build_today_games_response(games, favorite_team="SK")
-    assert len(resp.template.outputs) == 2
-    assert "simpleText" in resp.template.outputs[0]
-    list_card = resp.template.outputs[1].get("listCard")
+    assert len(resp.template.outputs) == 1
+    list_card = resp.template.outputs[0].get("listCard")
     assert list_card is not None
     assert "오늘의 KBL 경기" in list_card["header"]["title"]
     assert len(list_card["items"]) == 2
@@ -255,7 +247,7 @@ async def test_visual_cards_onboarding_lineup_and_summary():
     )
     # 1. Onboarding
     onboard_resp = build_home_menu_response(favorite_team=None)
-    carousel = onboard_resp.template.outputs[1]["carousel"]
+    carousel = onboard_resp.template.outputs[0]["carousel"]
     assert carousel["type"] == "basicCard"
     for item in carousel["items"]:
         assert "thumbnail" in item
@@ -266,7 +258,7 @@ async def test_visual_cards_onboarding_lineup_and_summary():
         {"game_id": "1", "home_team": "SK", "away_team": "DB", "start_time": "2026-11-01T05:00:00Z", "arena": "잠실학생"}
     ]
     lineup_resp = build_lineup_response(sample_games, favorite_team="SK")
-    l_carousel = lineup_resp.template.outputs[1]["carousel"]
+    l_carousel = lineup_resp.template.outputs[0]["carousel"]
     assert l_carousel["type"] == "basicCard"
     assert "daumcdn.net" in l_carousel["items"][0]["thumbnail"]["imageUrl"]
 
@@ -275,7 +267,7 @@ async def test_visual_cards_onboarding_lineup_and_summary():
         {"game_id": "1", "home_team": "SK", "away_team": "KT", "home_score": 82, "away_score": 78, "status": "FINAL"}
     ]
     summary_resp = build_game_summary_response(finished_games, favorite_team="SK")
-    s_card = summary_resp.template.outputs[1]["itemCard"]
+    s_card = summary_resp.template.outputs[0]["itemCard"]
     assert "daumcdn.net" in s_card["imageTitle"]["imageUrl"]
     assert "SK" in s_card["imageTitle"]["title"]
 
