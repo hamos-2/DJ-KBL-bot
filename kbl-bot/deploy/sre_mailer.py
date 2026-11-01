@@ -15,7 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
-ALERT_QUEUE_DIR = os.path.expanduser("~/DJ-KBL-bot/kbl-bot/deploy/alerts")
+ALERT_QUEUE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alerts")
 
 
 def load_env_vars() -> dict[str, str]:

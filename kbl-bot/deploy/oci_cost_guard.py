@@ -28,9 +28,14 @@ OCI_FREE_LIMITS = {
 
 
 def run_remote_ssh(cmd: str) -> tuple[int, str]:
-    """Execute command on OCI VPS via SSH."""
+    """Execute command locally on OCI VPS or remotely via SSH."""
     if not os.path.exists(SSH_KEY):
-        return -1, f"SSH key not found: {SSH_KEY}"
+        # Running directly on the OCI VPS host
+        try:
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+            return res.returncode, (res.stdout + res.stderr).strip()
+        except Exception as e:
+            return -1, str(e)
     full_cmd = [
         "ssh",
         "-i", SSH_KEY,

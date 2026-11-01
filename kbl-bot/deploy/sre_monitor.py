@@ -24,9 +24,14 @@ SSL_CTX = ssl._create_unverified_context()
 
 
 def run_ssh(cmd: str) -> tuple[int, str]:
-    """Execute a remote shell command on the OCI VPS via SSH."""
+    """Execute a shell command locally on host or remotely via SSH."""
     if not os.path.exists(SSH_KEY):
-        return -1, f"SSH key not found: {SSH_KEY}"
+        # Running directly on the OCI VPS host
+        try:
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+            return res.returncode, (res.stdout + res.stderr).strip()
+        except Exception as e:
+            return -1, str(e)
     full_cmd = [
         "ssh",
         "-i", SSH_KEY,
