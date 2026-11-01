@@ -266,6 +266,12 @@ def val_roster_history(data, outs):
     assert "로스터 변경 이력" in txt
 check("Dynamic-Roster", "#로스터변경이력", val_roster_history)
 
+def val_data_integrity(data, outs):
+    txt = outs[0]["simpleText"]["text"]
+    assert "ALL INTEGRITY PASS" in txt, f"Data integrity check failed: {txt}"
+    assert "100% 정상" in txt
+check("Dynamic-Roster", "#데이터정합성", val_data_integrity)
+
 print("=" * 60)
 passed_count = sum(1 for _, _, ok, _ in results if ok)
 total_count = len(results)

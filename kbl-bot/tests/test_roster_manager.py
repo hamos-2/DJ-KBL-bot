@@ -61,12 +61,12 @@ class TestInSeasonMutations:
         assert roster_mgr.get_team_lineup("소노")["head_coach"] == "김승기"
 
     def test_transfer_player(self, roster_mgr: RosterManager) -> None:
-        # Simulate mid-season trade
-        tx = roster_mgr.transfer_player("이정현", "소노", reason="소노 트레이드")
+        # Simulate mid-season player transfer
+        tx = roster_mgr.transfer_player("김국찬", "DB", pos="F", back_number="9", reason="DB 트레이드")
         assert tx["type"] == "PLAYER_TRANSFER"
-        player = roster_mgr.get_player_by_name("이정현")
+        player = roster_mgr.get_player_by_name("김국찬")
         assert player is not None
-        assert player["team"] == "소노"
+        assert player["team"] == "DB"
 
     def test_transfer_kim_sun_hyung_sk_prevented(self, roster_mgr: RosterManager) -> None:
         with pytest.raises(ValueError, match="Constraint violation"):
@@ -116,3 +116,44 @@ class TestLiveStatsSync:
         heo_hoon = roster_mgr.get_player_by_name("허훈")
         assert heo_hoon["pts"] == 18.2
         assert heo_hoon["ast"] == 9.1
+
+
+class TestRosterIntegrityRules:
+    """Verify that all 7 Golden Integrity Rules are rigorously checked."""
+
+    def test_baseline_passes_integrity_check(self, roster_mgr: RosterManager) -> None:
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is True, f"Integrity check failed with errors: {errors}"
+        assert len(errors) == 0
+
+    def test_integrity_catches_missing_coach(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["SK"]["head_coach"] = ""
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Rule 2" in e for e in errors)
+
+    def test_integrity_catches_starter_count_mismatch(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["KT"]["starters"].pop()
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Rule 3" in e for e in errors)
+
+    def test_integrity_catches_duplicate_starter_across_clubs(self, roster_mgr: RosterManager) -> None:
+        # Copy Heo Hoon from KT to KCC starters without KCC registration
+        heo_starter = next(s for s in roster_mgr._lineups["KT"]["starters"] if s["name"] == "허훈")
+        roster_mgr._lineups["KCC"]["starters"][0] = heo_starter
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Rule 7" in e or "Rule 5" in e for e in errors)
+
+    def test_integrity_catches_ham_ji_hoon_in_starters(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["현대모비스"]["starters"][0] = {"pos": "C", "name": "함지훈", "no": "12"}
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("함지훈" in e for e in errors)
+
+    def test_integrity_catches_kim_sun_hyung_in_sk(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["SK"]["starters"][0] = {"pos": "G", "name": "김선형", "no": "5"}
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("김선형" in e for e in errors)

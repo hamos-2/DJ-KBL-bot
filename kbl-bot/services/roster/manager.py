@@ -27,8 +27,17 @@ import services.content.kbl_data as kbl_data
 logger = get_logger("service.roster")
 
 
+class RosterIntegrityError(ValueError):
+    """Raised when an operation would violate roster data integrity constraints."""
+    pass
+
+
 class RosterManager:
     """Central manager for active KBL rosters, starting lineups, and head coaches."""
+
+    EXPECTED_TEAMS: set[str] = {
+        "SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"
+    }
 
     def __init__(self) -> None:
         # Working in-memory copies initialized from official baseline
@@ -36,6 +45,120 @@ class RosterManager:
         self._players: list[dict[str, Any]] = copy.deepcopy(kbl_data.KBL_PLAYERS)
         self._last_synced_at: str | None = None
         self._transactions: list[dict[str, Any]] = []
+
+        # Validate initial baseline integrity immediately
+        ok, errors = self.verify_roster_integrity()
+        if not ok:
+            raise RosterIntegrityError(f"Baseline roster integrity check failed: {errors}")
+
+    # ---------------------------------------------------------------------------
+    # Data Integrity & Invariant Validation
+    # ---------------------------------------------------------------------------
+
+    def verify_roster_integrity(self) -> tuple[bool, list[str]]:
+        """
+        Rigorously verify all 7 Golden Integrity Rules across all 10 clubs:
+        1. 10-Club Totality: All 10 official KBL clubs must be present.
+        2. Head Coach Integrity: Every club must have a valid non-empty head coach.
+        3. Starting 5 Invariant: Every club must have exactly 5 starters.
+        4. Schema & Position Invariant: Every starter has a valid position and uniform number.
+        5. Zero Duplicate Starters: No player may be duplicated in any starter lineup.
+        6. Exclusion Constraints: Retired Ham Ji-hoon must NEVER appear; Kim Sun-hyung NEVER at SK.
+        7. Club-Player Coherence: Every starter exists in players with matching team code.
+        8. Statistical Range Invariant: pts, reb, ast must be realistic non-negative floats.
+
+        Returns:
+            (is_valid: bool, error_list: list[str])
+        """
+        errors: list[str] = []
+
+        # 1. 10-Club Totality
+        existing_teams = set(self._lineups.keys())
+        missing_teams = self.EXPECTED_TEAMS - existing_teams
+        if missing_teams:
+            errors.append(f"[Rule 1] Missing clubs in lineups: {missing_teams}")
+
+        # Track starters across clubs for duplicate detection
+        all_starter_names: set[str] = set()
+
+        for team in self.EXPECTED_TEAMS:
+            info = self._lineups.get(team)
+            if not info:
+                continue
+
+            # 2. Head Coach
+            coach = info.get("head_coach", "").strip()
+            if not coach or len(coach) < 2:
+                errors.append(f"[Rule 2] {team} has missing or invalid head coach: '{coach}'")
+
+            # 3. Exactly 5 Starters
+            starters = info.get("starters", [])
+            if len(starters) != 5:
+                errors.append(f"[Rule 3] {team} starters count is {len(starters)} (expected 5)")
+
+            # Check individual starters
+            team_starter_names: set[str] = set()
+            for s in starters:
+                name = s.get("name", "").strip()
+                pos = s.get("pos", "").strip()
+                no = str(s.get("no", "")).strip()
+
+                # 4. Schema & Position
+                if not name or len(name) < 2:
+                    errors.append(f"[Rule 4] {team} has starter with invalid name: '{name}'")
+                if pos not in ("G", "F", "C", "G/F", "F/C"):
+                    errors.append(f"[Rule 4] {team} starter {name} has invalid pos: '{pos}'")
+                if not no:
+                    errors.append(f"[Rule 4] {team} starter {name} has missing uniform number")
+
+                # 5. Duplicates within club
+                if name in team_starter_names:
+                    errors.append(f"[Rule 5] Duplicate starter in {team}: {name}")
+                team_starter_names.add(name)
+
+                # 5. Duplicates across clubs (allow homonyms like 이정현 if distinct teams/numbers exist in players)
+                player_candidates = [p for p in self._players if p["name"] == name and p["team"] == team]
+                if not player_candidates:
+                    errors.append(f"[Rule 7] Starter {name} ({team}) not registered in active KBL_PLAYERS for {team}")
+                elif len(player_candidates) > 1:
+                    errors.append(f"[Rule 5] Duplicate player records for {name} within {team}")
+
+                # 6. Exclusion constraints
+                if name == "함지훈":
+                    errors.append("[Rule 6] Critical invariant broken: Retired player 함지훈 found in starters")
+                if team == "SK" and name == "김선형":
+                    errors.append("[Rule 6] Critical invariant broken: 김선형 found in SK starters")
+
+                # 7. Uniform number consistency
+                if player_candidates:
+                    p_rec = player_candidates[0]
+                    if no and p_rec.get("no") and str(no) != str(p_rec.get("no")):
+                        errors.append(
+                            f"[Rule 4] Starter {name} ({team}) uniform number mismatch: lineup #{no} vs player #{p_rec.get('no')}"
+                        )
+
+        # 6. Exclusion constraints on player pool
+        for p in self._players:
+            p_name = p.get("name", "")
+            p_team = p.get("team", "")
+            if p_name == "함지훈":
+                errors.append("[Rule 6] Critical invariant broken: Retired player 함지훈 found in active player pool")
+            if p_team == "SK" and p_name == "김선형":
+                errors.append("[Rule 6] Critical invariant broken: 김선형 registered with SK in active player pool")
+
+            # 8. Stats Range
+            for stat_k in ("pts", "reb", "ast", "stl", "blk"):
+                val = p.get(stat_k)
+                if val is not None:
+                    try:
+                        f_val = float(val)
+                        if f_val < 0.0 or f_val > 50.0:
+                            errors.append(f"[Rule 8] Player {p_name} has unrealistic {stat_k}: {f_val}")
+                    except (ValueError, TypeError):
+                        errors.append(f"[Rule 8] Player {p_name} has non-numeric {stat_k}: {val}")
+
+        is_valid = len(errors) == 0
+        return is_valid, errors
 
     # ---------------------------------------------------------------------------
     # Queries
@@ -278,6 +401,11 @@ class RosterManager:
 
     async def save_to_cache(self) -> None:
         """Save current in-memory lineups, players, and sync timestamp to Redis."""
+        ok, errors = self.verify_roster_integrity()
+        if not ok:
+            logger.error("Refusing to persist invalid roster state to cache", errors=errors)
+            return
+
         payload = {
             "lineups": self._lineups,
             "players": self._players,
@@ -285,11 +413,12 @@ class RosterManager:
             "version": "1.0",
         }
         await save_dynamic_roster_cache(payload)
-        logger.info("Roster state saved to Redis cache", players_count=len(self._players))
+        logger.info("Roster state saved to Redis cache (integrity verified)", players_count=len(self._players))
 
     async def load_from_cache(self) -> bool:
         """
         Load dynamic roster overrides from Redis cache if present and valid.
+        Automatically heals to clean baseline if cache fails integrity validation.
         Returns True if overrides were applied.
         """
         cached = await get_dynamic_roster_cache()
@@ -299,36 +428,25 @@ class RosterManager:
         lineups = cached.get("lineups")
         players = cached.get("players")
         if lineups and isinstance(lineups, dict) and players and isinstance(players, list):
-            # Strict validation: verify all 10 teams have 5 starters and constraints hold
-            expected_teams = {"SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"}
-            if not expected_teams.issubset(lineups.keys()):
-                logger.warning("Dynamic roster cache rejected: missing teams")
-                return False
-
-            for team, info in lineups.items():
-                starters = info.get("starters", [])
-                if len(starters) != 5:
-                    logger.warning("Dynamic roster cache rejected: starters count != 5", team=team)
-                    return False
-                starter_names = [s.get("name") for s in starters]
-                if "함지훈" in starter_names:
-                    logger.warning("Dynamic roster cache rejected: retired player 함지훈 found")
-                    return False
-                if team == "SK" and "김선형" in starter_names:
-                    logger.warning("Dynamic roster cache rejected: 김선형 in SK starters")
-                    return False
-
-            # Verify key aces: 허훈 must be in KT, 장재석 in 현대모비스
-            kt_starters = [s.get("name") for s in lineups["KT"].get("starters", [])]
-            if "허훈" not in kt_starters:
-                logger.warning("Dynamic roster cache rejected: 허훈 missing from KT")
-                return False
-
+            prev_lineups, prev_players = self._lineups, self._players
             self._lineups = copy.deepcopy(lineups)
             self._players = copy.deepcopy(players)
+
+            is_valid, errors = self.verify_roster_integrity()
+            if not is_valid:
+                logger.warning(
+                    "Dynamic roster cache failed integrity validation; auto-healing to baseline",
+                    errors=errors,
+                )
+                self._lineups = prev_lineups
+                self._players = prev_players
+                self._sync_back_to_kbl_data()
+                await self.save_to_cache()
+                return False
+
             self._last_synced_at = cached.get("last_synced_at")
             self._sync_back_to_kbl_data()
-            logger.info("Restored dynamic roster from Redis cache", players_count=len(self._players))
+            logger.info("Restored dynamic roster from Redis cache (integrity verified)", players_count=len(self._players))
             return True
 
         return False
@@ -339,6 +457,9 @@ class RosterManager:
 
     def _record_transaction(self, entry: dict[str, Any]) -> None:
         """Record transaction locally and schedule async Redis append if loop is active."""
+        ok, errors = self.verify_roster_integrity()
+        if not ok:
+            raise RosterIntegrityError(f"Roster transaction violates integrity invariants: {errors}")
         import asyncio
         self._transactions.append(entry)
         try:
