@@ -489,32 +489,39 @@ def build_lineup_response(
             title_tag = "[확정]"
             card_desc = (
                 f"{status_badge}\n\n"
-                f"[{home}{h_coach_str}]\n{h_players_lines}\n\n"
-                f"[{away}{a_coach_str}]\n{a_players_lines}\n\n"
+                f"🏠 [홈팀] {home}{h_coach_str}\n"
+                f"────────────────────\n"
+                f"{h_players_lines}\n\n"
+                f"✈️ [원정] {away}{a_coach_str}\n"
+                f"────────────────────\n"
+                f"{a_players_lines}\n\n"
                 f"※ 경기 20분 전 KBL 본부석 제출 확정 선발"
             )
             line_status = "✅ [공식 확정 선발 라인업]"
-            h_prefix = f"• {home}{h_coach_str}"
-            a_prefix = f"• {away}{a_coach_str}"
+            h_prefix = f"🏠 [홈팀] {home}{h_coach_str}"
+            a_prefix = f"✈️ [원정팀] {away}{a_coach_str}"
         else:
             status_badge = "⏳ [공식 라인업 발표 준비 중]"
             title_tag = "[준비중]"
             card_desc = (
                 f"{status_badge}\n"
-                f"※ 경기 시작 20~30분 전 공식 발표됩니다.\n\n"
-                f"[참고: 구단별 예상 주전 Best 5]\n"
-                f"[{home}{h_coach_str}]\n{h_players_lines}\n\n"
-                f"[{away}{a_coach_str}]\n{a_players_lines}"
+                f"※ 경기 시작 20~30분 전 공식 발표\n\n"
+                f"🏠 [홈팀 예상] {home}{h_coach_str}\n"
+                f"────────────────────\n"
+                f"{h_players_lines}\n\n"
+                f"✈️ [원정 예상] {away}{a_coach_str}\n"
+                f"────────────────────\n"
+                f"{a_players_lines}"
             )
             line_status = "⏳ [공식 발표 준비 중 (경기 20분 전 공개)]"
-            h_prefix = f"• [예상] {home}{h_coach_str}"
-            a_prefix = f"• [예상] {away}{a_coach_str}"
+            h_prefix = f"🏠 [홈팀 예상] {home}{h_coach_str}"
+            a_prefix = f"✈️ [원정팀 예상] {away}{a_coach_str}"
 
-        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {line_status}")
+        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {line_status}\n")
         if h_starters:
-            lines.append(f"{h_prefix}:\n{h_players_lines}")
+            lines.append(f"{h_prefix}\n────────────────────────\n{h_players_lines}\n")
         if a_starters:
-            lines.append(f"{a_prefix}:\n{a_players_lines}")
+            lines.append(f"{a_prefix}\n────────────────────────\n{a_players_lines}\n")
         lines.append("")
 
         cards.append(
