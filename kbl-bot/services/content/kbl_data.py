@@ -6,83 +6,83 @@ from typing import Any
 
 from services.search.parser import KBL_TEAMS
 
-# Full display names, logos, and home arenas for all 10 KBL clubs
+# Full display names, logos, and home arenas for all 10 KBL clubs (official Kakao CDN emblems)
 TEAM_INFO: dict[str, dict[str, str]] = {
     "SK": {
         "full_name": "서울 SK 나이츠",
         "arena": "잠실학생체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/383",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/383_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F55_300300.png",
     },
     "KT": {
         "full_name": "수원 KT 소닉붐",
         "arena": "수원 KT 소닉붐 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/386",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/386_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F06_300300.png",
     },
     "KCC": {
         "full_name": "부산 KCC 이지스",
         "arena": "부산사직체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/385",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/385_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F60_300300.png",
     },
     "LG": {
         "full_name": "창원 LG 세이커스",
         "arena": "창원실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/384",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/384_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F50_300300.png",
     },
     "정관장": {
         "full_name": "안양 정관장 레드부스터스",
         "arena": "안양 정관장 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/387",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/387_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F70_300300.png",
     },
     "소노": {
         "full_name": "고양 소노 스카이거너스",
         "arena": "고양 소노 아레나",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/389",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/389_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F66_300300.png",
     },
     "DB": {
         "full_name": "원주 DB 프로미",
         "arena": "원주종합체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/381",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/381_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F16_300300.png",
     },
     "삼성": {
         "full_name": "서울 삼성 썬더스",
         "arena": "잠실실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/382",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/382_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F35_300300.png",
     },
     "현대모비스": {
         "full_name": "울산 현대모비스 피버스",
         "arena": "울산동천체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/380",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/380_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F10_300300.png",
     },
     "한국가스공사": {
         "full_name": "대구 한국가스공사 페가수스",
         "arena": "대구실내체육관",
         "ticket_url": "https://www.kbl.or.kr/ticket",
         "club_url": "https://sports.daum.net/team/kbl/388",
-        "logo_url": "https://t1.daumcdn.net/media/img-section/sports13/logo/team/kbl/388_300.png",
+        "logo_url": "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports13%2Flogo%2Fteam%2F10%2F64_300300.png",
     },
 }
 
-# Daum Sports Official 300x300 PNG Logo CDN lookup
+# Daum/Kakao Sports Official 300x300 PNG Logo CDN lookup
 TEAM_LOGOS: dict[str, str] = {k: v["logo_url"] for k, v in TEAM_INFO.items()}
-DEFAULT_SPORTS_LOGO: str = "https://t1.daumcdn.net/media/img-section/sports/meta/sports_meta_2026.png"
+DEFAULT_SPORTS_LOGO: str = "https://search1.kakaocdn.net/thumb/R300x300.fpng/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fmedia%2Fimg-section%2Fsports%2Fmeta%2Fsports_meta_2026.png"
 
 
 def get_team_logo(team: str | None) -> str:

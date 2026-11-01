@@ -115,9 +115,13 @@ def _item_card(
     item_list: list[dict[str, str]] | None = None,
     summary: dict[str, str] | None = None,
     buttons: list[dict[str, str]] | None = None,
+    thumbnail_url: str | None = None,
 ) -> dict[str, Any]:
     """Build native Kakao itemCard component (table key-values, title <= 6 chars)."""
     card: dict[str, Any] = {}
+    thumb = thumbnail_url or (image_title.get("imageUrl") if image_title else None)
+    if thumb:
+        card["thumbnail"] = {"imageUrl": thumb, "width": 300, "height": 300}
     if head_title:
         card["head"] = {"title": head_title[:15]}
     if image_title:
