@@ -141,7 +141,24 @@ async def _dispatch_command(
         "하이",
     ):
         prefs = await get_user_preferences(user_hmac)
-        return build_home_menu_response(fav_team, prefs.get("favorite_players", []))
+        team_game = None
+        if fav_team:
+            try:
+                today_games = await game_service.get_today_games(db)
+                for g in today_games:
+                    if fav_team in (g.get("home_team"), g.get("away_team")):
+                        team_game = g
+                        break
+                if not team_game:
+                    upcoming = await game_service.get_kbl_schedule(db, days=7, team=fav_team, limit=1)
+                    if upcoming:
+                        team_game = upcoming[0]
+            except Exception as exc:
+                logger.warning("Failed to lookup team game for home menu", error=str(exc))
+
+        return build_home_menu_response(
+            fav_team, prefs.get("favorite_players", []), team_game=team_game
+        )
 
     # 0.5 Channel Notices & Announcements (공지 / 소식 / 채널소개 / 이벤트)
     if u_compact in (

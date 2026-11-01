@@ -212,11 +212,14 @@ def build_error_response(
 def build_home_menu_response(
     favorite_team: str | None = None,
     fav_players: list[str] | None = None,
+    team_game: dict[str, Any] | None = None,
 ) -> KakaoSkillResponse:
     """
     Build the Pro Basketball Bot welcome / home menu response.
     If the user has not selected a favorite team, presents the 10-team selection
     carousel immediately (matching 프로야구봇 _HhRnC onboarding flow).
+    When a favorite team is selected, immediately presents the team's current
+    live game status, today's schedule, or upcoming matchup.
     """
     if not favorite_team:
         welcome_text = (
@@ -276,18 +279,91 @@ def build_home_menu_response(
         )
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
-    action_card = {
-        "basicCard": _basic_card(
-            title=f"🏀 {full_team}",
-            description=f"내 응원팀 설정 완료! ❤️\n하단 버튼을 눌러 오늘 경기와 일정을 확인하세요.",
-            thumbnail_url=get_team_logo(favorite_team),
-            buttons=[
-                _msg_btn("📅 오늘 경기", "오늘 경기"),
-                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+    logo_url = get_team_logo(favorite_team)
+
+    if team_game:
+        home = team_game.get("home_team", "?")
+        away = team_game.get("away_team", "?")
+        status = team_game.get("status", "")
+        h_score = team_game.get("home_score")
+        a_score = team_game.get("away_score")
+        period = team_game.get("period")
+        clock = team_game.get("game_clock")
+        time_str = _format_kst_datetime(team_game.get("start_time"), include_date=False) or "14:00"
+        arena = _short_arena(team_game.get("arena"))
+        arena_str = f" [{arena}]" if arena else ""
+
+        if status == "LIVE":
+            h_s = h_score if h_score is not None else 0
+            a_s = a_score if a_score is not None else 0
+            period_str = f"{period}쿼터" if period else "실시간"
+            clock_str = f" {clock}" if clock else ""
+            card_title = f"🔴 [LIVE] {home} {h_s} : {a_s} {away}"
+            card_desc = (
+                f"🏀 내 응원팀 {full_team} 실시간 경기 중!\n"
+                f"• 현재 상황: {period_str}{clock_str}{arena_str}\n"
+                f"• 매치업: {home} vs {away}"
+            )
+            buttons = [
+                _msg_btn("🔴 실시간 스코어", "실시간 점수"),
                 _msg_btn("📋 선발 라인업", "라인업"),
-            ],
-        )
-    }
+                _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
+            ]
+        elif status == "FINAL":
+            h_s = h_score if h_score is not None else 0
+            a_s = a_score if a_score is not None else 0
+            won = (favorite_team == home and h_s > a_s) or (favorite_team == away and a_s > h_s)
+            result_tag = "🎉 승리!" if won else "🏁 경기 종료"
+            card_title = f"✅ [{result_tag}] {home} {h_s} : {a_s} {away}"
+            card_desc = (
+                f"🏀 내 응원팀 {full_team} 경기 종료\n"
+                f"• 최종 결과: {home} {h_s} : {a_s} {away}{arena_str}\n"
+                f"하이라이트 영상과 경기 요약을 확인하세요!"
+            )
+            buttons = [
+                _msg_btn("🎬 주요장면 보기", "주요장면"),
+                _msg_btn("🏆 정규리그 순위", "팀순위"),
+                _msg_btn("📅 다음 경기 일정", "일정"),
+            ]
+        else:  # SCHEDULED or upcoming
+            dt_str = _format_kst_datetime(team_game.get("start_time"), include_date=True) or f"오늘 {time_str}"
+            opponent = away if favorite_team == home else home
+            vs_type = "홈경기" if favorite_team == home else "원정경기"
+            card_title = f"📅 [경기 안내] {home} vs {away}"
+            card_desc = (
+                f"🏀 내 응원팀 {full_team} {vs_type}\n"
+                f"• 경기 시간: {dt_str}{arena_str}\n"
+                f"• 매치업: {home} vs {away}\n"
+                f"※ 경기 시작 20분 전 확정 라인업이 공개됩니다."
+            )
+            buttons = [
+                _msg_btn("📋 선발 라인업", "라인업"),
+                _msg_btn("🗳️ 승부예측 참여", f"#승부예측 {favorite_team}"),
+                _msg_btn("📅 KBL 전체 일정", "일정"),
+            ]
+
+        action_card = {
+            "basicCard": _basic_card(
+                title=card_title,
+                description=card_desc,
+                thumbnail_url=logo_url,
+                buttons=buttons,
+            )
+        }
+    else:
+        action_card = {
+            "basicCard": _basic_card(
+                title=f"🏀 {full_team}",
+                description=f"내 응원팀 설정 완료! ❤️\n하단 버튼을 눌러 오늘 경기와 일정을 확인하세요.",
+                thumbnail_url=logo_url,
+                buttons=[
+                    _msg_btn("📅 오늘 경기", "오늘 경기"),
+                    _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
+                    _msg_btn("📋 선발 라인업", "라인업"),
+                ],
+            )
+        }
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
             outputs=[action_card],

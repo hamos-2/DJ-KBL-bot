@@ -271,6 +271,26 @@ async def test_visual_cards_onboarding_lineup_and_summary():
     assert "daumcdn.net" in s_card["imageTitle"]["imageUrl"]
     assert "SK" in s_card["imageTitle"]["title"]
 
+    # 4. Home menu with live/scheduled team game (Matching 프로야구봇 _HhRnC entry)
+    live_game = {
+        "home_team": "KT", "away_team": "소노", "home_score": 45, "away_score": 40,
+        "period": 2, "game_clock": "05:10", "status": "LIVE", "arena": "수원"
+    }
+    home_live_resp = build_home_menu_response(favorite_team="KT", team_game=live_game)
+    live_card = home_live_resp.template.outputs[0]["basicCard"]
+    assert "LIVE" in live_card["title"]
+    assert "KT" in live_card["title"]
+    assert "45" in live_card["title"]
+
+    sched_game = {
+        "home_team": "SK", "away_team": "삼성", "status": "SCHEDULED",
+        "start_time": "2026-11-01T07:30:00Z", "arena": "잠실학생"
+    }
+    home_sched_resp = build_home_menu_response(favorite_team="SK", team_game=sched_game)
+    sched_card = home_sched_resp.template.outputs[0]["basicCard"]
+    assert "경기 안내" in sched_card["title"]
+    assert "SK vs 삼성" in sched_card["title"]
+
 
 @pytest.mark.asyncio
 async def test_player_ranking_category_utterances():
