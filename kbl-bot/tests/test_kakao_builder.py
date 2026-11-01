@@ -215,8 +215,8 @@ class TestProBasketballBotFeatures:
         from apps.kakao.builder import MAIN_MENU_QUICK_REPLIES
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
-            "오늘 경기", "실시간 점수", "승부예측", "라인업", "일정",
-            "결과", "팀순위", "선수순위", "주요장면", "알림설정",
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
+            "일정", "결과", "팀순위", "선수순위", "알림설정",
         ]
         assert labels == expected
 
@@ -265,8 +265,8 @@ class TestProBasketballBotFeatures:
         assert "클러치알림 ON" in btn_labels
         qr_labels = [q.label for q in set_main.template.quickReplies]
         assert qr_labels == [
-            "오늘 경기", "실시간 점수", "승부예측", "라인업", "일정",
-            "결과", "팀순위", "선수순위", "주요장면", "알림설정",
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
+            "일정", "결과", "팀순위", "선수순위", "알림설정",
         ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
@@ -462,6 +462,41 @@ class TestProBasketballBotFeatures:
         assert any("다른팀 뉴스" in l for l in qr_labels)
         assert any("전체 뉴스" in l for l in qr_labels)
         assert len(news_resp.template.quickReplies) == 10
+
+    def test_favorite_players_tab_and_builder_options(self) -> None:
+        """Verify dedicated '관심선수' tab in MAIN_MENU_QUICK_REPLIES and favorite players response."""
+        from apps.kakao.builder import (
+            FAVORITE_PLAYERS_QUICK_REPLIES,
+            MAIN_MENU_QUICK_REPLIES,
+            build_favorite_players_response,
+            build_home_menu_response,
+        )
+
+        # 1. '관심선수' is in MAIN_MENU_QUICK_REPLIES at position 5
+        assert MAIN_MENU_QUICK_REPLIES[4].label == "관심선수"
+        assert MAIN_MENU_QUICK_REPLIES[4].messageText == "관심선수"
+
+        # 2. build_home_menu_response includes "⭐ 관심선수 설정" action button
+        home_resp = build_home_menu_response(favorite_team="KT")
+        home_card = home_resp.template.outputs[0]["basicCard"]
+        btn_labels = [btn["label"] for btn in home_card["buttons"]]
+        assert any("관심선수" in l for l in btn_labels)
+
+        # 3. build_favorite_players_response includes FAVORITE_PLAYERS_QUICK_REPLIES and carousel options
+        fav_resp = build_favorite_players_response(
+            fav_players=["허훈"], favorite_team="KT"
+        )
+        assert len(fav_resp.template.quickReplies) == 10
+        fav_qr_labels = [qr.label for qr in fav_resp.template.quickReplies]
+        assert "⭐ 내 관심선수" in fav_qr_labels
+        assert any("선수" in l for l in fav_qr_labels)
+
+        # Check carousel cards (including team roster shortcuts)
+        carousel = fav_resp.template.outputs[1]["carousel"]
+        c_titles = [c["title"] for c in carousel["items"]]
+        assert any("응원팀 선수" in t for t in c_titles)
+        assert any("구단별 선수" in t for t in c_titles)
+
 
 
 

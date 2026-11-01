@@ -29,12 +29,25 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="실시간 점수", messageText="실시간 점수"),
     QuickReply(label="승부예측", messageText="승부예측"),
     QuickReply(label="라인업", messageText="라인업"),
+    QuickReply(label="관심선수", messageText="관심선수"),
     QuickReply(label="일정", messageText="일정"),
     QuickReply(label="결과", messageText="결과"),
     QuickReply(label="팀순위", messageText="팀순위"),
     QuickReply(label="선수순위", messageText="선수순위"),
-    QuickReply(label="주요장면", messageText="주요장면"),
     QuickReply(label="알림설정", messageText="알림설정"),
+]
+
+FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
+    QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
+    QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
+    QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
+    QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
+    QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
+    QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
+    QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
+    QuickReply(label="🏅 선수순위", messageText="선수순위"),
+    QuickReply(label="🗑️ 관심선수 초기화", messageText="관심선수 초기화"),
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
 ]
 
 _DEFAULT_QUICK_REPLIES: list[QuickReply] = MAIN_MENU_QUICK_REPLIES
@@ -265,7 +278,7 @@ def build_home_menu_response(
                 buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
-                    _msg_btn("🏆 정규리그 순위표", "팀순위"),
+                    _msg_btn("⭐ 관심선수 설정", "관심선수"),
                 ],
             ),
         ]
@@ -280,7 +293,11 @@ def build_home_menu_response(
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
     logo_url = get_team_logo(favorite_team)
-    fav_p_str = f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}" if fav_players else ""
+    fav_p_str = (
+        f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}"
+        if fav_players
+        else "\n• ⭐ 관심선수: 미등록 (아래 버튼으로 등록)"
+    )
 
     if team_game:
         home = team_game.get("home_team", "?")
@@ -309,7 +326,7 @@ def build_home_menu_response(
             buttons = [
                 _msg_btn("🔴 실시간 스코어", "실시간 점수"),
                 _msg_btn("📋 선발 라인업", "라인업"),
-                _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
+                _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ]
         elif status == "FINAL":
             h_s = h_score if h_score is not None else 0
@@ -326,7 +343,7 @@ def build_home_menu_response(
             buttons = [
                 _msg_btn("🎬 주요장면 보기", "주요장면"),
                 _msg_btn("🏆 정규리그 순위", "팀순위"),
-                _msg_btn("📅 다음 경기 일정", "일정"),
+                _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ]
         else:  # SCHEDULED or upcoming
             dt_str = _format_kst_datetime(team_game.get("start_time"), include_date=True) or f"오늘 {time_str}"
@@ -343,7 +360,7 @@ def build_home_menu_response(
             buttons = [
                 _msg_btn("📋 선발 라인업", "라인업"),
                 _msg_btn("🗳️ 승부예측 참여", f"#승부예측 {favorite_team}"),
-                _msg_btn("📅 KBL 전체 일정", "일정"),
+                _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ]
 
         action_card = {
@@ -367,7 +384,7 @@ def build_home_menu_response(
                 buttons=[
                     _msg_btn("📅 오늘 경기", "오늘 경기"),
                     _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
-                    _msg_btn("📋 선발 라인업", "라인업"),
+                    _msg_btn("⭐ 관심선수 설정", "관심선수"),
                 ],
             )
         }
@@ -1408,7 +1425,7 @@ def build_favorite_players_response(
         header_title=header_title,
         items=items,
         buttons=[
-            _msg_btn("⭐ 관심선수 등록 안내", "관심선수"),
+            _msg_btn("🏀 구단별 선수 보기", f"{favorite_team} 선수" if favorite_team else "KT 선수"),
             _msg_btn("🏅 전체 선수 순위", "선수순위"),
         ],
     )
@@ -1453,6 +1470,19 @@ def build_favorite_players_response(
         )
     )
 
+    carousel_items.append(
+        _basic_card(
+            title="🏀 구단별 선수 간편 찾기",
+            description="원하는 구단을 터치하면 선수 전체 명단과 원클릭 등록 버튼이 열립니다.",
+            thumbnail_url=DEFAULT_SPORTS_LOGO,
+            buttons=[
+                _msg_btn("🏀 SK 선수단", "SK 선수"),
+                _msg_btn("🏀 KT 선수단", "KT 선수"),
+                _msg_btn("🏀 DB 선수단", "DB 선수"),
+            ],
+        )
+    )
+
     if fav_players:
         del_buttons = [_msg_btn(f"➖ {p_name} 해제", f"#관심선수 삭제 {p_name}") for p_name in fav_players[:3]]
         carousel_items.append(
@@ -1466,10 +1496,10 @@ def build_favorite_players_response(
 
     outputs = [list_card]
     if carousel_items:
-        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:4]}})
+        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:5]}})
 
     return KakaoSkillResponse(
-        template=KakaoTemplate(outputs=outputs, quickReplies=MAIN_MENU_QUICK_REPLIES)
+        template=KakaoTemplate(outputs=outputs, quickReplies=FAVORITE_PLAYERS_QUICK_REPLIES)
     )
 
 

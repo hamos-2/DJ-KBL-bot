@@ -481,6 +481,13 @@ async def test_favorite_player_registration_lifecycle():
         assert "초기화되었습니다" in resp7.template.outputs[0]["listCard"]["header"]["title"]
         assert len(current_prefs["favorite_players"]) == 0
 
+        # 8. Utterance variations: "관심선수설정", "선수설정", "선수" route to favorite players response
+        for utt in ("관심선수설정", "선수설정", "선수등록", "내관심선수"):
+            resp_utt = await _dispatch_command(utt, db, game_svc, user_svc, user)
+            assert resp_utt is not None
+            assert "관심선수" in resp_utt.template.outputs[0]["listCard"]["header"]["title"]
+
+
 
 
 

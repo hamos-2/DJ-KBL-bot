@@ -509,7 +509,33 @@ async def _dispatch_command(
             return build_team_players_response(potential_team, team_players, fav_players)
 
     # 3-B. Favorite players menu / direct player action / single player lookup
-    is_fav_menu = u_compact in ("관심선수", "내선수", "관심선수목록", "관심선수관리", "선수관리")
+    is_fav_menu = (
+        u_compact in (
+            "관심선수",
+            "내선수",
+            "관심선수목록",
+            "관심선수관리",
+            "관심선수설정",
+            "관심선수등록",
+            "관심선수추가",
+            "선수관리",
+            "선수설정",
+            "선수등록",
+            "선수추가",
+            "선수검색",
+            "선수목록",
+            "내관심선수",
+            "선수",
+        )
+        or (
+            "관심선수" in u_compact
+            and any(k in u_compact for k in ("설정", "관리", "등록", "추가", "목록", "현황", "보기", "메뉴", "안내", "어디", "탭"))
+        )
+        or (
+            "선수" in u_compact
+            and any(k in u_compact for k in ("설정", "등록", "관리"))
+        )
+    )
     has_player_prefix = (
         u_compact.startswith("관심선수")
         or u.startswith("#관심선수")
@@ -519,7 +545,7 @@ async def _dispatch_command(
 
     clean_sub = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
     clean_target = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u)
-    clean_target = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색)+\s*", "", clean_target).strip()
+    clean_target = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색|설정|관리|목록|현황|보기|안내|어디|탭)+\s*", "", clean_target).strip()
 
     # Helper to find player by name or nickname across star players and team lineups
     def _find_player(query_str: str) -> dict | None:
@@ -576,7 +602,7 @@ async def _dispatch_command(
         matched_player is None
         and (is_add or is_del or has_player_prefix)
         and len(clean_target) >= 2
-        and clean_target not in ("목록", "현황", "관리", "설정", "안내", "등록", "추가", "삭제", "해제", "보기")
+        and clean_target not in ("목록", "현황", "관리", "설정", "안내", "등록", "추가", "삭제", "해제", "보기", "어디", "탭")
     ):
         matched_player = {
             "name": clean_target,
