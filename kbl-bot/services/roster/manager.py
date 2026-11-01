@@ -157,6 +157,28 @@ class RosterManager:
                     except (ValueError, TypeError):
                         errors.append(f"[Rule 8] Player {p_name} has non-numeric {stat_k}: {val}")
 
+        # 9. Bench Player Integrity (No duplicates, ghost players, or excluded legends in key_bench)
+        all_bench_names: dict[str, str] = {}
+        for team in self.EXPECTED_TEAMS:
+            info = self._lineups.get(team, {})
+            key_bench = info.get("key_bench", [])
+            for b_name in key_bench:
+                b_name_clean = b_name.strip()
+                if b_name_clean == "함지훈":
+                    errors.append("[Rule 6] Critical invariant broken: Retired player 함지훈 found in bench")
+                if team == "SK" and b_name_clean == "김선형":
+                    errors.append("[Rule 6] Critical invariant broken: 김선형 found in SK bench")
+                if b_name_clean in all_bench_names and b_name_clean != "이정현":
+                    errors.append(f"[Rule 5] Duplicate bench player across clubs: {b_name_clean} in {all_bench_names[b_name_clean]} and {team}")
+                all_bench_names[b_name_clean] = team
+
+                # Cross-check: Ensure bench player is not starting for a different club (ghost record)
+                for other_team, other_info in self._lineups.items():
+                    if other_team != team:
+                        other_starters = {s.get("name") for s in other_info.get("starters", [])}
+                        if b_name_clean in other_starters and b_name_clean != "이정현":
+                            errors.append(f"[Rule 5] Ghost player {b_name_clean}: in {team} bench but starts for {other_team}")
+
         is_valid = len(errors) == 0
         return is_valid, errors
 

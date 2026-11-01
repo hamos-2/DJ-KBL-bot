@@ -157,3 +157,29 @@ class TestRosterIntegrityRules:
         ok, errors = roster_mgr.verify_roster_integrity()
         assert ok is False
         assert any("김선형" in e for e in errors)
+
+    def test_integrity_catches_duplicate_bench_across_clubs(self, roster_mgr: RosterManager) -> None:
+        # Add '오세근' to KT bench while he is in SK bench
+        roster_mgr._lineups["KT"]["key_bench"].append("오세근")
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Duplicate bench player across clubs: 오세근" in e for e in errors)
+
+    def test_integrity_catches_ghost_bench_player_who_starts_elsewhere(self, roster_mgr: RosterManager) -> None:
+        # Put '허훈' (starts for KT) into DB bench (ghost record)
+        roster_mgr._lineups["DB"]["key_bench"].append("허훈")
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Ghost player 허훈" in e for e in errors)
+
+    def test_integrity_catches_ham_ji_hoon_in_bench(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["현대모비스"]["key_bench"].append("함지훈")
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("Retired player 함지훈 found in bench" in e for e in errors)
+
+    def test_integrity_catches_kim_sun_hyung_in_sk_bench(self, roster_mgr: RosterManager) -> None:
+        roster_mgr._lineups["SK"]["key_bench"].append("김선형")
+        ok, errors = roster_mgr.verify_roster_integrity()
+        assert ok is False
+        assert any("김선형 found in SK bench" in e for e in errors)
