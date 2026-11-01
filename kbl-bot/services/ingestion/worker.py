@@ -7,6 +7,7 @@ from typing import Any
 
 from core.cache.redis import (
     acquire_ingest_lock,
+    invalidate_standings_and_rankings_cache,
     release_ingest_lock,
     save_game_snapshot,
     save_highlights_cache,
@@ -250,7 +251,7 @@ class IngestionWorker:
                     await GameService.upsert_game(db, data)
                     await db.commit()
 
-            self._detect_transition(game_id, data)
+            await self._detect_transition(game_id, data)
 
         except ProviderError as exc:
             logger.error(
@@ -267,11 +268,12 @@ class IngestionWorker:
         finally:
             await release_ingest_lock(game_id, token)
 
-    def _detect_transition(
+    async def _detect_transition(
         self, game_id: str, data: dict[str, Any]
     ) -> None:
         """
         Compare the new status against the last known status and log transitions.
+        When a game transitions to FINAL, immediately invalidate standings and player leaderboards.
 
         Args:
             game_id: Provider game identifier.
@@ -294,3 +296,12 @@ class IngestionWorker:
                 away_team=data.get("away_team"),
             )
             self._last_status[game_id] = new_status
+            if new_status == _STATUS_FINAL:
+                logger.info(
+                    "Game finalized; evicting standings and leaderboard caches for immediate fresh calculation",
+                    game_id=game_id,
+                )
+                try:
+                    await invalidate_standings_and_rankings_cache()
+                except Exception as exc:
+                    logger.warning("Failed to invalidate standings/rankings cache on final transition", error=str(exc))

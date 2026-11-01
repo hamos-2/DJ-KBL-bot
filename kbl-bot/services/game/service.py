@@ -84,15 +84,7 @@ class GameService:
     ) -> list[dict[str, Any]]:
         """
         Return today's KBL games from PostgreSQL overlaid with fresh Redis live snapshots.
-
-        Strictly adheres to Rule 1 & Rule 2: never calls the external provider.
-
-        Args:
-            db: Async SQLAlchemy session.
-            target_date: Optional KST date override (defaults to today in KST).
-
-        Returns:
-            List of canonical game dicts ordered by start_time.
+        If DB has no games for today, falls back to provider schedule and upserts.
         """
         query_date = target_date or today_kst()
         start_utc, end_utc = kst_day_bounds_utc(query_date)
@@ -104,6 +96,19 @@ class GameService:
         )
         result = await db.execute(stmt)
         db_games = list(result.scalars().all())
+
+        if not db_games:
+            try:
+                provider_games = await self._provider.get_schedule(query_date)
+                for pg in provider_games:
+                    await self._upsert_game(db, pg)
+                    await save_game_snapshot(str(pg["game_id"]), pg)
+                await db.commit()
+                if provider_games:
+                    return provider_games
+            except Exception as exc:
+                logger.warning("Provider fallback for today games failed", error=str(exc))
+
         snap_map = await get_game_snapshots_bulk([g.provider_id for g in db_games])
 
         games_out: list[dict[str, Any]] = []
@@ -117,20 +122,16 @@ class GameService:
 
     async def get_live_snapshot(self, game_id: str) -> dict[str, Any]:
         """
-        Return the cached Redis snapshot for *game_id*.
-
-        This method NEVER calls the provider — it reads from Redis only.
-
-        Args:
-            game_id: Provider-supplied game identifier.
-
-        Returns:
-            Snapshot dict (may have ``stale=True`` if older than 10 s).
-
-        Raises:
-            GameNotFoundError: If no snapshot exists in Redis.
+        Return the live snapshot for *game_id*, refreshing on-demand from provider if missing or stale.
         """
         snapshot = await get_game_snapshot(game_id)
+        if snapshot is None or snapshot.get("stale"):
+            try:
+                fresh = await self._provider.get_live_score(game_id)
+                await save_game_snapshot(game_id, fresh)
+                return fresh
+            except Exception as exc:
+                logger.warning("On-demand live score refresh failed", game_id=game_id, error=str(exc))
         if snapshot is None:
             raise GameNotFoundError(game_id)
         return snapshot
@@ -197,6 +198,21 @@ class GameService:
             res = await db.execute(recent_stmt)
             rows = list(res.scalars().all())
 
+        # 3. If DB is empty, sync from provider on-demand
+        if not rows and hasattr(self._provider, "get_schedule_range"):
+            try:
+                provider_games = await self._provider.get_schedule_range(
+                    today_kst() - timedelta(days=7), today_kst() + timedelta(days=14)
+                )
+                for pg in provider_games:
+                    await self._upsert_game(db, pg)
+                    await save_game_snapshot(str(pg["game_id"]), pg)
+                await db.commit()
+                res = await db.execute(upcoming_stmt)
+                rows = list(res.scalars().all())
+            except Exception as exc:
+                logger.warning("Matchup search provider fallback failed", error=str(exc))
+
         snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         games_out: list[dict[str, Any]] = []
         for g in rows:
@@ -231,6 +247,21 @@ class GameService:
 
         res = await db.execute(stmt)
         rows = list(res.scalars().all())
+
+        if not rows and hasattr(self._provider, "get_schedule_range"):
+            try:
+                provider_games = await self._provider.get_schedule_range(
+                    today_kst(), today_kst() + timedelta(days=days)
+                )
+                for pg in provider_games:
+                    await self._upsert_game(db, pg)
+                    await save_game_snapshot(str(pg["game_id"]), pg)
+                await db.commit()
+                res = await db.execute(stmt)
+                rows = list(res.scalars().all())
+            except Exception as exc:
+                logger.warning("Schedule provider fallback failed", error=str(exc))
+
         snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         out: list[dict[str, Any]] = []
         for g in rows:
@@ -257,6 +288,20 @@ class GameService:
 
         res = await db.execute(stmt)
         rows = list(res.scalars().all())
+
+        if not rows and hasattr(self._provider, "get_schedule_range"):
+            try:
+                provider_games = await self._provider.get_schedule_range(
+                    today_kst() - timedelta(days=14), today_kst() + timedelta(days=1)
+                )
+                for pg in provider_games:
+                    await self._upsert_game(db, pg)
+                    await save_game_snapshot(str(pg["game_id"]), pg)
+                await db.commit()
+                res = await db.execute(stmt)
+                rows = list(res.scalars().all())
+            except Exception as exc:
+                logger.warning("Recent results provider fallback failed", error=str(exc))
         snap_map = await get_game_snapshots_bulk([g.provider_id for g in rows])
         out: list[dict[str, Any]] = []
         for g in rows:
@@ -334,7 +379,7 @@ class GameService:
         if items:
             try:
                 client = await get_redis()
-                await client.set(cache_key, json.dumps(items), ex=1800)
+                await client.set(cache_key, json.dumps(items), ex=600)
             except Exception:
                 pass
         return items
@@ -358,7 +403,7 @@ class GameService:
         if items:
             try:
                 client = await get_redis()
-                await client.set(cache_key, json.dumps(items), ex=1800)
+                await client.set(cache_key, json.dumps(items), ex=600)
             except Exception:
                 pass
         return items

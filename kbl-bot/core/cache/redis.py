@@ -14,10 +14,14 @@ from core.logging import get_logger
 
 logger = get_logger("cache.redis")
 
-_LIVE_SNAPSHOT_TTL_SECONDS: int = 4 * 3600   # 4 hours physical TTL
-_MATCHUP_CACHE_TTL_SECONDS: int = 3600       # 1 hour TTL for matchup search cache
-_CONTENT_CACHE_TTL_SECONDS: int = 1800       # 30 minutes TTL for standings/news/highlights
-_FRESHNESS_THRESHOLD_SECONDS: int = 10       # logical freshness window
+_LIVE_SNAPSHOT_TTL_SECONDS: int = 4 * 3600    # 4 hours physical TTL
+_MATCHUP_CACHE_TTL_SECONDS: int = 900         # 15 minutes TTL for matchup search
+_STANDINGS_CACHE_TTL_SECONDS: int = 300       # 5 minutes TTL for team standings
+_PLAYER_RANK_CACHE_TTL_SECONDS: int = 300     # 5 minutes TTL for player leaderboards
+_NEWS_CACHE_TTL_SECONDS: int = 600            # 10 minutes TTL for news
+_HIGHLIGHTS_CACHE_TTL_SECONDS: int = 600      # 10 minutes TTL for highlights
+_CONTENT_CACHE_TTL_SECONDS: int = 300         # 5 minutes default content TTL
+_FRESHNESS_THRESHOLD_SECONDS: int = 10        # logical freshness window
 
 # Atomic compare-and-delete Lua script for safe distributed lock release
 _RELEASE_LOCK_LUA = """
@@ -221,9 +225,16 @@ async def get_matchup_cache(
 # ---------------------------------------------------------------------------
 
 async def save_standings_cache(standings: list[dict[str, Any]]) -> None:
-    """Cache KBL team standings in Redis."""
+    """Cache KBL team standings in Redis (5 min TTL for live freshness)."""
     client = await get_redis()
-    await client.set(_STANDINGS_KEY, json.dumps(standings), ex=_CONTENT_CACHE_TTL_SECONDS)
+    await client.set(_STANDINGS_KEY, json.dumps(standings), ex=_STANDINGS_CACHE_TTL_SECONDS)
+
+
+async def invalidate_standings_and_rankings_cache() -> None:
+    """Invalidate standings and player leaderboards cache upon game completion for immediate fresh recalculation."""
+    client = await get_redis()
+    await client.delete(_STANDINGS_KEY, _PLAYER_RANK_KEY)
+    logger.info("Evicted standings and player rankings cache")
 
 
 async def get_standings_cache() -> list[dict[str, Any]] | None:
@@ -234,9 +245,9 @@ async def get_standings_cache() -> list[dict[str, Any]] | None:
 
 
 async def save_player_rankings_cache(rankings: dict[str, list[dict[str, Any]]]) -> None:
-    """Cache KBL player rankings by category in Redis."""
+    """Cache KBL player rankings by category in Redis (5 min TTL)."""
     client = await get_redis()
-    await client.set(_PLAYER_RANK_KEY, json.dumps(rankings), ex=_CONTENT_CACHE_TTL_SECONDS)
+    await client.set(_PLAYER_RANK_KEY, json.dumps(rankings), ex=_PLAYER_RANK_CACHE_TTL_SECONDS)
 
 
 async def get_player_rankings_cache() -> dict[str, list[dict[str, Any]]] | None:
@@ -247,9 +258,9 @@ async def get_player_rankings_cache() -> dict[str, list[dict[str, Any]]] | None:
 
 
 async def save_news_cache(news: list[dict[str, Any]]) -> None:
-    """Cache latest KBL news items in Redis."""
+    """Cache latest KBL news items in Redis (10 min TTL)."""
     client = await get_redis()
-    await client.set(_NEWS_KEY, json.dumps(news), ex=_CONTENT_CACHE_TTL_SECONDS)
+    await client.set(_NEWS_KEY, json.dumps(news), ex=_NEWS_CACHE_TTL_SECONDS)
 
 
 async def get_news_cache() -> list[dict[str, Any]] | None:
@@ -260,9 +271,9 @@ async def get_news_cache() -> list[dict[str, Any]] | None:
 
 
 async def save_highlights_cache(highlights: list[dict[str, Any]]) -> None:
-    """Cache latest KBL highlight clips in Redis."""
+    """Cache latest KBL highlight clips in Redis (10 min TTL)."""
     client = await get_redis()
-    await client.set(_HIGHLIGHTS_KEY, json.dumps(highlights), ex=_CONTENT_CACHE_TTL_SECONDS)
+    await client.set(_HIGHLIGHTS_KEY, json.dumps(highlights), ex=_HIGHLIGHTS_CACHE_TTL_SECONDS)
 
 
 async def get_highlights_cache() -> list[dict[str, Any]] | None:

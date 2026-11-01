@@ -352,3 +352,18 @@ class TestMatchupBuilderAndKakaoRule3:
         body = resp.json()
         assert body["version"] == "2.0"
         assert "outputs" in body["template"]
+
+    @pytest.mark.asyncio
+    async def test_worker_transition_to_final_triggers_cache_invalidation(self) -> None:
+        """When IngestionWorker detects a game transitioning to FINAL, standings/rankings cache is invalidated."""
+        from unittest.mock import AsyncMock, patch
+        from services.ingestion.worker import IngestionWorker
+
+        mock_provider = AsyncMock()
+        worker = IngestionWorker(provider=mock_provider, persist_db=False)
+        worker._last_status["TEST-G01"] = "LIVE"
+
+        with patch("services.ingestion.worker.invalidate_standings_and_rankings_cache", new_callable=AsyncMock) as mock_invalidate:
+            await worker._detect_transition("TEST-G01", {"status": "FINAL", "home_team": "SK", "away_team": "KT"})
+            mock_invalidate.assert_awaited_once()
+            assert worker._last_status["TEST-G01"] == "FINAL"
