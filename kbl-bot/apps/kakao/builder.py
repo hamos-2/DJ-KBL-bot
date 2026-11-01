@@ -403,7 +403,7 @@ def build_lineup_response(
                 buttons=[
                     _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
                     _msg_btn("🔴 실시간 스코어", "실시간 점수"),
-                    _msg_btn("🔔 라인업 알림 ON/OFF", "#알림 라인업"),
+                    _msg_btn("🔔 라인업 알림", "#알림 라인업"),
                 ],
             )
         )
