@@ -312,6 +312,9 @@ class GameService:
             out.append(item)
         return out
 
+    # Alias for backwards compatibility
+    get_kbl_results = get_recent_results
+
     async def get_team_standings(self, db: AsyncSession) -> list[dict[str, Any]]:
         """
         Return 10-team KBL standings from Redis cache, or query provider/DB if cache misses.

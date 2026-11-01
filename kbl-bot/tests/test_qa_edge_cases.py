@@ -269,7 +269,8 @@ class TestPredictionQuarterCutoffAndResults:
             "home_score": 85,
             "away_score": 79,
         }])
-        mock_game_service.get_kbl_results = AsyncMock(return_value=[])
+        mock_game_service.get_recent_results = AsyncMock(return_value=[])
+        mock_game_service.get_kbl_results = mock_game_service.get_recent_results
 
         mock_user = MagicMock()
         mock_user.kakao_user_key_hmac = "test_user_settle"
@@ -295,4 +296,14 @@ class TestPredictionQuarterCutoffAndResults:
             # Second card is game outcome
             assert "적중 성공" in carousel[1]["description"]
             assert "+50P" in carousel[1]["description"]
+
+    def test_game_service_results_method_compatibility(self) -> None:
+        """GameService must have both get_recent_results and get_kbl_results callable."""
+        from services.game.service import GameService
+        from services.provider.mock import MockSportsDataProvider
+        provider = MockSportsDataProvider()
+        service = GameService(provider=provider)
+        assert hasattr(service, "get_recent_results")
+        assert hasattr(service, "get_kbl_results")
+        assert service.get_kbl_results == service.get_recent_results
 

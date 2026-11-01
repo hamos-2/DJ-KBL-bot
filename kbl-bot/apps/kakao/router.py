@@ -387,7 +387,7 @@ async def _dispatch_command(
         or ("예측" in u_compact and "결과" in u_compact)
     ):
         today_games = await game_service.get_today_games(db)
-        recent_games = await game_service.get_kbl_results(db, limit=10)
+        recent_games = await game_service.get_recent_results(db, limit=10)
 
         all_games = []
         seen_ids = set()
