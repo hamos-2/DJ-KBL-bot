@@ -177,6 +177,14 @@ def collect_metrics() -> dict:
     else:
         report["db_health"] = {"ok": False, "error": out}
 
+    # 7. OCI Always Free Cost Guard & Budget Defense
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from oci_cost_guard import collect_oci_cost_metrics
+        report["oci_cost_guard"] = collect_oci_cost_metrics()
+    except Exception as exc:
+        report["oci_cost_guard"] = {"ok": False, "error": str(exc)}
+
     return report
 
 
