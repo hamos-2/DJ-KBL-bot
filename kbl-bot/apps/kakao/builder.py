@@ -1144,7 +1144,7 @@ def build_highlights_response(
         header_title=header,
         items=items,
         buttons=[
-            _link_btn("📺 KBL TV 공식 유튜브", "https://www.youtube.com/@kbl_official/videos"),
+            _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@kbl_official/videos"),
             _link_btn("🎬 다음 KBL 영상관", "https://sports.daum.net/video/kbl"),
         ],
     )
