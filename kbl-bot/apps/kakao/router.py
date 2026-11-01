@@ -126,7 +126,11 @@ async def _dispatch_command(
     일정, KBL 일정, 결과, 뉴스, 주요장면, 관심선수, 팀순위, 선수순위, 응원하기, 설정.
     """
     u = utterance.strip()
-    u_compact = re.sub(r"\s+", "", u)
+    # Strip decorative leading/trailing emojis while preserving #, korean, english, digits
+    u_clean = re.sub(r"^[^\w#]+|[^\w#]+$", "", u).strip()
+    if u_clean:
+        u = u_clean
+    u_compact = re.sub(r"[^\w#]", "", re.sub(r"\s+", "", u)) or re.sub(r"\s+", "", u)
     user_hmac = user.kakao_user_key_hmac
     fav_team = user.favorite_team
 

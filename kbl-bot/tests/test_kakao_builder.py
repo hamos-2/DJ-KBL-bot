@@ -211,12 +211,12 @@ class TestProBasketballBotFeatures:
     """Tests for the 10 core Pro Basketball Bot features (프로야구봇 KBL version)."""
 
     def test_all_10_quick_replies_present(self) -> None:
-        """MAIN_MENU_QUICK_REPLIES must match 프로야구봇 (_HhRnC) core menus."""
+        """MAIN_MENU_QUICK_REPLIES must match 프로야구봇 (_HhRnC) core menus with visual icons."""
         from apps.kakao.builder import MAIN_MENU_QUICK_REPLIES
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
-            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
-            "일정", "결과", "팀순위", "선수순위", "알림설정",
+            "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
+            "📅 일정", "🎬 주요장면", "🏆 팀순위", "🎖️ 선수순위", "⚙️ 설정",
         ]
         assert labels == expected
 
@@ -265,8 +265,8 @@ class TestProBasketballBotFeatures:
         assert "클러치알림 ON" in btn_labels
         qr_labels = [q.label for q in set_main.template.quickReplies]
         assert qr_labels == [
-            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
-            "일정", "결과", "팀순위", "선수순위", "알림설정",
+            "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
+            "📅 일정", "🎬 주요장면", "🏆 팀순위", "🎖️ 선수순위", "⚙️ 설정",
         ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
@@ -473,7 +473,7 @@ class TestProBasketballBotFeatures:
         )
 
         # 1. '관심선수' is in MAIN_MENU_QUICK_REPLIES at position 5
-        assert MAIN_MENU_QUICK_REPLIES[4].label == "관심선수"
+        assert "관심선수" in MAIN_MENU_QUICK_REPLIES[4].label
         assert MAIN_MENU_QUICK_REPLIES[4].messageText == "관심선수"
 
         # 2. build_home_menu_response includes "⭐ 관심선수 설정" action button

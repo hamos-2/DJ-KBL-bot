@@ -1,6 +1,6 @@
 """Parity tests verifying exact feature alignment with 카카오 프로야구봇 (_HhRnC)."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from apps.kakao.builder import (
@@ -49,6 +49,12 @@ class DummyGameService:
                 "arena": "창원",
             }
         ]
+
+    async def get_team_standings(self, db):
+        return [{"rank": 1, "team": "KT", "wins": 10, "losses": 2, "wpct": 0.833, "gb": 0}]
+
+    async def get_latest_highlights(self, db, team=None):
+        return [{"title": "하이라이트 영상", "url": "https://sports.daum.net/video/kbl", "arena": "수원"}]
 
 
 class DummyUserService:
@@ -303,7 +309,11 @@ async def test_player_ranking_category_utterances():
 
     game_svc = MockGameSvc()
     user = User(kakao_user_key_hmac="test", encrypted_kakao_user_key="enc", favorite_team="KT")
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
     db = AsyncMock()
+    db.execute.return_value = mock_result
     user_svc = AsyncMock()
 
     # 1. '어시스트' -> ast
@@ -357,7 +367,11 @@ async def test_user_points_feature():
 
     game_svc = MockGameSvc()
     user = User(kakao_user_key_hmac="test_hmac_pts", encrypted_kakao_user_key="enc", favorite_team="KT")
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
     db = AsyncMock()
+    db.execute.return_value = mock_result
     user_svc = AsyncMock()
 
     with patch("apps.kakao.router.get_user_points", AsyncMock(return_value=150)):
@@ -374,7 +388,7 @@ async def test_multi_team_news_and_other_teams_menu_routing():
     """Verify router dispatches '다른팀 뉴스' carousel and supports viewing other teams' news."""
     from apps.kakao.router import _dispatch_command
     from core.db.models import User
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     class MockGameSvc:
         async def get_latest_news(self, db, team=None):
@@ -383,7 +397,11 @@ async def test_multi_team_news_and_other_teams_menu_routing():
 
     game_svc = MockGameSvc()
     user = User(kakao_user_key_hmac="test_hmac_news", encrypted_kakao_user_key="enc", favorite_team="KT")
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
     db = AsyncMock()
+    db.execute.return_value = mock_result
     user_svc = AsyncMock()
 
     # 1. "다른팀 뉴스" -> returns carousel menu
@@ -416,14 +434,18 @@ async def test_favorite_player_registration_lifecycle():
     """Verify full lifecycle of favorite player registration, lookup, duplicate handling, and deletion."""
     from apps.kakao.router import _dispatch_command
     from core.db.models import User
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     class MockGameSvc:
         pass
 
     game_svc = MockGameSvc()
     user = User(kakao_user_key_hmac="test_hmac_fav_player", encrypted_kakao_user_key="enc", favorite_team="KT")
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
     db = AsyncMock()
+    db.execute.return_value = mock_result
     user_svc = AsyncMock()
 
     current_prefs = {"favorite_players": [], "notifications": {}}
@@ -486,6 +508,43 @@ async def test_favorite_player_registration_lifecycle():
             resp_utt = await _dispatch_command(utt, db, game_svc, user_svc, user)
             assert resp_utt is not None
             assert "관심선수" in resp_utt.template.outputs[0]["listCard"]["header"]["title"]
+
+
+@pytest.mark.asyncio
+async def test_emoji_prefixed_menu_utterances_route_correctly() -> None:
+    """Utterances with leading emojis (e.g. '📅 일정', '🏆 팀순위', '🏀 오늘 경기') must route correctly."""
+    from apps.kakao.router import _dispatch_command
+    from services.game.service import GameService
+    from services.provider.mock import MockSportsDataProvider
+    from services.user.service import UserService
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+    game_svc = DummyGameService()
+    user_svc = MagicMock()
+    user = MagicMock()
+    user.kakao_user_key_hmac = "test_hmac"
+    user.favorite_team = "KT"
+
+    test_queries = [
+        ("📅 일정", "일정"),
+        ("🏆 팀순위", "순위"),
+        ("⭐ 관심선수", "관심선수"),
+        ("🏀 오늘 경기", "오늘"),
+        ("🎬 주요장면", "주요장면"),
+        ("⚙️ 설정", "환경설정"),
+    ]
+
+    with patch("apps.kakao.router.get_user_preferences", return_value={"favorite_team": "KT", "favorite_players": ["허훈"], "notifications": {}}):
+        for emoji_utt, expected_keyword in test_queries:
+            resp = await _dispatch_command(emoji_utt, db, game_svc, user_svc, user)
+            assert resp is not None, f"Failed to dispatch: {emoji_utt}"
+            out = str(resp.model_dump())
+            assert expected_keyword in out, f"Keyword '{expected_keyword}' not found in response for '{emoji_utt}'"
 
 
 

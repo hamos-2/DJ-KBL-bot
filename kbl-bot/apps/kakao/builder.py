@@ -24,18 +24,18 @@ from services.search.parser import KBL_TEAMS, MatchupQuery
 _KST = ZoneInfo("Asia/Seoul")
 _WEEKDAYS_KO = ["월", "화", "수", "목", "금", "토", "일"]
 
-# Bottom navigation QuickReplies: Optimized for user flow (Matching 프로야구봇 _HhRnC structure)
+# Bottom navigation QuickReplies: Optimized for user flow (Matching 프로야구봇 _HhRnC structure with clear visual icons)
 MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
-    QuickReply(label="오늘 경기", messageText="오늘 경기"),
-    QuickReply(label="실시간 점수", messageText="실시간 점수"),
-    QuickReply(label="승부예측", messageText="승부예측"),
-    QuickReply(label="라인업", messageText="라인업"),
-    QuickReply(label="관심선수", messageText="관심선수"),
-    QuickReply(label="일정", messageText="일정"),
-    QuickReply(label="결과", messageText="결과"),
-    QuickReply(label="팀순위", messageText="팀순위"),
-    QuickReply(label="선수순위", messageText="선수순위"),
-    QuickReply(label="알림설정", messageText="알림설정"),
+    QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+    QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
+    QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+    QuickReply(label="📋 라인업", messageText="라인업"),
+    QuickReply(label="⭐ 관심선수", messageText="관심선수"),
+    QuickReply(label="📅 일정", messageText="일정"),
+    QuickReply(label="🎬 주요장면", messageText="주요장면"),
+    QuickReply(label="🏆 팀순위", messageText="팀순위"),
+    QuickReply(label="🎖️ 선수순위", messageText="선수순위"),
+    QuickReply(label="⚙️ 설정", messageText="설정"),
 ]
 
 FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
