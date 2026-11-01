@@ -98,29 +98,55 @@ def get_team_logo(team: str | None) -> str:
             return url
     return DEFAULT_SPORTS_LOGO
 
-# Comprehensive KBL Star Players database across all 10 clubs (updated with 2026-27 active official rosters)
+# Comprehensive KBL Star Players database across all 10 clubs (updated with 2025-2026 / 2026-2027 active official rosters)
 KBL_PLAYERS: list[dict[str, Any]] = [
-    # 서울 SK 나이츠
-    {"name": "김선형", "team": "SK", "pos": "G", "no": "5", "pts": 15.2, "reb": 2.7, "ast": 5.5, "tpm": 1.1, "stl": 1.4, "blk": 0.2},
+    # 서울 SK 나이츠 (김선형 KT 이적 후 김낙현 영입)
+    {"name": "김낙현", "team": "SK", "pos": "G", "no": "4", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1, "blk": 0.1},
     {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 18.8, "reb": 9.6, "ast": 5.6, "tpm": 0.9, "stl": 1.0, "blk": 1.0},
     {"name": "안영준", "team": "SK", "pos": "F", "no": "8", "pts": 17.8, "reb": 5.2, "ast": 3.6, "tpm": 2.3, "stl": 3.2, "blk": 0.6},
     {"name": "오재현", "team": "SK", "pos": "G", "no": "22", "pts": 10.5, "reb": 2.8, "ast": 3.2, "tpm": 1.4, "stl": 1.5, "blk": 0.1},
     {"name": "최부경", "team": "SK", "pos": "F", "no": "14", "pts": 8.2, "reb": 5.5, "ast": 1.8, "tpm": 0.0, "stl": 0.6, "blk": 0.4},
 
-    # 수원 KT 소닉붐
-    {"name": "허훈", "team": "KT", "pos": "G", "no": "2", "pts": 16.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
+    # 수원 KT 소닉붐 (SK에서 김선형 영입, 허훈 KCC 이적)
+    {"name": "김선형", "team": "KT", "pos": "G", "no": "5", "pts": 15.2, "reb": 2.7, "ast": 5.5, "tpm": 1.1, "stl": 1.4, "blk": 0.2},
     {"name": "하윤기", "team": "KT", "pos": "C", "no": "0", "pts": 14.5, "reb": 6.9, "ast": 1.8, "tpm": 0.1, "stl": 0.7, "blk": 1.0},
     {"name": "한희원", "team": "KT", "pos": "F", "no": "11", "pts": 11.8, "reb": 4.1, "ast": 1.5, "tpm": 1.9, "stl": 0.9, "blk": 0.4},
     {"name": "문성곤", "team": "KT", "pos": "F", "no": "10", "pts": 8.5, "reb": 5.2, "ast": 2.0, "tpm": 1.4, "stl": 2.1, "blk": 0.5},
     {"name": "문정현", "team": "KT", "pos": "F", "no": "21", "pts": 9.2, "reb": 4.8, "ast": 2.2, "tpm": 1.0, "stl": 0.8, "blk": 0.3},
     {"name": "레이션 해먼즈", "team": "KT", "pos": "F", "no": "12", "pts": 22.2, "reb": 9.5, "ast": 2.5, "tpm": 1.5, "stl": 1.0, "blk": 0.4},
+    {"name": "정창영", "team": "KT", "pos": "G", "no": "4", "pts": 7.8, "reb": 2.5, "ast": 2.8, "tpm": 0.9, "stl": 0.7, "blk": 0.1},
 
-    # 원주 DB 프로미
+    # 부산 KCC 이지스 (KT에서 허훈 영입, 허웅-허훈 형제 결성)
+    {"name": "허훈", "team": "KCC", "pos": "G", "no": "2", "pts": 16.5, "reb": 2.7, "ast": 8.5, "tpm": 2.3, "stl": 0.6, "blk": 0.0},
+    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
+    {"name": "최준용", "team": "KCC", "pos": "F", "no": "35", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
+    {"name": "송교창", "team": "KCC", "pos": "F", "no": "11", "pts": 14.2, "reb": 5.4, "ast": 2.8, "tpm": 1.2, "stl": 0.9, "blk": 0.5},
+    {"name": "이승현", "team": "KCC", "pos": "C", "no": "1", "pts": 11.5, "reb": 6.8, "ast": 2.1, "tpm": 0.4, "stl": 0.7, "blk": 0.6},
+    {"name": "디온테 버튼", "team": "KCC", "pos": "F", "no": "0", "pts": 21.0, "reb": 8.5, "ast": 5.2, "tpm": 1.8, "stl": 1.4, "blk": 1.0},
+    {"name": "이호현", "team": "KCC", "pos": "G", "no": "6", "pts": 9.8, "reb": 2.1, "ast": 4.2, "tpm": 0.9, "stl": 0.8, "blk": 0.1},
+
+    # 원주 DB 프로미 (삼성에서 베테랑 이정현 영입, 이관희 삼성 복귀)
     {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 19.2, "reb": 3.9, "ast": 7.6, "tpm": 2.1, "stl": 1.6, "blk": 0.1},
+    {"name": "이정현", "team": "DB", "pos": "G", "no": "3", "pts": 13.5, "reb": 2.9, "ast": 4.5, "tpm": 1.7, "stl": 0.9, "blk": 0.1},
     {"name": "강상재", "team": "DB", "pos": "F", "no": "13", "pts": 13.1, "reb": 6.3, "ast": 3.4, "tpm": 1.3, "stl": 0.8, "blk": 0.5},
     {"name": "김종규", "team": "DB", "pos": "C", "no": "15", "pts": 11.2, "reb": 6.1, "ast": 1.2, "tpm": 0.4, "stl": 0.5, "blk": 0.9},
-    {"name": "이관희", "team": "DB", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2, "blk": 0.3},
     {"name": "치나누 오누아쿠", "team": "DB", "pos": "C", "no": "32", "pts": 17.5, "reb": 11.2, "ast": 3.8, "tpm": 0.2, "stl": 1.2, "blk": 1.5},
+
+    # 서울 삼성 썬더스 (이관희 친정 복귀, KCC 이근휘 영입)
+    {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "21", "pts": 23.9, "reb": 11.8, "ast": 1.9, "tpm": 0.0, "stl": 0.6, "blk": 1.1},
+    {"name": "이관희", "team": "삼성", "pos": "G", "no": "5", "pts": 12.1, "reb": 3.2, "ast": 2.4, "tpm": 1.8, "stl": 1.2, "blk": 0.3},
+    {"name": "저스틴 구탕", "team": "삼성", "pos": "F", "no": "1", "pts": 8.1, "reb": 4.6, "ast": 5.9, "tpm": 0.9, "stl": 1.7, "blk": 0.2},
+    {"name": "이원석", "team": "삼성", "pos": "C", "no": "13", "pts": 10.2, "reb": 6.1, "ast": 1.2, "tpm": 0.2, "stl": 0.5, "blk": 1.0},
+    {"name": "최성모", "team": "삼성", "pos": "G", "no": "6", "pts": 8.5, "reb": 2.8, "ast": 3.4, "tpm": 1.1, "stl": 1.0, "blk": 0.1},
+    {"name": "이근휘", "team": "삼성", "pos": "F", "no": "11", "pts": 7.9, "reb": 2.0, "ast": 1.1, "tpm": 2.1, "stl": 0.5, "blk": 0.1},
+
+    # 대구 한국가스공사 페가수스 (최진수, 김국찬 영입)
+    {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "0", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
+    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "4", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7, "blk": 0.8},
+    {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 10.9, "reb": 2.7, "ast": 4.8, "tpm": 1.2, "stl": 1.9, "blk": 0.1},
+    {"name": "신승민", "team": "한국가스공사", "pos": "F", "no": "8", "pts": 10.2, "reb": 4.5, "ast": 1.6, "tpm": 1.1, "stl": 0.9, "blk": 0.4},
+    {"name": "최진수", "team": "한국가스공사", "pos": "F", "no": "23", "pts": 8.5, "reb": 3.8, "ast": 1.7, "tpm": 0.8, "stl": 0.6, "blk": 0.5},
+    {"name": "김국찬", "team": "한국가스공사", "pos": "F", "no": "9", "pts": 8.8, "reb": 3.1, "ast": 1.5, "tpm": 1.7, "stl": 0.8, "blk": 0.2},
 
     # 창원 LG 세이커스
     {"name": "아셈 마레이", "team": "LG", "pos": "C", "no": "23", "pts": 15.1, "reb": 14.2, "ast": 6.8, "tpm": 0.0, "stl": 0.8, "blk": 0.2},
@@ -129,21 +155,6 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "허일영", "team": "LG", "pos": "F", "no": "12", "pts": 10.2, "reb": 3.5, "ast": 1.1, "tpm": 1.8, "stl": 0.5, "blk": 0.2},
     {"name": "전성현", "team": "LG", "pos": "F", "no": "23", "pts": 14.8, "reb": 2.2, "ast": 1.8, "tpm": 3.1, "stl": 0.7, "blk": 0.1},
     {"name": "칼 타마요", "team": "LG", "pos": "F", "no": "1", "pts": 12.4, "reb": 5.1, "ast": 1.5, "tpm": 1.1, "stl": 0.8, "blk": 0.4},
-
-    # 부산 KCC 이지스
-    {"name": "허웅", "team": "KCC", "pos": "G", "no": "3", "pts": 16.9, "reb": 2.6, "ast": 4.3, "tpm": 2.7, "stl": 1.1, "blk": 0.1},
-    {"name": "최준용", "team": "KCC", "pos": "F", "no": "35", "pts": 15.4, "reb": 6.2, "ast": 3.8, "tpm": 1.4, "stl": 1.0, "blk": 0.9},
-    {"name": "송교창", "team": "KCC", "pos": "F", "no": "11", "pts": 14.2, "reb": 5.4, "ast": 2.8, "tpm": 1.2, "stl": 0.9, "blk": 0.5},
-    {"name": "이승현", "team": "KCC", "pos": "C", "no": "1", "pts": 11.5, "reb": 6.8, "ast": 2.1, "tpm": 0.4, "stl": 0.7, "blk": 0.6},
-    {"name": "디온테 버튼", "team": "KCC", "pos": "F", "no": "0", "pts": 21.0, "reb": 8.5, "ast": 5.2, "tpm": 1.8, "stl": 1.4, "blk": 1.0},
-    {"name": "이호현", "team": "KCC", "pos": "G", "no": "6", "pts": 9.8, "reb": 2.1, "ast": 4.2, "tpm": 0.9, "stl": 0.8, "blk": 0.1},
-
-    # 대구 한국가스공사 페가수스
-    {"name": "샘조세프 벨란겔", "team": "한국가스공사", "pos": "G", "no": "0", "pts": 15.9, "reb": 2.3, "ast": 5.8, "tpm": 2.2, "stl": 1.2, "blk": 0.0},
-    {"name": "김낙현", "team": "한국가스공사", "pos": "G", "no": "10", "pts": 16.1, "reb": 2.8, "ast": 5.2, "tpm": 2.5, "stl": 1.1, "blk": 0.1},
-    {"name": "앤드류 니콜슨", "team": "한국가스공사", "pos": "F", "no": "4", "pts": 21.1, "reb": 8.4, "ast": 1.5, "tpm": 2.4, "stl": 0.7, "blk": 0.8},
-    {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 10.9, "reb": 2.7, "ast": 4.8, "tpm": 1.2, "stl": 1.9, "blk": 0.1},
-    {"name": "신승민", "team": "한국가스공사", "pos": "F", "no": "8", "pts": 10.2, "reb": 4.5, "ast": 1.6, "tpm": 1.1, "stl": 0.9, "blk": 0.4},
 
     # 울산 현대모비스 피버스
     {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "0", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.7, "blk": 0.6},
@@ -166,22 +177,15 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "정효근", "team": "정관장", "pos": "F", "no": "33", "pts": 11.7, "reb": 5.5, "ast": 2.3, "tpm": 1.2, "stl": 0.8, "blk": 0.6},
     {"name": "배병준", "team": "정관장", "pos": "F", "no": "1", "pts": 10.4, "reb": 2.8, "ast": 1.5, "tpm": 2.2, "stl": 0.9, "blk": 0.1},
     {"name": "캐디 라렌", "team": "정관장", "pos": "C", "no": "25", "pts": 16.5, "reb": 9.8, "ast": 1.8, "tpm": 0.5, "stl": 0.8, "blk": 1.4},
-
-    # 서울 삼성 썬더스
-    {"name": "코피 코번", "team": "삼성", "pos": "C", "no": "21", "pts": 23.9, "reb": 11.8, "ast": 1.9, "tpm": 0.0, "stl": 0.6, "blk": 1.1},
-    {"name": "이정현", "team": "삼성", "pos": "G", "no": "3", "pts": 14.5, "reb": 3.2, "ast": 5.2, "tpm": 1.9, "stl": 1.1, "blk": 0.1},
-    {"name": "저스틴 구탕", "team": "삼성", "pos": "F", "no": "1", "pts": 8.1, "reb": 4.6, "ast": 5.9, "tpm": 0.9, "stl": 1.7, "blk": 0.2},
-    {"name": "이원석", "team": "삼성", "pos": "C", "no": "13", "pts": 10.2, "reb": 6.1, "ast": 1.2, "tpm": 0.2, "stl": 0.5, "blk": 1.0},
-    {"name": "최성모", "team": "삼성", "pos": "G", "no": "6", "pts": 8.5, "reb": 2.8, "ast": 3.4, "tpm": 1.1, "stl": 1.0, "blk": 0.1},
 ]
 
 
-# Official Starting 5 Lineups (베스트 5) and Head Coaches for all 10 KBL clubs
+# Official Starting 5 Lineups (베스트 5) and Head Coaches for all 10 KBL clubs (updated 2025-2027)
 TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     "SK": {
         "head_coach": "전희철",
         "starters": [
-            {"pos": "G", "name": "김선형", "no": "5"},
+            {"pos": "G", "name": "김낙현", "no": "4"},
             {"pos": "G", "name": "오재현", "no": "22"},
             {"pos": "F", "name": "안영준", "no": "8"},
             {"pos": "F", "name": "최부경", "no": "14"},
@@ -193,23 +197,23 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "head_coach": "김주성",
         "starters": [
             {"pos": "G", "name": "이선 알바노", "no": "3"},
-            {"pos": "G", "name": "이용우", "no": "0"},
+            {"pos": "G", "name": "이정현", "no": "3"},
             {"pos": "F", "name": "강상재", "no": "13"},
             {"pos": "F", "name": "치나누 오누아쿠", "no": "32"},
             {"pos": "C", "name": "김종규", "no": "15"},
         ],
-        "key_bench": ["이관희", "박인웅", "유현준", "서민수", "로버트 카터"],
+        "key_bench": ["유현준", "이용우", "박인웅", "서민수", "로버트 카터"],
     },
     "KT": {
         "head_coach": "송영진",
         "starters": [
-            {"pos": "G", "name": "허훈", "no": "2"},
+            {"pos": "G", "name": "김선형", "no": "5"},
             {"pos": "G", "name": "한희원", "no": "11"},
             {"pos": "F", "name": "문성곤", "no": "10"},
             {"pos": "F", "name": "문정현", "no": "21"},
             {"pos": "C", "name": "하윤기", "no": "0"},
         ],
-        "key_bench": ["레이션 해먼즈", "제레미아 틸먼", "박준영", "이두원", "최진광"],
+        "key_bench": ["정창영", "이현석", "레이션 해먼즈", "박준영", "이두원"],
     },
     "LG": {
         "head_coach": "조상현",
@@ -236,24 +240,24 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     "KCC": {
         "head_coach": "전창진",
         "starters": [
-            {"pos": "G", "name": "이호현", "no": "6"},
+            {"pos": "G", "name": "허훈", "no": "2"},
             {"pos": "G", "name": "허웅", "no": "3"},
             {"pos": "F", "name": "최준용", "no": "35"},
             {"pos": "F", "name": "송교창", "no": "11"},
             {"pos": "C", "name": "이승현", "no": "1"},
         ],
-        "key_bench": ["디온테 버튼", "정창영", "이근휘", "켈빈 에피스톨라"],
+        "key_bench": ["디온테 버튼", "이호현", "최진광", "켈빈 에피스톨라"],
     },
     "한국가스공사": {
         "head_coach": "강혁",
         "starters": [
             {"pos": "G", "name": "SJ 벨란겔", "no": "0"},
             {"pos": "G", "name": "정성우", "no": "3"},
-            {"pos": "G", "name": "김낙현", "no": "10"},
             {"pos": "F", "name": "신승민", "no": "8"},
+            {"pos": "F", "name": "최진수", "no": "23"},
             {"pos": "C", "name": "앤드류 니콜슨", "no": "4"},
         ],
-        "key_bench": ["차바위", "전현우", "유슈 은도예", "양재혁"],
+        "key_bench": ["김국찬", "차바위", "전현우", "유슈 은도예", "양재혁"],
     },
     "현대모비스": {
         "head_coach": "조동현",
@@ -264,7 +268,7 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "F", "name": "함지훈", "no": "54"},
             {"pos": "C", "name": "게이지 프림", "no": "0"},
         ],
-        "key_bench": ["숀 롱", "장재석", "김국찬", "미구엘 옥존"],
+        "key_bench": ["숀 롱", "장재석", "정준원", "이우정", "미구엘 옥존"],
     },
     "소노": {
         "head_coach": "김승기",
@@ -275,18 +279,18 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
             {"pos": "F", "name": "최승욱", "no": "11"},
             {"pos": "C", "name": "앨런 윌리엄스", "no": "15"},
         ],
-        "key_bench": ["김민욱", "임동섭", "디제이 번즈", "백지웅"],
+        "key_bench": ["DJ 번즈", "김민욱", "임동섭", "백지웅"],
     },
     "삼성": {
         "head_coach": "김효범",
         "starters": [
-            {"pos": "G", "name": "이정현", "no": "3"},
+            {"pos": "G", "name": "이관희", "no": "5"},
             {"pos": "G", "name": "최성모", "no": "6"},
             {"pos": "F", "name": "저스틴 구탕", "no": "1"},
             {"pos": "F", "name": "이원석", "no": "13"},
             {"pos": "C", "name": "코피 코번", "no": "21"},
         ],
-        "key_bench": ["이동엽", "신동혁", "차민석", "마커스 데릭슨"],
+        "key_bench": ["이근휘", "이동엽", "신동혁", "차민석", "마커스 데릭슨"],
     },
 }
 
