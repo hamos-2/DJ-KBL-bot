@@ -608,14 +608,18 @@ def build_lineup_response(
                 f"{a_players_lines}"
             )
 
-        if base_url:
+        if base_url and primary_board_url is None:
             q_h = urllib.parse.quote(home)
             q_a = urllib.parse.quote(away)
             card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}"
             c_fixed, c_w, c_h = True, 960, 540
-            if primary_board_url is None:
-                primary_board_url = card_thumb
-                primary_board_alt = f"📋 {home} vs {away} 선발 라인업 보드"
+            primary_board_url = card_thumb
+            primary_board_alt = f"📋 {home} vs {away} 선발 라인업 보드"
+        elif base_url and not target_team:
+            q_h = urllib.parse.quote(home)
+            q_a = urllib.parse.quote(away)
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}"
+            c_fixed, c_w, c_h = True, 960, 540
         else:
             card_thumb = get_team_logo(home)
             c_fixed, c_w, c_h = False, None, None
@@ -645,15 +649,6 @@ def build_lineup_response(
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards[:5]}},
     ]
-    if primary_board_url:
-        outputs.append(
-            {
-                "simpleImage": {
-                    "imageUrl": primary_board_url,
-                    "altText": primary_board_alt,
-                }
-            }
-        )
     lineup_qrs = [
         QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),

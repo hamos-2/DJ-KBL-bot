@@ -707,10 +707,10 @@ class TestProBasketballBotFeatures:
             target_team="정관장",
             base_url="https://activity-lexmark-insert-styles.trycloudflare.com",
         )
+        assert len(lineup_board_resp.template.outputs) == 1
         board_cards = lineup_board_resp.template.outputs[0]["carousel"]["items"]
         assert board_cards[0]["thumbnail"]["fixedRatio"] is True
         assert "/integrations/kakao/skills/lineup-image/game/" in board_cards[0]["thumbnail"]["imageUrl"]
-        assert "simpleImage" in lineup_board_resp.template.outputs[1]
 
         png_bytes = render_lineup_board_png(
             "한국가스공사",
