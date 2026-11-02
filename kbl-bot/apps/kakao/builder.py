@@ -1241,8 +1241,8 @@ def build_news_response(
 ) -> KakaoSkillResponse:
     """
     Build response for '뉴스'.
-    Supports 5 news items immediately (Page 1) and additional 5 news items via '뉴스 더보기' (Page 2).
-    Returns pure listCard with verified official logos and action buttons.
+    Supports 5 news items per page and continuous fresh news cycling via '🔄 새로운 뉴스' (Pages 1..5).
+    Returns pure listCard with verified official logos/press photos and action buttons.
     """
     if favorite_team:
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
@@ -1251,16 +1251,32 @@ def build_news_response(
         full_name = "KBL 프로농구"
         default_img = DEFAULT_SPORTS_LOGO
 
-    if page == 2:
-        slice_items = news_items[5:10] if len(news_items) > 5 else news_items[:5]
-        header = f"{favorite_team} 관련 뉴스 (더보기)" if favorite_team else "KBL 프로농구 뉴스 더보기 (2/2)"
-        toggle_btn = _msg_btn("최신 뉴스로", f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
-        qr_news = QuickReply(label="처음 뉴스로", messageText=f"#{favorite_team} 뉴스" if favorite_team else "뉴스")
+    total_pages = max(1, (len(news_items) + 4) // 5)
+    curr_page = ((max(1, page) - 1) % total_pages) + 1 if total_pages > 1 else 1
+
+    if curr_page >= 2:
+        start_idx = (curr_page - 1) * 5
+        slice_items = news_items[start_idx : start_idx + 5] if len(news_items) > start_idx else news_items[:5]
+        header = (
+            f"{favorite_team} 새로운 뉴스 ({curr_page}/{total_pages} 더보기)"
+            if favorite_team
+            else f"KBL 새로운 뉴스 ({curr_page}/{total_pages} 더보기)"
+        )
+        if curr_page < total_pages:
+            next_p = curr_page + 1
+            next_msg = f"#{favorite_team} 새로운 뉴스 {next_p}" if favorite_team else f"새로운 뉴스 {next_p}"
+            toggle_btn = _msg_btn("🔄 새로운 뉴스", next_msg)
+            qr_news = QuickReply(label="🔄 새로운 뉴스", messageText=next_msg)
+        else:
+            reset_msg = f"#{favorite_team} 뉴스" if favorite_team else "뉴스"
+            toggle_btn = _msg_btn("최신 뉴스로", reset_msg)
+            qr_news = QuickReply(label="🔄 최신 뉴스로", messageText=reset_msg)
     else:
         slice_items = news_items[:5]
         header = f"{favorite_team} 관련 뉴스" if favorite_team else "KBL 프로농구 최신 뉴스"
-        toggle_btn = _msg_btn("뉴스 더보기", f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
-        qr_news = QuickReply(label="뉴스 더보기", messageText=f"#{favorite_team} 뉴스더보기" if favorite_team else "뉴스 더보기")
+        next_msg = f"#{favorite_team} 새로운 뉴스 2" if favorite_team else "새로운 뉴스 2"
+        toggle_btn = _msg_btn("🔄 새로운 뉴스", next_msg)
+        qr_news = QuickReply(label="🔄 새로운 뉴스", messageText=next_msg)
 
     items: list[dict[str, Any]] = []
     for item in slice_items:

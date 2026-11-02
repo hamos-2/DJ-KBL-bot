@@ -1014,12 +1014,12 @@ async def _dispatch_command(
         rankings = await game_service.get_player_rankings(category=cat)
         return build_player_rankings_response(rankings, category=cat)
 
-    # 6. News (뉴스 / 팀별 맞춤 뉴스 / 뉴스 더보기 / 다른팀 뉴스)
+    # 6. News (뉴스 / 팀별 맞춤 뉴스 / 새로운 뉴스 / 뉴스 더보기 / 다른팀 뉴스)
     if (
         "뉴스" in u_compact
         or "소식" in u_compact
         or "기사" in u_compact
-        or u_compact in ("더보기", "뉴스더보기", "다음뉴스")
+        or u_compact in ("더보기", "뉴스더보기", "다음뉴스", "새로운뉴스", "신규뉴스", "추가뉴스")
         or any(k in u_compact for k in ("다른팀", "구단별", "팀별", "타구단"))
     ):
         # 6-1. 다른팀 뉴스 선택 메뉴
@@ -1048,9 +1048,45 @@ async def _dispatch_command(
                         break
 
         target_team = None if is_general_news else (requested_team or fav_team)
-        is_page_2 = any(k in u_compact for k in ("더보기", "다음", "2페이지", "more")) and not any(k in u_compact for k in ("처음", "이전", "1페이지"))
-        page = 2 if is_page_2 else 1
         news_items = await game_service.get_latest_news(db, team=target_team)
+        total_pages = max(1, (len(news_items) + 4) // 5)
+
+        # Determine requested page: explicit number ("새로운 뉴스 3"), or increment on "새로운 뉴스"/"더보기"
+        page = 1
+        page_num_match = re.search(r"(?:새로운뉴스|신규뉴스|추가뉴스|뉴스더보기|더보기|페이지|page)\s*([1-9])", u_compact, re.IGNORECASE)
+        if not page_num_match:
+            page_num_match = re.search(r"([1-9])\s*(?:페이지|page)", u_compact, re.IGNORECASE)
+
+        is_more_request = any(
+            k in u_compact for k in ("새로운", "신규", "추가", "더보기", "다음", "다른뉴스", "more")
+        ) and not any(k in u_compact for k in ("처음", "최신뉴스로", "이전", "1페이지"))
+
+        state_key = f"user:news_page:{user_hmac}:{target_team or 'all'}"
+        if page_num_match:
+            page = int(page_num_match.group(1))
+            try:
+                redis_client = await get_redis()
+                await redis_client.set(state_key, str(page), ex=1800)
+            except Exception:
+                pass
+        elif is_more_request:
+            page = 2
+            try:
+                redis_client = await get_redis()
+                prev_raw = await redis_client.get(state_key)
+                prev_p = int(prev_raw) if (prev_raw and str(prev_raw).isdigit()) else 1
+                page = (prev_p % total_pages) + 1 if total_pages > 1 else 1
+                await redis_client.set(state_key, str(page), ex=1800)
+            except Exception:
+                page = 2
+        else:
+            page = 1
+            try:
+                redis_client = await get_redis()
+                await redis_client.set(state_key, "1", ex=1800)
+            except Exception:
+                pass
+
         return build_news_response(news_items, favorite_team=target_team, page=page)
 
     # 7. Highlights (주요장면 / 하이라이트 / 영상 / 팀별 맞춤 하이라이트)
@@ -1189,12 +1225,12 @@ async def get_matchup_lineup_board_image(
 
 @router.post("/today-games")
 async def today_games(
-    request: Request,
     payload: KakaoSkillPayload,
     db: Annotated[AsyncSession, Depends(get_db)],
     game_service: Annotated[GameService, Depends(_get_game_service)],
     user_service: Annotated[UserService, Depends(_get_user_service)],
     x_kakao_skill_secret: Annotated[str | None, Header()] = None,
+    request: Request = None,  # type: ignore[assignment]
 ) -> JSONResponse:
     """
     Primary Kakao Skill endpoint for today's games and unified Pro Basketball Bot commands.
@@ -1234,12 +1270,12 @@ async def today_games(
 
 @router.post("/match-search")
 async def match_search(
-    request: Request,
     payload: KakaoSkillPayload,
     db: Annotated[AsyncSession, Depends(get_db)],
     game_service: Annotated[GameService, Depends(_get_game_service)],
     user_service: Annotated[UserService, Depends(_get_user_service)],
     x_kakao_skill_secret: Annotated[str | None, Header()] = None,
+    request: Request = None,  # type: ignore[assignment]
 ) -> JSONResponse:
     """
     Search upcoming/recent KBL games or route any Pro Basketball Bot menu command.

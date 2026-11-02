@@ -428,7 +428,7 @@ class DaumSportsDataProvider(SportsDataProvider):
 
         client = self._get_client()
 
-        # Tier 0: Official Daum Sports Match News API (`SPORTS_GAME_NEWS?id={game_id}&limit=10`)
+        # Tier 0: Official Daum Sports Match News API (`SPORTS_GAME_NEWS?id={game_id}&limit=25`)
         if recent_games:
             candidate_games = recent_games
             if team:
@@ -436,20 +436,21 @@ class DaumSportsDataProvider(SportsDataProvider):
                 if t_games:
                     candidate_games = t_games
 
-            match_articles: list[dict[str, Any]] = []
+            per_game_articles: list[list[dict[str, Any]]] = []
             seen_urls: set[str] = set()
-            for g in candidate_games[:3]:
+            for g in candidate_games[:4]:
                 gid = str(g.get("game_id") or "")
                 if not (gid.isdigit() and len(gid) >= 6):
                     continue
                 try:
                     resp = await client.get(
                         f"{_DAUM_ARMS_BASE}/SPORTS_GAME_NEWS",
-                        params={"id": gid, "limit": 10},
+                        params={"id": gid, "limit": 25},
                     )
                     if resp.status_code == 200:
                         doc = (resp.json() or {}).get("document") or {}
                         contents = ((doc.get("data") or {}).get("contents")) or []
+                        game_list: list[dict[str, Any]] = []
                         for c in contents:
                             url = c.get("pcUrl") or c.get("moUrl") or f"https://sports.daum.net/match/{gid}?tab=news"
                             if url in seen_urls:
@@ -462,7 +463,7 @@ class DaumSportsDataProvider(SportsDataProvider):
                                 mm_dd = f"{created_raw[5:7]}.{created_raw[8:10]} {created_raw[11:16]}"
                             img_url = str(c.get("image") or "").replace("http://", "https://").strip()
                             fallback_logo = get_team_logo(team or g.get("home_team", "SK"))
-                            match_articles.append(
+                            game_list.append(
                                 {
                                     "title": str(c.get("title") or "KBL 현장 뉴스").strip(),
                                     "url": url,
@@ -471,11 +472,25 @@ class DaumSportsDataProvider(SportsDataProvider):
                                     "source": cp_name,
                                 }
                             )
+                        if game_list:
+                            per_game_articles.append(game_list)
                 except Exception as exc:
                     logger.debug("SPORTS_GAME_NEWS fetch skipped", game_id=gid, error=str(exc))
 
+            match_articles: list[dict[str, Any]] = []
+            if team:
+                for glist in per_game_articles:
+                    match_articles.extend(glist)
+            else:
+                # Interleave round-robin across recent games so general news covers all recent matchups
+                max_len = max((len(gl) for gl in per_game_articles), default=0)
+                for idx in range(max_len):
+                    for glist in per_game_articles:
+                        if idx < len(glist):
+                            match_articles.append(glist[idx])
+
             if len(match_articles) >= 3:
-                return match_articles[:10]
+                return match_articles[:25]
 
         season_full = get_current_season_full()
         queries = (
