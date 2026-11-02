@@ -20,106 +20,185 @@ import argparse
 import asyncio
 import json
 import re
+import sys
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
 import websockets
 
+# Allow importing kbl-bot modules when executed from repo root or kbl-bot/
+_BOT_ROOT = Path(__file__).resolve().parent.parent
+if str(_BOT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOT_ROOT))
+
+from core.season import get_current_season  # noqa: E402
+from services.content.kbl_data import TEAM_LINEUPS  # noqa: E402
+
 KST = ZoneInfo("Asia/Seoul")
 KAKAO_CHAT_URL = "https://pf.kakao.com/_pxgeWX/chat"
 KAKAO_PROFILE_URL = "https://pf.kakao.com/_pxgeWX"
 CDP_URL = "http://127.0.0.1:9222"
+_WEEKDAYS_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def fetch_live_matchup_summary() -> str:
+    """
+    Fetch today's and the next upcoming KBL games from Daum Sports API
+    so the promotional post always cites real, up-to-date matchups and scores.
+    """
+    now_kst = datetime.now(KST)
+    from_str = now_kst.strftime("%Y%m%d")
+    to_str = (now_kst + timedelta(days=5)).strftime("%Y%m%d")
+    url = (
+        f"https://sports.daum.net/api/arms/SPORTS_GAME_LIST"
+        f"?leagueCode=kbl&fromDate={from_str}&toDate={to_str}&pageSize=50"
+    )
+    try:
+        resp = httpx.get(url, verify=False, timeout=5.0)
+        games = resp.json().get("document", {}).get("list", [])
+        if games:
+            dates_seen: list[str] = []
+            for g in games:
+                sd = str(g.get("startDate", ""))
+                if sd and sd not in dates_seen:
+                    dates_seen.append(sd)
+            segments: list[str] = []
+            for target_date in dates_seen[:2]:
+                day_games = [g for g in games if str(g.get("startDate")) == target_date]
+                dt = datetime.strptime(target_date, "%Y%m%d")
+                wd = _WEEKDAYS_KO[dt.weekday()]
+                date_label = f"{dt.month}/{dt.day}({wd})"
+                pairs = []
+                for g in day_games[:4]:
+                    st = str(g.get("startTime", "1900"))
+                    t_str = f"{st[:2]}:{st[2:4]}" if len(st) >= 4 else "19:00"
+                    home_obj = (g.get("home") or {}).get("team") or {}
+                    away_obj = (g.get("away") or {}).get("team") or {}
+                    home = home_obj.get("shortNameKo") or home_obj.get("shortName") or ""
+                    away = away_obj.get("shortNameKo") or away_obj.get("shortName") or ""
+                    score_h = (g.get("home") or {}).get("result")
+                    score_a = (g.get("away") or {}).get("result")
+                    status = g.get("gameStatus", "")
+                    if status == "END" and score_h is not None and score_a is not None:
+                        pairs.append(f"{home} {score_h}:{score_a} {away}(종료)")
+                    else:
+                        pairs.append(f"{t_str} {home} vs {away}")
+                if pairs:
+                    segments.append(f"{date_label} {', '.join(pairs)}")
+            if segments:
+                return " / ".join(segments)
+    except Exception:
+        pass
+    return "2026-2027 시즌 오늘/주간 KBL 주요 매치업"
+
+
+def build_roster_highlight_line() -> str:
+    """Build a concise 2026-2027 roster summary string from verified TEAM_LINEUPS."""
+    db_info = TEAM_LINEUPS.get("DB", {})
+    jkj_info = TEAM_LINEUPS.get("정관장", {})
+    kt_info = TEAM_LINEUPS.get("KT", {})
+    sk_info = TEAM_LINEUPS.get("SK", {})
+    return (
+        f"2026-27 시즌 최신 로스터 완벽 반영 "
+        f"(DB {db_info.get('head_coach', '이규섭')} 감독·알바노·엘런슨 / "
+        f"정관장 {jkj_info.get('head_coach', '유도훈')} 감독·오브라이언트·아반도 / "
+        f"KT {kt_info.get('head_coach', '문경은')} 감독·김선형·윌리엄스 / "
+        f"SK {sk_info.get('head_coach', '전희철')} 감독·자밀 워니·김낙현 등 10개 구단 전수 업데이트)"
+    )
 
 
 def generate_promo_post(gallery_id: str = "basketball", custom_title: str | None = None) -> tuple[str, str]:
     """Generate a DC Inside-native, community-friendly promotional post tailored to the gallery."""
+    season = get_current_season()
+    matchup_line = fetch_live_matchup_summary()
+    roster_line = build_roster_highlight_line()
+
     if gallery_id == "nba":
-        title = custom_title or "느바 보면서 국농 일정·순위도 카톡으로 바로 보는 봇 공유 (링크X)"
-        html_body = """
-        <p>느바 보면서 국농도 가끔 챙겨보는데 야구봇처럼 카톡에서 일정이나 점수, 순위 확인할 수 있는 게 없길래 직접 <b>카톡 KBL봇</b> 하나 만들었음.</p>
+        title = custom_title or f"느바 보면서 {season} 국농 라인업·순위도 카톡으로 바로 보는 봇 공유 (링크X)"
+        html_body = f"""
+        <p>느바 보면서 국농도 챙겨보는데 야구봇처럼 카톡에서 구단별 라인업이나 실시간 점수, 순위 확인할 수 있는 게 없길래 직접 <b>카톡 KBL봇</b> 만들어서 {season} 시즌 최신 로스터까지 싹 업데이트했음.</p>
         <p><br></p>
-        <p>11/1 일요일 오늘 매치업 (14:00 LG vs DB / 소노 vs KT, 16:30 삼성 vs SK S-더비) 같은 거 카톡에서 원클릭으로 바로 뜸.</p>
+        <p>🏀 <b>{matchup_line}</b> 같은 거 카톡에서 원클릭으로 바로 뜨고, <b>{roster_line}</b>까지 모두 반영되어 있음.</p>
         <p><br></p>
         <p>📌 <b>어떻게 쓰냐:</b></p>
-        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 메뉴 바로 뜸.</p>
+        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 하단 6칸 메뉴 바로 뜸.</p>
         <p>(디시 링크 필터 때문에 링크는 안 걸음. 카톡 검색창에 <b>KBL봇</b> 치면 바로 나옴)</p>
         <p><br></p>
-        <p>🏀 <b>기능 요약:</b></p>
-        <p>• <b>일정 / KBL 일정</b> : 오늘 경기 시간, 중계 방송사, 주간 일정표</p>
-        <p>• <b>#팀이름 검색</b> : 채팅창에 '#KT vs LG', '#SK' 치면 해당 매치업 최근/예정 경기 바로 출력</p>
-        <p>• <b>결과 / 팀순위</b> : 경기 종료 스코어, 10개 구단 실시간 승률·게임차 순위표</p>
-        <p>• <b>선수순위</b> : 득점, 리바, 어시, 3점, 스틸 TOP 5 랭킹</p>
-        <p>• <b>뉴스 / 주요장면</b> : 실시간 KBL 기사, 경기 하이라이트 영상 클립</p>
-        <p>• <b>응원하기</b> : 오늘 경기 승부예측 투표</p>
+        <p>🏀 <b>주요 기능 요약 ({season} 최신판):</b></p>
+        <p>• <b>구단별 라인업 다이렉트 조회</b> : 채팅창에 <b>'DB 라인업'</b>, <b>'정관장 라인업'</b>, <b>'KT 라인업'</b> 치면 신임 감독·외국인 1·2옵션·아시아쿼터·베스트 5·식스맨 즉시 출력</p>
+        <p>• <b>⭐ 관심선수 원클릭 등록</b> : 하단 '관심선수' 탭이나 '허웅', '김선형', '이선 알바노', '유기상' 입력 시 원클릭 등록 & 26-27 시즌 평균 스탯 1초 확인</p>
+        <p>• <b>실시간 점수 & 4Q 클러치 알림</b> : 쿼터별 라이브 스코어, 4쿼터 2분 이내 5점 차 접전(클러치) 하이라이트, 종료 후 3초 요약 리캡('요약')</p>
+        <p>• <b>승부예측 연승 보너스 & 월간 랭킹</b> : 승리팀 적중 시 +50P, 3연승/5연승 스트릭 보너스 및 <b>'승부예측 랭킹'</b> 월간 리더보드 경쟁</p>
+        <p>• <b>#팀 vs 팀 매치업 검색</b> : '#KT vs LG', '#SK vs KCC' 치면 최근 맞대결 전적 및 예정 경기 바로 출력</p>
+        <p>• <b>팀순위 / 선수순위 / 주요장면</b> : 6강 PO 마지노선 순위표, 득점·어시·리바 TOP 5, 경기 직후 공식 하이라이트 영상</p>
         <p><br></p>
         <p>광고나 유료 결제 일절 없고 나 편하려고 만든 거니까 느바 보다가 국농 체크할 때 편하게 써봐라.</p>
-        <p>버그나 필요한 기능 있으면 댓글 남겨주면 반영해봄.</p>
+        <p>버그나 필요한 기능 있으면 댓글 남겨주면 바로 반영해봄.</p>
         """.strip()
     elif gallery_id in ("lotto_new2", "proto"):
-        title = custom_title or "국농(KBL) 실시간 점수·일정 카톡으로 보는 봇 (링크X)"
-        html_body = """
-        <p>국농 배팅하거나 경기 실시간으로 챙겨볼 때 포털 안 켜고 카톡에서 바로 확인할 수 있게 <b>KBL봇</b> 하나 만들었음.</p>
+        title = custom_title or f"국농(KBL) 26-27 구단별 라인업·실시간 점수 카톡으로 보는 봇 (링크X)"
+        html_body = f"""
+        <p>국농 분석하거나 경기 실시간으로 챙겨볼 때 포털 일일이 안 켜고 카톡에서 바로 확인할 수 있게 <b>KBL봇</b> ({season} 시즌 최신 로스터 반영본) 만들어서 공유함.</p>
         <p><br></p>
-        <p>📌 <b>확인 가능한 정보:</b></p>
-        <p>• <b>실시간 점수 & 쿼터 상황</b> : 진행 중인 경기 점수, 쿼터 남은 시간 즉시 확인</p>
-        <p>• <b>#팀 vs 팀 매치업 검색</b> : 채팅창에 '#KT vs LG' 치면 최근 맞대결 전적, 이전 스코어 바로 출력</p>
-        <p>• <b>오늘 일정 & 주간 일정</b> : 경기 시간, 중계 방송사, 홈/원정 일정표</p>
-        <p>• <b>팀 순위표 & 선수 순위</b> : 승률, 게임차, 득점/어시/리바 TOP 5</p>
-        <p>• <b>하이라이트 & 뉴스</b> : 경기 종료 직후 클립 영상 및 속보</p>
+        <p>🏀 <b>{matchup_line}</b> 및 <b>{roster_line}</b> 완료.</p>
+        <p><br></p>
+        <p>📌 <b>분석 및 실시간 확인 핵심 기능:</b></p>
+        <p>• <b>구단별 베스트 5 & 용병/아쿼 즉시 조회</b> : 채팅창에 <b>'DB 라인업'</b>, <b>'정관장 라인업'</b>, <b>'삼성 라인업'</b> 치면 26-27 감독·1·2옵션 외인·아시아쿼터·선발 베스트 5·식스맨 한눈에 출력 + 경기 20분 전 확정 스타팅 공개</p>
+        <p>• <b>실시간 쿼터별 점수 & 4Q 클러치 현황</b> : 1Q~4Q·연장 쿼터별 스코어 및 4쿼터 막판 접전 상황 실시간 확인</p>
+        <p>• <b>⭐ 관심선수 스탯 조회</b> : '허웅', '김선형', '알바노', '워니', '칸터' 등 선수 이름만 치면 26-27 시즌 평균 득점/리바/어시/3점슛 즉시 출력 및 원클릭 관심선수 등록</p>
+        <p>• <b>#팀 vs 팀 맞대결 검색</b> : 채팅창에 '#KT vs LG', '#DB vs 정관장' 치면 맞대결 결과 및 일정 바로 출력</p>
+        <p>• <b>팀순위 & 3초 경기 요약('요약')</b> : 10개 구단 승률·게임차·연승 흐름 및 종료 경기 핵심 요약 카드</p>
         <p><br></p>
         <p>📌 <b>이용 방법:</b></p>
-        <p>카카오톡 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가 후 채팅방에서 바로 사용.</p>
+        <p>카카오톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색 → 채널 추가 후 채팅방 입장 시 상담원 연결 없이 즉시 메뉴 사용 가능.</p>
         <p>(디시 링크 검열 때문에 링크는 안 넣음. 카톡 검색창에 치면 바로 나옴)</p>
         <p><br></p>
-        <p>로그인/광고/유료 일절 없음. 배팅이나 경기 챙겨볼 때 요긴하게 써라.</p>
+        <p>로그인/광고/유료 일절 없음. 국농 라인업이랑 쿼터 점수 체크할 때 요긴하게 써라.</p>
         """.strip()
     elif gallery_id == "wkbl":
-        title = custom_title or "야구봇처럼 카톡에서 농구 일정·순위 바로 보는 봇 공유 (링크X)"
-        html_body = """
-        <p>프로야구봇처럼 카톡에서 농구 경기 일정이나 스코어, 순위 바로 확인할 수 있는 <b>카톡 KBL봇</b> 하나 만들어서 공유함.</p>
+        title = custom_title or f"야구봇처럼 카톡에서 농구 26-27 라인업·순위 바로 보는 봇 공유 (링크X)"
+        html_body = f"""
+        <p>프로야구봇처럼 카톡에서 농구 경기 일정이나 구단별 라인업, 실시간 스코어, 순위를 바로 확인할 수 있는 <b>카톡 KBL봇</b> ({season} 시즌 최신판) 만들어서 공유함.</p>
         <p><br></p>
-        <p>오늘 경기 일정이나 실시간 점수, 순위표 카톡에서 원클릭으로 바로 뜸.</p>
+        <p>🏀 <b>{matchup_line}</b>부터 10개 구단 신임 감독·외인·아시아쿼터·베스트 5 로스터까지 모두 최신화되어 있음.</p>
         <p><br></p>
         <p>📌 <b>어떻게 쓰냐:</b></p>
-        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 메뉴 바로 뜸.</p>
+        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 하단 6칸 고정 메뉴 바로 뜸.</p>
         <p>(디시 링크 필터 때문에 링크는 안 걸었으니 카톡 검색창에 <b>KBL봇</b> 치면 바로 나옴)</p>
         <p><br></p>
         <p>🏀 <b>기능 요약:</b></p>
-        <p>• <b>일정 / 농구 일정</b> : 오늘 경기 시간, 중계 방송사, 주간 일정표</p>
-        <p>• <b>#팀이름 검색</b> : 채팅창에 '#KT vs LG', '#SK' 치면 해당 매치업 최근/예정 경기 바로 출력</p>
-        <p>• <b>결과 / 팀순위</b> : 경기 종료 스코어, 실시간 승률·게임차 순위표</p>
-        <p>• <b>선수순위</b> : 득점, 리바, 어시, 3점, 스틸 TOP 5 랭킹</p>
-        <p>• <b>뉴스 / 주요장면</b> : 실시간 기사, 경기 하이라이트 영상 클립</p>
-        <p>• <b>응원하기</b> : 오늘 경기 승부예측 투표</p>
+        <p>• <b>선발 라인업 & 구단별 라인업</b> : '라인업' 또는 'DB 라인업', '정관장 라인업' 입력 시 감독·외인·아쿼·베스트 5 즉시 확인</p>
+        <p>• <b>⭐ 관심선수 원클릭 등록</b> : '관심선수' 메뉴에서 좋아하는 선수 원클릭 등록 & 시즌 평균 득점·리바·어시 즉시 조회</p>
+        <p>• <b>실시간 점수 & 3초 경기 요약</b> : 쿼터별 라이브 스코어, 4Q 클러치 알림, 경기 종료 후 '요약' 리캡 카드 및 하이라이트 직행</p>
+        <p>• <b>승부예측 & 월간 예측왕 랭킹</b> : 매일 승리팀 투표하고 적중(+50P)·연승 보너스 받아 <b>'승부예측 랭킹'</b> 리더보드 경쟁</p>
+        <p>• <b>일정 / 팀순위 / 선수순위 / 뉴스</b> : 주간 일정표, 6강 PO 마지노선 순위표, 개인 부문별 TOP 5</p>
         <p><br></p>
         <p>광고나 유료 결제 일절 없고 나 쓰려고 만든 거니까 농구 챙겨볼 때 편하게 써봐라.</p>
-        <p>버그나 필요한 기능 있으면 댓글 남겨주면 반영해봄.</p>
         """.strip()
     else:
-        title = custom_title or "카톡으로 KBL 일정·선발라인업·순위 바로 보는 봇 공유 (링크X)"
-        html_body = """
-        <p>프로야구봇은 카톡에 있는데 KBL은 없어서 일정이나 점수, 순위 확인할 때마다 포털 뒤적거리기 귀찮아서 직접 <b>카톡 KBL봇</b> 하나 만들어서 운영 중임.</p>
+        title = custom_title or f"카톡 KBL봇 26-27 최신 로스터·구단별 라인업·관심선수 업데이트 공유 (링크X)"
+        html_body = f"""
+        <p>프로야구봇은 카톡에 있는데 KBL은 없어서 일정이나 라인업, 점수, 순위 확인할 때마다 포털 뒤적거리기 귀찮아서 직접 만들어 운영 중인 <b>카톡 KBL봇</b>에 <b>{season} 시즌 10개 구단 최신 로스터 및 신규 기능</b>을 대거 업데이트했음.</p>
         <p><br></p>
-        <p>11/1 일요일 오늘 매치업 (14:00 LG vs DB / 소노 vs KT, 16:30 삼성 vs SK S-더비) 같은 거 카톡에서 원클릭으로 바로 뜸.</p>
+        <p>🏀 <b>{matchup_line}</b> 실시간 확인 가능하며, <b>{roster_line}</b>까지 100% 반영 완료함.</p>
         <p><br></p>
         <p>📌 <b>어떻게 쓰냐:</b></p>
-        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 메뉴 바로 뜸.</p>
+        <p>카톡 상단 검색창(돋보기)에 <b>KBL봇</b> 검색해서 채널 추가하고 채팅 들어가면 상담원 연결 없이 즉시 챗봇 메뉴와 하단 6칸 고정 탭이 바로 뜸.</p>
         <p>(디시 링크 필터 때문에 링크는 안 걸었으니 카톡 검색창에 <b>KBL봇</b> 치면 바로 나옴)</p>
         <p><br></p>
-        <p>🏀 <b>핵심 기능 요약:</b></p>
-        <p>• <b>선발 라인업</b> : 경기 시작 20분 전 감독 서명 제출 공식 스타팅 5인 명단 실시간 출력</p>
-        <p>• <b>실시간 점수 & 박스스코어</b> : 쿼터별 라이브 스코어 및 경기 종료 최종 결과</p>
-        <p>• <b>관심선수 등록</b> : '허훈', '알바노' 등 관심선수 등록 시 시즌 평균 득점/어시/리바 1초 만에 확인</p>
-        <p>• <b>구단별 최신 뉴스</b> : 내 응원팀 뉴스 5개 + 더보기로 10개까지, 타구단 뉴스도 캐러셀로 열람</p>
-        <p>• <b>일정 / KBL 일정</b> : 오늘 경기 시간, 중계 방송사, 홈/원정 주간 일정표</p>
-        <p>• <b>#팀이름 검색</b> : 채팅창에 '#KT vs LG', '#SK' 치면 해당 매치업 최근/예정 경기 바로 출력</p>
-        <p>• <b>순위표</b> : 10개 구단 실시간 승률·게임차 순위표 & 득점/어시/리바 선수 TOP 5</p>
-        <p>• <b>승부예측 & 응원</b> : 매일 경기 승리팀 맞히고 포인트 적립</p>
+        <p>🏀 <b>이번에 업데이트된 핵심 기능 ({season} 시즌 기준):</b></p>
+        <p>• <b>구단별 라인업 다이렉트 조회</b> : 채팅창에 <b>'DB 라인업'</b>, <b>'정관장 라인업'</b>, <b>'삼성 라인업'</b>, <b>'KT 라인업'</b> 치면 26-27 시즌 감독·1·2옵션 외국인 용병·아시아쿼터·공식 베스트 5·식스맨 명단이 카드 한 장에 바로 출력됨 (경기 시작 20분 전 본부석 확정 선발 자동 전환)</p>
+        <p>• <b>⭐ 관심선수 원클릭 등록 & 스탯 조회</b> : 하단 <b>'⭐ 관심선수'</b> 탭을 누르거나 채팅창에 '허웅', '김선형', '이선 알바노', '유기상', '케렘 칸터' 등 선수 이름을 치면 26-27 시즌 실제 평균 득점/리바/어시/3점슛 확인 및 원터치 관심선수 등록/해제 가능</p>
+        <p>• <b>실시간 쿼터 스코어 & 4Q 클러치 알림</b> : 1Q~4Q·연장 쿼터별 실시간 점수판 + 4쿼터 종료 2분 전 5점 차 이내 접전 시 🔥클러치 상황 자동 하이라이트</p>
+        <p>• <b>3초 경기 요약 리캡 & 하이라이트 영상</b> : 경기 끝나고 <b>'요약'</b> 또는 <b>'주요장면'</b> 누르면 최종 스코어·수훈 선수 요약과 함께 공식 하이라이트 VOD로 원터치 이동</p>
+        <p>• <b>승부예측 연승 보너스 & 월간 예측왕 랭킹</b> : 경기 승리팀 적중 시 +50P, 3연승(+30P)·5연승(+50P) 추가 보너스 및 <b>'승부예측 랭킹'</b> 월간 TOP 리더보드</p>
+        <p>• <b>10개 구단 맞춤 뉴스 & #팀 vs 팀 검색</b> : 내 응원팀 뉴스/일정 맞춤 브리핑 및 '#KT vs LG', '#SK' 맞대결 전적 즉시 검색</p>
         <p><br></p>
-        <p>광고나 유료 결제 같은 거 일절 없고 나 쓰려고 만든 거니까 농갤러들 직관 가거나 중계 볼 때 편하게 써봐라.</p>
-        <p>버그나 필요한 기능 있으면 댓글 남겨주면 적극 반영해봄.</p>
+        <p>광고나 유료 결제 같은 거 일절 없고 순수하게 농구 편하게 보려고 만든 봇이니까 농갤러들 직관 가거나 중계 볼 때 편하게 써봐라.</p>
+        <p>써보고 추가했으면 하는 기능이나 피드백 댓글로 남겨주면 바로 반영해봄.</p>
         """.strip()
     return title, html_body
 
