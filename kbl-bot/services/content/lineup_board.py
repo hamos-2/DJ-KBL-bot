@@ -423,11 +423,11 @@ def render_lineup_board_png(
 ) -> bytes:
     """
     Render the 2-column KBL starting lineup board PNG matching Daum Sports (`?tab=lineup`).
-    Dimensions: 960 x 540 px.
+    Dimensions: 800 x 800 px (1:1 square so Kakao basicCard fixedRatio=True has zero top/bottom margin).
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    sig_payload = f"v2:{home_team}:{away_team}:" + "|".join(
+    sig_payload = f"v3_800x800:{home_team}:{away_team}:" + "|".join(
         f"{p.get('no')}-{p.get('name')}" for p in (home_starters + away_starters)
     )
     sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
@@ -447,29 +447,29 @@ def render_lineup_board_png(
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
-    width, height = 960, 540
-    header_h = 75
-    row_h = (height - header_h) // 5  # 93px per starter row
-    half_w = width // 2  # 480px
+    width, height = 800, 800
+    header_h = 95
+    row_h = (height - header_h) // 5  # 141px per starter row
+    half_w = width // 2  # 400px
 
     img = Image.new("RGBA", (width, height), (255, 255, 255, 255))
     draw = ImageDraw.Draw(img)
 
     # Top header background (#FAFAFA)
     draw.rectangle((0, 0, width, header_h), fill=(250, 250, 250, 255))
-    draw.line((0, header_h, width, header_h), fill=(238, 238, 238, 255), width=1)
+    draw.line((0, header_h, width, header_h), fill=(235, 235, 235, 255), width=2)
 
     # Center vertical divider
-    draw.line((half_w, 0, half_w, height), fill=(238, 238, 238, 255), width=1)
+    draw.line((half_w, 0, half_w, height), fill=(235, 235, 235, 255), width=2)
 
     # Horizontal row dividers
     for r_idx in range(1, 5):
         y = header_h + r_idx * row_h
-        draw.line((0, y, width, y), fill=(242, 243, 245, 255), width=1)
+        draw.line((0, y, width, y), fill=(240, 241, 243, 255), width=1)
 
-    font_header = _load_font(21, bold=True)
-    font_num = _load_font(21, bold=False)
-    font_name = _load_font(21, bold=False)
+    font_header = _load_font(22, bold=True)
+    font_num = _load_font(24, bold=True)
+    font_name = _load_font(23, bold=False)
 
     # Draw headers for Home (left) and Away (right)
     for col_idx, team_code in enumerate([home_team, away_team]):
@@ -477,10 +477,10 @@ def render_lineup_board_png(
         full_name = TEAM_INFO.get(team_code, {}).get("full_name", f"{team_code} 프로농구단")
         logo_img = _download_image_cached(get_team_logo(team_code))
         if logo_img is not None:
-            logo_resized = logo_img.resize((40, 40), Image.Resampling.LANCZOS)
-            img.paste(logo_resized, (col_x + 28, (header_h - 40) // 2), logo_resized)
+            logo_resized = logo_img.resize((46, 46), Image.Resampling.LANCZOS)
+            img.paste(logo_resized, (col_x + 20, (header_h - 46) // 2), logo_resized)
         draw.text(
-            (col_x + 78, header_h // 2),
+            (col_x + 76, header_h // 2),
             full_name,
             font=font_header,
             fill=(17, 17, 17, 255),
@@ -499,26 +499,26 @@ def render_lineup_board_png(
             row_top = header_h + r_idx * row_h
             row_center_y = row_top + row_h // 2
 
-            # 1. Circular player headshot (64x64)
+            # 1. Circular player headshot (96x96)
             p_name = str(player.get("name") or "").strip()
             p_no = str(player.get("no") or "").replace("#", "").strip()
             p_url = player.get("imageUrl") or get_player_photo_url(p_name)
             raw_avatar = _download_image_cached(p_url)
-            avatar = _make_circular_avatar(raw_avatar, diameter=64)
-            img.paste(avatar, (col_x + 28, row_top + (row_h - 64) // 2), avatar)
+            avatar = _make_circular_avatar(raw_avatar, diameter=96)
+            img.paste(avatar, (col_x + 20, row_top + (row_h - 96) // 2), avatar)
 
-            # 2. Jersey number (centered at col_x + 118)
+            # 2. Jersey number (centered at col_x + 144)
             draw.text(
-                (col_x + 118, row_center_y),
+                (col_x + 144, row_center_y),
                 p_no,
                 font=font_num,
                 fill=num_color,
                 anchor="mm",
             )
 
-            # 3. Player Korean name (left-aligned at col_x + 150)
+            # 3. Player Korean name (left-aligned at col_x + 178)
             draw.text(
-                (col_x + 150, row_center_y),
+                (col_x + 178, row_center_y),
                 p_name,
                 font=font_name,
                 fill=(17, 17, 17, 255),

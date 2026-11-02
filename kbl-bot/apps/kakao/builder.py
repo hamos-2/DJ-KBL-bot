@@ -474,16 +474,16 @@ def build_lineup_response(
                 if base_url:
                     q_h = urllib.parse.quote(tg_home)
                     q_a = urllib.parse.quote(tg_away)
-                    t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{tg_id or '0'}.png?home={q_h}&away={q_a}"
-                    t_fixed, t_w, t_h = True, 960, 540
+                    t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{tg_id or '0'}.png?home={q_h}&away={q_a}&v=800"
+                    t_fixed, t_w, t_h = True, 800, 800
                     primary_board_url = t_thumb_url
                     primary_board_alt = f"📋 {tg_home} vs {tg_away} 선발 라인업 보드"
             elif base_url:
                 opp = "DB" if target_team != "DB" else "SK"
                 q_h = urllib.parse.quote(target_team)
                 q_a = urllib.parse.quote(opp)
-                t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/matchup/{q_h}/{q_a}.png"
-                t_fixed, t_w, t_h = True, 960, 540
+                t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/matchup/{q_h}/{q_a}.png?v=800"
+                t_fixed, t_w, t_h = True, 800, 800
                 primary_board_url = t_thumb_url
                 primary_board_alt = f"📋 {target_team} 선발 라인업 보드"
 
@@ -611,15 +611,15 @@ def build_lineup_response(
         if base_url and primary_board_url is None:
             q_h = urllib.parse.quote(home)
             q_a = urllib.parse.quote(away)
-            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}"
-            c_fixed, c_w, c_h = True, 960, 540
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=800"
+            c_fixed, c_w, c_h = True, 800, 800
             primary_board_url = card_thumb
             primary_board_alt = f"📋 {home} vs {away} 선발 라인업 보드"
         elif base_url and not target_team:
             q_h = urllib.parse.quote(home)
             q_a = urllib.parse.quote(away)
-            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}"
-            c_fixed, c_w, c_h = True, 960, 540
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=800"
+            c_fixed, c_w, c_h = True, 800, 800
         else:
             card_thumb = get_team_logo(home)
             c_fixed, c_w, c_h = False, None, None
