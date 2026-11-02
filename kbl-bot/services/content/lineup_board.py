@@ -218,7 +218,70 @@ PLAYER_PHOTO_URLS: dict[str, str] = {
     "스카티 제임스": "https://t1.daumcdn.net/media/img-section/sports13/player/10/291881.jpg"
 }
 
+import time
+
+# ---------------------------------------------------------------------------
+# High-Performance In-Memory LRU & TTL Caches
+# ---------------------------------------------------------------------------
+class _LineupCacheEntry:
+    def __init__(
+        self,
+        data: tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool],
+        ttl: float = 600.0,
+    ) -> None:
+        self.data = data
+        self.expires_at = time.time() + ttl
+
+_GAME_LINEUP_CACHE: dict[str, _LineupCacheEntry] = {}
+_MAX_LINEUP_CACHE_SIZE = 50
+
+# Backward compatibility alias
 _MEMORY_GAME_LINEUP_CACHE: dict[str, tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool]] = {}
+
+def get_cached_game_lineup(
+    gid: str,
+) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool] | None:
+    """Retrieve non-expired game lineup from memory cache."""
+    entry = _GAME_LINEUP_CACHE.get(gid)
+    if entry:
+        if time.time() < entry.expires_at:
+            return entry.data
+        _GAME_LINEUP_CACHE.pop(gid, None)
+        _MEMORY_GAME_LINEUP_CACHE.pop(gid, None)
+    return None
+
+def set_cached_game_lineup(
+    gid: str,
+    data: tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool],
+    ttl: float = 600.0,
+) -> None:
+    """Cache game lineup with TTL and LRU eviction."""
+    now = time.time()
+    if len(_GAME_LINEUP_CACHE) >= _MAX_LINEUP_CACHE_SIZE:
+        expired = [k for k, v in _GAME_LINEUP_CACHE.items() if now >= v.expires_at]
+        for k in expired:
+            _GAME_LINEUP_CACHE.pop(k, None)
+            _MEMORY_GAME_LINEUP_CACHE.pop(k, None)
+        if len(_GAME_LINEUP_CACHE) >= _MAX_LINEUP_CACHE_SIZE:
+            first_k = next(iter(_GAME_LINEUP_CACHE))
+            _GAME_LINEUP_CACHE.pop(first_k, None)
+            _MEMORY_GAME_LINEUP_CACHE.pop(first_k, None)
+    _GAME_LINEUP_CACHE[gid] = _LineupCacheEntry(data, ttl=ttl)
+    _MEMORY_GAME_LINEUP_CACHE[gid] = data
+
+# In-memory rendered PNG image LRU cache (eliminates disk I/O on hot hits)
+_BOARD_IMAGE_MEMORY_CACHE: dict[str, bytes] = {}
+_MAX_BOARD_IMAGE_CACHE_SIZE = 40
+
+def get_cached_board_image(sig: str) -> bytes | None:
+    return _BOARD_IMAGE_MEMORY_CACHE.get(sig)
+
+def set_cached_board_image(sig: str, img_bytes: bytes) -> None:
+    if len(_BOARD_IMAGE_MEMORY_CACHE) >= _MAX_BOARD_IMAGE_CACHE_SIZE:
+        first_k = next(iter(_BOARD_IMAGE_MEMORY_CACHE))
+        _BOARD_IMAGE_MEMORY_CACHE.pop(first_k, None)
+    _BOARD_IMAGE_MEMORY_CACHE[sig] = img_bytes
+
 
 
 def get_player_photo_url(player_name: str) -> str | None:
@@ -257,14 +320,16 @@ def fetch_daum_match_lineup_sync(
     game_id: str,
     fallback_home: str | None = None,
     fallback_away: str | None = None,
+    timeout: float = 2.5,
 ) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool]:
     """
     Fetch live or finished match starting 5 from Daum ARMS API (`SPORTS_GAME?detail=true`).
     Returns (home_team, away_team, home_starters, away_starters, is_official_daum_lineup).
     """
     gid = str(game_id).strip()
-    if gid in _MEMORY_GAME_LINEUP_CACHE:
-        return _MEMORY_GAME_LINEUP_CACHE[gid]
+    cached = get_cached_game_lineup(gid)
+    if cached is not None:
+        return cached
 
     home_team = fallback_home or "SK"
     away_team = fallback_away or "DB"
@@ -279,7 +344,7 @@ def fetch_daum_match_lineup_sync(
                     "Referer": f"https://sports.daum.net/match/{gid}?tab=lineup",
                 },
                 verify=False,
-                timeout=3.5,
+                timeout=timeout,
             )
             if resp.status_code == 200:
                 doc = (resp.json() or {}).get("document") or {}
@@ -311,7 +376,7 @@ def fetch_daum_match_lineup_sync(
                     h_list = [_map_p(p) for p in h_started[:5]]
                     a_list = [_map_p(p) for p in a_started[:5]]
                     res = (home_team, away_team, h_list, a_list, True)
-                    _MEMORY_GAME_LINEUP_CACHE[gid] = res
+                    set_cached_game_lineup(gid, res, ttl=600.0)
                     return res
         except Exception:
             pass
@@ -431,10 +496,16 @@ def render_lineup_board_png(
         f"{p.get('no')}-{p.get('name')}" for p in (home_starters + away_starters)
     )
     sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
+    mem_hit = get_cached_board_image(sig)
+    if mem_hit is not None:
+        return mem_hit
+
     board_path = _BOARD_DIR / f"board_{sig}.png"
     if board_path.exists():
         try:
-            return board_path.read_bytes()
+            b_data = board_path.read_bytes()
+            set_cached_board_image(sig, b_data)
+            return b_data
         except Exception:
             pass
 
@@ -532,6 +603,7 @@ def render_lineup_board_png(
         board_path.write_bytes(png_bytes)
     except Exception:
         pass
+    set_cached_board_image(sig, png_bytes)
     return png_bytes
 
 
@@ -551,10 +623,16 @@ def render_single_team_lineup_board_png(
         f"{p.get('no')}-{p.get('name')}" for p in starters[:5]
     )
     sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
+    mem_hit = get_cached_board_image(sig)
+    if mem_hit is not None:
+        return mem_hit
+
     board_path = _BOARD_DIR / f"board_single_{sig}.png"
     if board_path.exists():
         try:
-            return board_path.read_bytes()
+            b_data = board_path.read_bytes()
+            set_cached_board_image(sig, b_data)
+            return b_data
         except Exception:
             pass
 
@@ -657,7 +735,69 @@ def render_single_team_lineup_board_png(
         board_path.write_bytes(png_bytes)
     except Exception:
         pass
+    set_cached_board_image(sig, png_bytes)
     return png_bytes
+
+
+# ---------------------------------------------------------------------------
+# Pre-warming & Cache Priming Engine
+# ---------------------------------------------------------------------------
+def prewarm_match_lineup(
+    game_id: str,
+    home_team: str,
+    away_team: str,
+    timeout: float = 2.0,
+) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """
+    Pre-warm Daum lineup data and render board image for *game_id*.
+    Populates in-memory & disk caches so subsequent user/Kakao requests are instant.
+    """
+    h_team, a_team, h_starters, a_starters, is_off = fetch_daum_match_lineup_sync(
+        game_id, fallback_home=home_team, fallback_away=away_team, timeout=timeout
+    )
+    # Render and cache both the 2-column match board and individual single-team boards
+    try:
+        render_lineup_board_png(h_team, a_team, h_starters, a_starters)
+        h_info = get_team_lineup(h_team) or {}
+        a_info = get_team_lineup(a_team) or {}
+        render_single_team_lineup_board_png(h_team, h_starters, coach=str(h_info.get("head_coach") or ""))
+        render_single_team_lineup_board_png(a_team, a_starters, coach=str(a_info.get("head_coach") or ""))
+    except Exception:
+        pass
+    return (h_team, a_team, h_starters, a_starters, is_off)
+
+
+def prewarm_daily_lineups(games: list[dict[str, Any]]) -> int:
+    """
+    Pre-warm lineups and board images for all given games (typically today's games).
+    Returns count of games successfully pre-warmed.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    count = 0
+    games_to_prewarm: list[tuple[str, str, str]] = []
+    for g in games:
+        gid = str(g.get("game_id") or "")
+        home = str(g.get("home_team") or "")
+        away = str(g.get("away_team") or "")
+        if home and away:
+            games_to_prewarm.append((gid, home, away))
+
+    if not games_to_prewarm:
+        return 0
+
+    with ThreadPoolExecutor(max_workers=min(len(games_to_prewarm), 4)) as pool:
+        futures = [
+            pool.submit(prewarm_match_lineup, gid, home, away)
+            for gid, home, away in games_to_prewarm
+        ]
+        for fut in futures:
+            try:
+                fut.result()
+                count += 1
+            except Exception:
+                pass
+    return count
 
 
 _BANNER_DIR = _CACHE_DIR / "banners"

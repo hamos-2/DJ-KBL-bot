@@ -3,7 +3,7 @@
 import hmac
 import os
 import re
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse, Response
@@ -1264,6 +1264,19 @@ async def get_matchup_lineup_board_image(
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=600"},
     )
+
+
+@router.post("/lineup/prewarm")
+async def prewarm_lineups_endpoint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    """Pre-warm lineup data & board images for today's matches into memory/disk caches."""
+    from services.content.lineup_board import prewarm_daily_lineups
+
+    game_svc = _get_game_service()
+    today_games = await game_svc.get_today_games(db)
+    count = prewarm_daily_lineups(today_games)
+    return {"status": "ok", "prewarmed_games": count}
 
 
 @router.get("/banner/category/{category_key}.png")

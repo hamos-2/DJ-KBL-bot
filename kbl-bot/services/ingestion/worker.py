@@ -197,6 +197,15 @@ class IngestionWorker:
                 news_items = parse_daum_news_html("", recent_finished)
             await save_news_cache(news_items)
 
+            # Pre-warm today's match lineups & 800x800 board images in background thread
+            try:
+                from services.content.lineup_board import prewarm_daily_lineups
+                today_games = [g for g in games if str(g.get("game_date")) == str(today)]
+                if today_games:
+                    asyncio.create_task(asyncio.to_thread(prewarm_daily_lineups, today_games))
+            except Exception as p_err:
+                logger.warning("Failed to schedule daily lineups pre-warming", error=str(p_err))
+
             self._last_window_sync_at = now_mono
             logger.info(
                 "Synced upcoming schedule window & content caches",

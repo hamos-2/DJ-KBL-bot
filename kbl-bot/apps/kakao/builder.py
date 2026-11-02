@@ -534,6 +534,34 @@ def build_lineup_response(
             template=KakaoTemplate(outputs=[card], quickReplies=MAIN_MENU_QUICK_REPLIES)
         )
 
+    # Multi-game parallel fetch for up to 3 games (< 0.3s concurrent vs 7.5s sequential)
+    lineup_data_map: dict[str, tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool]] = {}
+    if not target_team and sorted_games:
+        games_to_fetch = [
+            g for g in sorted_games[:3]
+            if str(g.get("game_id") or "").isdigit() and len(str(g.get("game_id") or "")) >= 6
+        ]
+        if games_to_fetch:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=min(len(games_to_fetch), 3)) as pool:
+                futures = {
+                    pool.submit(
+                        fetch_daum_match_lineup_sync,
+                        str(g.get("game_id")),
+                        fallback_home=g.get("home_team"),
+                        fallback_away=g.get("away_team"),
+                        timeout=1.8,
+                    ): str(g.get("game_id"))
+                    for g in games_to_fetch
+                }
+                for fut in futures:
+                    gid_key = futures[fut]
+                    try:
+                        lineup_data_map[gid_key] = fut.result()
+                    except Exception:
+                        pass
+
     for g in ([] if target_team else sorted_games[:3]):
         gid = str(g.get("game_id") or "")
         home = g.get("home_team", "?")
@@ -551,8 +579,15 @@ def build_lineup_response(
         a_coach = away_lineup.get("head_coach", "")
 
         is_daum_official = False
-        if gid.isdigit() and len(gid) >= 6:
-            _, _, h_live, a_live, is_daum_official = fetch_daum_match_lineup_sync(gid, home, away)
+        if gid in lineup_data_map:
+            _, _, h_live, a_live, is_daum_official = lineup_data_map[gid]
+            if is_daum_official:
+                h_starters = h_live
+                a_starters = a_live
+        elif gid.isdigit() and len(gid) >= 6:
+            _, _, h_live, a_live, is_daum_official = fetch_daum_match_lineup_sync(
+                gid, fallback_home=home, fallback_away=away, timeout=1.8
+            )
             if is_daum_official:
                 h_starters = h_live
                 a_starters = a_live
@@ -650,18 +685,35 @@ def build_lineup_response(
     outputs: list[dict[str, Any]] = [
         {"carousel": {"type": "basicCard", "items": cards[:5]}},
     ]
-    lineup_qrs = [
-        QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
-        QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
-        QuickReply(label="📋 정관장 라인업", messageText="정관장 라인업"),
-        QuickReply(label="📋 가스공사 라인업", messageText="가스공사 라인업"),
-        QuickReply(label="📋 DB 라인업", messageText="DB 라인업"),
-        QuickReply(label="📋 SK 라인업", messageText="SK 라인업"),
-        QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
-        QuickReply(label="🏆 팀순위", messageText="팀순위"),
-        QuickReply(label="⭐ 관심선수", messageText="관심선수"),
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
-    ]
+
+    lineup_qrs: list[QuickReply] = []
+    if target_team:
+        lineup_qrs.extend([
+            QuickReply(label=f"⭐ {target_team} 선수단", messageText=f"{target_team} 선수"),
+            QuickReply(label=f"📅 {target_team} 일정", messageText=f"{target_team} 일정"),
+            QuickReply(label="📋 오늘 라인업", messageText="라인업"),
+            QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
+            QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+            QuickReply(label="🏆 팀순위", messageText="팀순위"),
+            QuickReply(label="⭐ 관심선수", messageText="관심선수"),
+            QuickReply(label="🏠 홈으로", messageText="처음으로"),
+        ])
+    else:
+        # Multi-game day: add dynamic match jump quick buttons (Plan B convenience)
+        for g in sorted_games[:3]:
+            h_ = str(g.get("home_team") or "")
+            a_ = str(g.get("away_team") or "")
+            if h_ and a_:
+                lineup_qrs.append(QuickReply(label=f"📋 {h_} vs {a_}", messageText=f"{h_} 라인업"))
+        lineup_qrs.extend([
+            QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
+            QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+            QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+            QuickReply(label="🏆 팀순위", messageText="팀순위"),
+            QuickReply(label="⭐ 관심선수", messageText="관심선수"),
+            QuickReply(label="🏠 홈으로", messageText="처음으로"),
+        ])
+    lineup_qrs = lineup_qrs[:10]
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=lineup_qrs)
     )
