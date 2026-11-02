@@ -98,6 +98,14 @@ def _link_btn(label: str, url: str) -> dict[str, str]:
     }
 
 
+def _share_btn(label: str) -> dict[str, str]:
+    """Build an in-card KakaoTalk viral share button dict (action: 'share') for basicCard/listCard."""
+    return {
+        "action": "share",
+        "label": label[:14],
+    }
+
+
 def _list_card(
     header_title: str,
     items: list[dict[str, Any]],
@@ -440,7 +448,7 @@ def build_lineup_response(
                     buttons=[
                         _msg_btn(f"⭐ {target_team} 선수단", f"{target_team} 선수"),
                         _msg_btn(f"📅 {target_team} 일정", f"{target_team} 일정"),
-                        _msg_btn("🏀 구단별 라인업", "구단별 선수"),
+                        _share_btn("📤 라인업 공유하기"),
                     ],
                 )
             )
@@ -571,7 +579,7 @@ def build_lineup_response(
                 buttons=[
                     _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
                     _msg_btn("🔴 실시간 스코어", "실시간 점수"),
-                    _msg_btn("🔔 라인업 알림", "#알림 라인업"),
+                    _share_btn("📤 라인업 공유하기"),
                 ],
             )
         )
@@ -1396,7 +1404,7 @@ def build_single_player_response(
             buttons=[
                 toggle_btn,
                 _msg_btn("⭐ 관심선수 목록", "관심선수"),
-                _msg_btn(f"📰 {team} 뉴스", f"{team} 뉴스"),
+                _share_btn("📤 선수 스탯 공유하기"),
             ],
         )
     }
@@ -1883,7 +1891,7 @@ def build_user_points_response(
         buttons=[
             _msg_btn("🏆 승부예측 랭킹", "승부예측 랭킹"),
             _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
-            _msg_btn("📊 내 예측 결과", "예측결과"),
+            _share_btn("📤 내 적중률 자랑하기"),
         ],
     )
 
@@ -2030,7 +2038,7 @@ def build_prediction_results_response(
             buttons=[
                 _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
                 _msg_btn("💰 내 포인트", "포인트"),
-                _msg_btn("🏀 오늘 경기", "오늘 경기"),
+                _share_btn("📤 내 적중률 자랑하기"),
             ],
         )
     )
@@ -2060,7 +2068,7 @@ def build_prediction_results_response(
                 buttons=[
                     _msg_btn("🔴 실시간 스코어", "실시간 점수"),
                     _msg_btn("🗳️ 승부예측", "승부예측"),
-                    _msg_btn("📅 경기 일정", "일정"),
+                    _share_btn("📤 내 적중률 자랑하기"),
                 ],
             )
         )

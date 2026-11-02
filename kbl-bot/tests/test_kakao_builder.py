@@ -603,3 +603,51 @@ class TestProBasketballBotFeatures:
         assert "김낙현" in sk_starters
         assert "자밀 워니" in sk_starters
 
+    def test_viral_share_buttons_on_cards(self) -> None:
+        """Verify Kakao Skill 2.0 viral share buttons (action: 'share') on prediction/points, player, and lineup cards."""
+        from apps.kakao.builder import (
+            build_lineup_response,
+            build_prediction_results_response,
+            build_single_player_response,
+            build_user_points_response,
+        )
+
+        # 1. User points card -> [📤 내 적중률 자랑하기]
+        pts_resp = build_user_points_response(150, favorite_team="KT")
+        pts_btns = pts_resp.template.outputs[0]["basicCard"]["buttons"]
+        assert any(b.get("action") == "share" and b.get("label") == "📤 내 적중률 자랑하기" for b in pts_btns)
+
+        # 2. Prediction results card -> [📤 내 적중률 자랑하기]
+        pred_resp = build_prediction_results_response(
+            results=[{
+                "game_id": "80109231",
+                "home_team": "한국가스공사",
+                "away_team": "정관장",
+                "user_pick": "정관장",
+                "status": "FINAL",
+                "score_text": "한국가스공사 71 : 77 정관장",
+                "outcome_badge": "🎉 적중 성공!",
+                "points_note": "+50P",
+            }],
+            stats={"hits": 1, "misses": 0, "pending": 0, "total": 1, "hit_rate": 100},
+            user_points=200,
+            favorite_team="정관장",
+        )
+        pred_cards = pred_resp.template.outputs[0]["carousel"]["items"]
+        for c in pred_cards:
+            assert any(b.get("action") == "share" and b.get("label") == "📤 내 적중률 자랑하기" for b in c["buttons"])
+
+        # 3. Single player card -> [📤 선수 스탯 공유하기]
+        player_resp = build_single_player_response(
+            {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 15.8, "reb": 2.9, "ast": 6.4},
+            is_favorite=True,
+        )
+        player_btns = player_resp.template.outputs[0]["basicCard"]["buttons"]
+        assert any(b.get("action") == "share" and b.get("label") == "📤 선수 스탯 공유하기" for b in player_btns)
+
+        # 4. Lineup card -> [📤 라인업 공유하기]
+        lineup_resp = build_lineup_response([], favorite_team="DB", target_team="DB")
+        lineup_cards = lineup_resp.template.outputs[0]["carousel"]["items"]
+        assert any(b.get("action") == "share" and b.get("label") == "📤 라인업 공유하기" for b in lineup_cards[0]["buttons"])
+
+
