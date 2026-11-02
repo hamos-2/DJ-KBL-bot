@@ -658,3 +658,213 @@ def render_single_team_lineup_board_png(
     except Exception:
         pass
     return png_bytes
+
+
+_BANNER_DIR = _CACHE_DIR / "banners"
+_BANNER_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def render_player_category_banner_png(
+    title: str,
+    players: list[tuple[str, str]],
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """
+    Render 2:1 ratio (800x400) visual banner for favorite player categories
+    (e.g. Popular Guards, Popular Bigs & Shooters).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    sig_payload = f"cat_v1:{title}:" + "|".join(f"{n}-{t}" for n, t in players)
+    sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
+    banner_path = _BANNER_DIR / f"banner_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    urls_to_fetch: list[str] = []
+    for name, team in players:
+        p_u = get_player_photo_url(name)
+        if p_u:
+            urls_to_fetch.append(p_u)
+        t_u = get_team_logo(team)
+        if t_u:
+            urls_to_fetch.append(t_u)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(_download_image_cached, urls_to_fetch))
+
+    img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Outer border
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 232, 255), width=2)
+
+    # Top header bar
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 246, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 232, 255), width=1)
+
+    font_title = _load_font(23, bold=True)
+    font_name = _load_font(22, bold=True)
+    font_team = _load_font(18, bold=False)
+    font_action = _load_font(16, bold=False)
+
+    draw.text((width // 2, 34), title, font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    n = max(1, len(players))
+    slot_w = width // n
+    for i, (name, team) in enumerate(players):
+        cx = slot_w * i + slot_w // 2
+        cy = 185
+
+        p_url = get_player_photo_url(name)
+        raw = _download_image_cached(p_url)
+        avatar = _make_circular_avatar(raw, diameter=128)
+        img.paste(avatar, (cx - 64, cy - 64), avatar)
+
+        t_logo = _download_image_cached(get_team_logo(team))
+        if t_logo:
+            t_resized = t_logo.resize((34, 34), Image.Resampling.LANCZOS)
+            img.paste(t_resized, (cx + 28, cy + 28), t_resized)
+
+        draw.text((cx, 280), name, font=font_name, fill=(17, 17, 17, 255), anchor="mm")
+        full_t = TEAM_INFO.get(team, {}).get("full_name", team)
+        draw.text((cx, 312), full_t, font=font_team, fill=(110, 110, 110, 255), anchor="mm")
+        draw.text((cx, 355), "선택 등록/해제", font=font_action, fill=(24, 119, 242, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
+
+
+def render_team_starters_banner_png(
+    team: str,
+    player_names: list[str],
+    part_label: str = "(1/2)",
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """Render 2:1 ratio (800x400) visual banner for a club's Best 5 starters."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    sig_payload = f"team_starters_v1:{team}:{part_label}:" + "|".join(player_names)
+    sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
+    banner_path = _BANNER_DIR / f"banner_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    urls_to_fetch: list[str] = [get_team_logo(team)]
+    for name in player_names:
+        p_u = get_player_photo_url(name)
+        if p_u:
+            urls_to_fetch.append(p_u)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(_download_image_cached, urls_to_fetch))
+
+    img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 232, 255), width=2)
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 246, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 232, 255), width=1)
+
+    full_t = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
+    font_title = _load_font(23, bold=True)
+    draw.text((width // 2, 34), f"{full_t} 베스트 5 {part_label}", font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    font_name = _load_font(22, bold=True)
+    font_sub = _load_font(18, bold=False)
+    font_action = _load_font(16, bold=False)
+
+    n = max(1, len(player_names))
+    slot_w = width // n
+    for i, name in enumerate(player_names):
+        cx = slot_w * i + slot_w // 2
+        cy = 185
+
+        p_url = get_player_photo_url(name)
+        raw = _download_image_cached(p_url)
+        avatar = _make_circular_avatar(raw, diameter=128)
+        img.paste(avatar, (cx - 64, cy - 64), avatar)
+
+        t_logo = _download_image_cached(get_team_logo(team))
+        if t_logo:
+            t_resized = t_logo.resize((34, 34), Image.Resampling.LANCZOS)
+            img.paste(t_resized, (cx + 28, cy + 28), t_resized)
+
+        draw.text((cx, 280), name, font=font_name, fill=(17, 17, 17, 255), anchor="mm")
+        draw.text((cx, 312), f"{team} 주전", font=font_sub, fill=(110, 110, 110, 255), anchor="mm")
+        draw.text((cx, 355), "선택 등록/해제", font=font_action, fill=(24, 119, 242, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
+
+
+def render_all_teams_banner_png(width: int = 800, height: int = 400) -> bytes:
+    """Render 2:1 ratio (800x400) visual banner for all 10 KBL clubs."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    banner_path = _BANNER_DIR / "banner_all_teams_v1.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    teams = ["SK", "KT", "삼성", "DB", "정관장", "소노", "LG", "KCC", "현대모비스", "한국가스공사"]
+    urls_to_fetch = [get_team_logo(t) for t in teams]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(_download_image_cached, urls_to_fetch))
+
+    img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 232, 255), width=2)
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 246, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 232, 255), width=1)
+
+    font_title = _load_font(23, bold=True)
+    draw.text((width // 2, 34), "KBL 10개 구단 선수단 둘러보기", font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    col_w = width // 5
+    row_h = (height - 68) // 2
+
+    font_alias = _load_font(18, bold=True)
+    for idx, t in enumerate(teams):
+        r = idx // 5
+        c = idx % 5
+        cx = c * col_w + col_w // 2
+        cy = 68 + r * row_h + row_h // 2
+
+        logo = _download_image_cached(get_team_logo(t))
+        if logo:
+            l_resized = logo.resize((68, 68), Image.Resampling.LANCZOS)
+            img.paste(l_resized, (cx - 34, cy - 46), l_resized)
+
+        alias = "모비스" if t == "현대모비스" else ("가스공사" if t == "한국가스공사" else t)
+        draw.text((cx, cy + 38), alias, font=font_alias, fill=(40, 40, 40, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes

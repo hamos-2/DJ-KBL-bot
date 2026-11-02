@@ -1,5 +1,6 @@
 """Factory functions for building Kakao Skill response payloads (Pro Basketball Bot MVP)."""
 
+import os
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -24,6 +25,11 @@ from services.search.parser import KBL_TEAMS, MatchupQuery
 
 _KST = ZoneInfo("Asia/Seoul")
 _WEEKDAYS_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+_DEFAULT_PUBLIC_BASE_URL = os.environ.get(
+    "PUBLIC_BASE_URL",
+    "https://activity-lexmark-insert-styles.trycloudflare.com",
+)
 
 # Bottom navigation QuickReplies: Optimized for user flow (Matching 프로야구봇 _HhRnC structure with clear visual icons)
 MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
@@ -1845,14 +1851,17 @@ def build_favorite_players_response(
     search_results: list[dict[str, Any]] | None = None,
     notice: str | None = None,
     favorite_team: str | None = None,
+    base_url: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build response for '관심선수'.
     Returns pure visual cards (listCard + carousel) without speech bubbles.
+    Uses 2:1 ratio (800x400) dedicated visual banners with player portraits and official emblems.
     IMPORTANT: Kakao enforces a strict 30,720-byte per-bubble limit (bubbleExtraBytesLimit),
     where each basicCard inside a carousel uses ~4,200 bytes internally.
     Therefore, carousel_items MUST be capped at <= 5 cards (~20,500 bytes).
     """
+    b_url = (base_url or _DEFAULT_PUBLIC_BASE_URL).rstrip("/")
     items = []
     if fav_players:
         for name in fav_players[:5]:
@@ -1915,57 +1924,72 @@ def build_favorite_players_response(
         starter_names = [s["name"] for s in starters_info] if starters_info else [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:5]
         full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
         if len(starter_names) >= 3:
+            thumb_t1 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/1.png?v=800x400"
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (1/2)",
                     description=f"{full_t} 선발 주전 멤버 (1~3)를 관심선수로 등록하세요.",
-                    thumbnail_url=get_team_logo(favorite_team),
+                    thumbnail_url=thumb_t1,
                     buttons=[_player_toggle_btn(p_name) for p_name in starter_names[:3]],
+                    width=800,
+                    height=400,
                 )
             )
         if len(starter_names) >= 4:
             b2 = [_player_toggle_btn(p_name) for p_name in starter_names[3:5]]
             b2.append(_msg_btn(f"🏀 {favorite_team} 선수 전체", f"{favorite_team} 선수"))
+            thumb_t2 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/2.png?v=800x400"
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (2/2)",
                     description=f"{full_t} 선발 주전 멤버 (4~5)를 관심선수로 등록하세요.",
-                    thumbnail_url=get_team_logo(favorite_team),
+                    thumbnail_url=thumb_t2,
                     buttons=b2,
+                    width=800,
+                    height=400,
                 )
             )
 
     star_guards = ["김선형", "허훈", "이정현"]
+    thumb_guards = f"{b_url}/integrations/kakao/skills/banner/category/guards.png?v=800x400"
     carousel_items.append(
         _basic_card(
             title="⭐ 인기 가드 등록",
             description="버튼을 누르면 즉시 등록/해제됩니다. (선수 이름 직접 입력 가능)",
-            thumbnail_url=get_team_logo("KT"),
+            thumbnail_url=thumb_guards,
             buttons=[_player_toggle_btn(n) for n in star_guards],
+            width=800,
+            height=400,
         )
     )
 
     if not favorite_team or not fav_players:
         star_bigs = ["자밀 워니", "아셈 마레이", "유기상"]
+        thumb_bigs = f"{b_url}/integrations/kakao/skills/banner/category/bigs.png?v=800x400"
         carousel_items.append(
             _basic_card(
                 title="⭐ 인기 빅맨/슈터 등록",
                 description="버튼을 누르면 즉시 등록/해제됩니다.",
-                thumbnail_url=get_team_logo("SK"),
+                thumbnail_url=thumb_bigs,
                 buttons=[_player_toggle_btn(n) for n in star_bigs],
+                width=800,
+                height=400,
             )
         )
 
+    thumb_teams = f"{b_url}/integrations/kakao/skills/banner/category/all_teams.png?v=800x400"
     carousel_items.append(
         _basic_card(
             title="🏀 [구단별 선수] 수도권·경기·강원·영남권",
             description="10개 구단(SK·KT·삼성·DB·정관장·소노·LG·KCC·모비스·가스공사) 선수단을 확인하세요.",
-            thumbnail_url=get_team_logo(favorite_team or "SK"),
+            thumbnail_url=thumb_teams,
             buttons=[
                 _msg_btn("🏀 10개 구단 전체 메뉴", "구단별 선수"),
                 _msg_btn("🏀 서울 SK 선수", "SK 선수"),
                 _msg_btn("🏀 원주 DB 선수", "DB 선수"),
             ],
+            width=800,
+            height=400,
         )
     )
 
@@ -1975,8 +1999,10 @@ def build_favorite_players_response(
             _basic_card(
                 title="⚙️ 관심선수 간편 해제",
                 description="추적을 원하지 않는 선수를 해제하세요.",
-                thumbnail_url=DEFAULT_SPORTS_LOGO,
+                thumbnail_url=thumb_teams,
                 buttons=del_buttons,
+                width=800,
+                height=400,
             )
         )
 

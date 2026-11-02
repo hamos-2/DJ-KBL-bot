@@ -935,7 +935,7 @@ async def _dispatch_command(
             prefs["favorite_players"] = []
             await save_user_preferences(user_hmac, prefs)
             return build_favorite_players_response(
-                [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다.", favorite_team=fav_team
+                [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다.", favorite_team=fav_team, base_url=base_url
             )
 
         if matched_player is not None:
@@ -950,7 +950,7 @@ async def _dispatch_command(
                 else:
                     notice_msg = f"[{exact}] 선수는 관심선수 목록에 없습니다."
                 return build_favorite_players_response(
-                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url
                 )
 
             if is_add or has_player_prefix:
@@ -962,7 +962,7 @@ async def _dispatch_command(
                 else:
                     notice_msg = f"[{exact}] 선수는 이미 관심선수로 등록되어 있습니다."
                 return build_favorite_players_response(
-                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url
                 )
 
             # User simply typed player name (e.g. "허훈", "알바노", "김종규") -> show single player card
@@ -971,7 +971,7 @@ async def _dispatch_command(
             )
 
         # Default favorite players home view
-        return build_favorite_players_response(fav_players, KBL_PLAYERS[:5], favorite_team=fav_team)
+        return build_favorite_players_response(fav_players, KBL_PLAYERS[:5], favorite_team=fav_team, base_url=base_url)
 
     # 4. Team Standings (팀순위)
     if u_compact in ("팀순위", "순위", "구단순위", "정규리그순위", "kbl순위", "KBL순위"):
@@ -1263,6 +1263,63 @@ async def get_matchup_lineup_board_image(
         content=png_bytes,
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
+@router.get("/banner/category/{category_key}.png")
+async def get_player_category_banner(category_key: str) -> Response:
+    """Render 2:1 ratio (800x400) visual banner for player categories."""
+    from services.content.lineup_board import (
+        render_all_teams_banner_png,
+        render_player_category_banner_png,
+    )
+
+    ck = category_key.lower().strip()
+    if ck == "guards":
+        players = [("김선형", "KT"), ("허훈", "KT"), ("이정현", "소노")]
+        png_bytes = render_player_category_banner_png("KBL 대표 인기 가드", players)
+    elif ck in ("bigs", "shooters"):
+        players = [("자밀 워니", "SK"), ("아셈 마레이", "LG"), ("유기상", "LG")]
+        png_bytes = render_player_category_banner_png("KBL 대표 인기 빅맨 & 슈터", players)
+    else:
+        png_bytes = render_all_teams_banner_png()
+
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/banner/team/{team}/{part}.png")
+async def get_team_starters_banner(team: str, part: int = 1) -> Response:
+    """Render 2:1 ratio (800x400) visual banner for team Best 5 starters."""
+    from services.content.lineup_board import render_team_starters_banner_png
+    from services.content.kbl_data import KBL_PLAYERS, TEAM_LINEUPS
+
+    norm_team = normalize_team_name(team) if team else "SK"
+    if norm_team not in TEAM_LINEUPS:
+        norm_team = "SK"
+
+    starters_info = TEAM_LINEUPS.get(norm_team, {}).get("starters", [])
+    starter_names = (
+        [s["name"] for s in starters_info]
+        if starters_info
+        else [p["name"] for p in KBL_PLAYERS if p.get("team") == norm_team][:5]
+    )
+
+    if part == 2 and len(starter_names) >= 5:
+        target_names = starter_names[3:5]
+        part_label = "(2/2)"
+    else:
+        target_names = starter_names[:3]
+        part_label = "(1/2)"
+
+    png_bytes = render_team_starters_banner_png(norm_team, target_names, part_label=part_label)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 
