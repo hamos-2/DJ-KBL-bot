@@ -436,46 +436,58 @@ class DaumSportsDataProvider(SportsDataProvider):
                 if t_games:
                     candidate_games = t_games
 
-            per_game_articles: list[list[dict[str, Any]]] = []
-            seen_urls: set[str] = set()
-            for g in candidate_games[:4]:
+            async def _fetch_single_game_news(g: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
                 gid = str(g.get("game_id") or "")
                 if not (gid.isdigit() and len(gid) >= 6):
-                    continue
+                    return (g, [])
                 try:
                     resp = await client.get(
                         f"{_DAUM_ARMS_BASE}/SPORTS_GAME_NEWS",
                         params={"id": gid, "limit": 25},
+                        timeout=2.0,
                     )
                     if resp.status_code == 200:
                         doc = (resp.json() or {}).get("document") or {}
                         contents = ((doc.get("data") or {}).get("contents")) or []
-                        game_list: list[dict[str, Any]] = []
-                        for c in contents:
-                            url = c.get("pcUrl") or c.get("moUrl") or f"https://sports.daum.net/match/{gid}?tab=news"
-                            if url in seen_urls:
-                                continue
-                            seen_urls.add(url)
-                            cp_name = str(c.get("cpName") or "다음스포츠").strip()
-                            created_raw = str(c.get("createdAt") or "")
-                            mm_dd = ""
-                            if len(created_raw) >= 16 and "-" in created_raw:
-                                mm_dd = f"{created_raw[5:7]}.{created_raw[8:10]} {created_raw[11:16]}"
-                            img_url = str(c.get("image") or "").replace("http://", "https://").strip()
-                            fallback_logo = get_team_logo(team or g.get("home_team", "SK"))
-                            game_list.append(
-                                {
-                                    "title": str(c.get("title") or "KBL 현장 뉴스").strip(),
-                                    "url": url,
-                                    "imageUrl": img_url or fallback_logo,
-                                    "time": f"{cp_name} · {mm_dd}".strip(" ·"),
-                                    "source": cp_name,
-                                }
-                            )
-                        if game_list:
-                            per_game_articles.append(game_list)
+                        return (g, contents)
                 except Exception as exc:
                     logger.debug("SPORTS_GAME_NEWS fetch skipped", game_id=gid, error=str(exc))
+                return (g, [])
+
+            fetch_tasks = [_fetch_single_game_news(g) for g in candidate_games[:4]]
+            results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+            per_game_articles: list[list[dict[str, Any]]] = []
+            seen_urls: set[str] = set()
+            for res in results:
+                if isinstance(res, Exception):
+                    continue
+                g, contents = res
+                gid = str(g.get("game_id") or "")
+                game_list: list[dict[str, Any]] = []
+                for c in contents:
+                    url = c.get("pcUrl") or c.get("moUrl") or f"https://sports.daum.net/match/{gid}?tab=news"
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    cp_name = str(c.get("cpName") or "다음스포츠").strip()
+                    created_raw = str(c.get("createdAt") or "")
+                    mm_dd = ""
+                    if len(created_raw) >= 16 and "-" in created_raw:
+                        mm_dd = f"{created_raw[5:7]}.{created_raw[8:10]} {created_raw[11:16]}"
+                    img_url = str(c.get("image") or "").replace("http://", "https://").strip()
+                    fallback_logo = get_team_logo(team or g.get("home_team", "SK"))
+                    game_list.append(
+                        {
+                            "title": str(c.get("title") or "KBL 현장 뉴스").strip(),
+                            "url": url,
+                            "imageUrl": img_url or fallback_logo,
+                            "time": f"{cp_name} · {mm_dd}".strip(" ·"),
+                            "source": cp_name,
+                        }
+                    )
+                if game_list:
+                    per_game_articles.append(game_list)
 
             match_articles: list[dict[str, Any]] = []
             if team:
