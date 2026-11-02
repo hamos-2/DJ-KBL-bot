@@ -173,14 +173,24 @@ def _basic_card(
     description: str,
     thumbnail_url: str | None = None,
     buttons: list[dict[str, str]] | None = None,
+    fixed_ratio: bool = False,
+    width: int | None = None,
+    height: int | None = None,
 ) -> dict[str, Any]:
-    """Build a single basicCard dict (with official Daum logo thumbnail)."""
+    """Build a single basicCard dict (with official Daum logo or 2-column lineup board thumbnail)."""
     card: dict[str, Any] = {
         "title": title[:30],
         "description": description[:400],
     }
     if thumbnail_url:
-        card["thumbnail"] = {"imageUrl": thumbnail_url}
+        thumb: dict[str, Any] = {"imageUrl": thumbnail_url}
+        if fixed_ratio:
+            thumb["fixedRatio"] = True
+        if width is not None:
+            thumb["width"] = width
+        if height is not None:
+            thumb["height"] = height
+        card["thumbnail"] = thumb
     if buttons:
         card["buttons"] = buttons[:3]
     return card
@@ -411,12 +421,29 @@ def build_lineup_response(
     today_games: list[dict[str, Any]],
     favorite_team: str | None = None,
     target_team: str | None = None,
+    base_url: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '라인업' (Starting 5 lineups, head coaches, foreign imports, and Asian quotas).
-    Matches 프로야구봇's 선발 라인업 feature.
+    Build response for '라인업' (Starting 5 lineups, head coaches, foreign imports, Asian quotas,
+    and 2-column Daum-style visual lineup board image with circular player photos).
+    Matches 프로야구봇's 선발 라인업 feature & Daum Sports `?tab=lineup`.
     """
+    import urllib.parse
+    from services.content.lineup_board import fetch_daum_match_lineup_sync
+
     cards: list[dict[str, Any]] = []
+    primary_board_url: str | None = None
+    primary_board_alt: str = "KBL 선발 라인업 보드"
+
+    # Prioritize target_team or favorite_team's game
+    focus_team = target_team or favorite_team
+    sorted_games = sorted(
+        today_games,
+        key=lambda g: (
+            0 if focus_team and focus_team in (g.get("home_team"), g.get("away_team")) else 1,
+            str(g.get("start_time") or ""),
+        ),
+    )
 
     if target_team:
         t_lineup = get_team_lineup(target_team) or {}
@@ -427,8 +454,41 @@ def build_lineup_response(
             t_foreign = ", ".join(t_lineup.get("foreign_players", []))
             t_aq = t_lineup.get("asian_quota", "")
             t_bench = ", ".join(t_lineup.get("key_bench", [])[:4])
+
+            # Check if target_team has a game in sorted_games to pull live Daum starters & board image
+            t_game = next(
+                (g for g in sorted_games if target_team in (g.get("home_team"), g.get("away_team"))),
+                None,
+            )
+            t_thumb_url = get_team_logo(target_team)
+            t_fixed = False
+            t_w, t_h = None, None
+            if t_game:
+                tg_id = str(t_game.get("game_id") or "")
+                tg_home = t_game.get("home_team", target_team)
+                tg_away = t_game.get("away_team", "SK")
+                if tg_id.isdigit() and len(tg_id) >= 6:
+                    _, _, h_live, a_live, is_off = fetch_daum_match_lineup_sync(tg_id, tg_home, tg_away)
+                    if is_off:
+                        t_starters = h_live if target_team == tg_home else a_live
+                if base_url:
+                    q_h = urllib.parse.quote(tg_home)
+                    q_a = urllib.parse.quote(tg_away)
+                    t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{tg_id or '0'}.png?home={q_h}&away={q_a}"
+                    t_fixed, t_w, t_h = True, 960, 540
+                    primary_board_url = t_thumb_url
+                    primary_board_alt = f"📋 {tg_home} vs {tg_away} 선발 라인업 보드"
+            elif base_url:
+                opp = "DB" if target_team != "DB" else "SK"
+                q_h = urllib.parse.quote(target_team)
+                q_a = urllib.parse.quote(opp)
+                t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/matchup/{q_h}/{q_a}.png"
+                t_fixed, t_w, t_h = True, 960, 540
+                primary_board_url = t_thumb_url
+                primary_board_alt = f"📋 {target_team} 선발 라인업 보드"
+
             s_lines = "\n".join(
-                f"{s.get('pos', '')} {s.get('name', '')} #{s.get('no', '')}" for s in t_starters
+                f"{s.get('pos', '')} {s.get('name', '')} #{s.get('no', '')}".strip() for s in t_starters
             )
             desc = (
                 f"🏀 2026-2027 {full_name}\n"
@@ -444,12 +504,15 @@ def build_lineup_response(
                 _basic_card(
                     title=f"📋 [{target_team}] 2026-27 공식 라인업",
                     description=desc[:380],
-                    thumbnail_url=get_team_logo(target_team),
+                    thumbnail_url=t_thumb_url,
                     buttons=[
                         _msg_btn(f"⭐ {target_team} 선수단", f"{target_team} 선수"),
                         _msg_btn(f"📅 {target_team} 일정", f"{target_team} 일정"),
                         _share_btn("📤 라인업 공유하기"),
                     ],
+                    fixed_ratio=t_fixed,
+                    width=t_w,
+                    height=t_h,
                 )
             )
 
@@ -470,28 +533,8 @@ def build_lineup_response(
             template=KakaoTemplate(outputs=[card], quickReplies=MAIN_MENU_QUICK_REPLIES)
         )
 
-    first_start = today_games[0].get("start_time") if today_games else None
-    date_label = ""
-    if first_start:
-        try:
-            dt = datetime.fromisoformat(first_start.replace("Z", "+00:00")).astimezone(_KST)
-            date_label = f" ({dt.strftime('%m.%d')} {_WEEKDAYS_KO[dt.weekday()]})"
-        except Exception:
-            pass
-
-    lines: list[str] = [f"📋 KBL 선발 라인업 (베스트 5){date_label}\n"]
-
-    # Prioritize target_team or favorite_team's game
-    focus_team = target_team or favorite_team
-    sorted_games = sorted(
-        today_games,
-        key=lambda g: (
-            0 if focus_team and focus_team in (g.get("home_team"), g.get("away_team")) else 1,
-            str(g.get("start_time") or ""),
-        ),
-    )
-
     for g in sorted_games[:3]:
+        gid = str(g.get("game_id") or "")
         home = g.get("home_team", "?")
         away = g.get("away_team", "?")
         time_str = _format_kst_datetime(g.get("start_time"), include_date=False) or "14:00"
@@ -506,19 +549,26 @@ def build_lineup_response(
         h_coach = home_lineup.get("head_coach", "")
         a_coach = away_lineup.get("head_coach", "")
 
+        is_daum_official = False
+        if gid.isdigit() and len(gid) >= 6:
+            _, _, h_live, a_live, is_daum_official = fetch_daum_match_lineup_sync(gid, home, away)
+            if is_daum_official:
+                h_starters = h_live
+                a_starters = a_live
+
         def _format_starter_entry(s: dict[str, Any]) -> str:
             pos = s.get("pos", "").strip()
             name = s.get("name", "").strip()
             no = str(s.get("no", "")).replace("#", "").strip()
-            return f"{pos} {name} {no}".strip()
+            return f"{pos} {name} #{no}".strip()
 
         h_players_lines = "\n".join(_format_starter_entry(s) for s in h_starters) or "출전 명단 확인 중"
         a_players_lines = "\n".join(_format_starter_entry(s) for s in a_starters) or "출전 명단 확인 중"
         h_coach_str = f" ({h_coach} 감독)" if h_coach else ""
         a_coach_str = f" ({a_coach} 감독)" if a_coach else ""
 
-        # Check if game is within 25 min of start or already started/live
-        is_confirmed = False
+        # Check if game is within 25 min of start or already started/live or confirmed by Daum
+        is_confirmed = is_daum_official
         start_time_raw = g.get("start_time")
         status = g.get("status", "")
         if status in ("LIVE", "FINAL"):
@@ -542,11 +592,8 @@ def build_lineup_response(
                 f"✈️ [원정] {away}{a_coach_str}\n"
                 f"────────────────────\n"
                 f"{a_players_lines}\n\n"
-                f"※ 경기 20분 전 KBL 본부석 제출 확정 선발"
+                f"※ KBL 공식 제출 확정 베스트 5"
             )
-            line_status = "✅ [공식 확정 선발 라인업]"
-            h_prefix = f"🏠 [홈팀] {home}{h_coach_str}"
-            a_prefix = f"✈️ [원정팀] {away}{a_coach_str}"
         else:
             status_badge = "⏳ [공식 라인업 발표 준비 중]"
             title_tag = "[준비중]"
@@ -560,36 +607,60 @@ def build_lineup_response(
                 f"────────────────────\n"
                 f"{a_players_lines}"
             )
-            line_status = "⏳ [공식 발표 준비 중 (경기 20분 전 공개)]"
-            h_prefix = f"🏠 [홈팀 예상] {home}{h_coach_str}"
-            a_prefix = f"✈️ [원정팀 예상] {away}{a_coach_str}"
 
-        lines.append(f"🏀 {home} vs {away} ({time_str}{arena_str}) - {line_status}\n")
-        if h_starters:
-            lines.append(f"{h_prefix}\n────────────────────────\n{h_players_lines}\n")
-        if a_starters:
-            lines.append(f"{a_prefix}\n────────────────────────\n{a_players_lines}\n")
-        lines.append("")
+        if base_url:
+            q_h = urllib.parse.quote(home)
+            q_a = urllib.parse.quote(away)
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}"
+            c_fixed, c_w, c_h = True, 960, 540
+            if primary_board_url is None:
+                primary_board_url = card_thumb
+                primary_board_alt = f"📋 {home} vs {away} 선발 라인업 보드"
+        else:
+            card_thumb = get_team_logo(home)
+            c_fixed, c_w, c_h = False, None, None
+
+        first_btn = (
+            _link_btn("📋 공식 라인업 탭", f"https://sports.daum.net/match/{gid}?tab=lineup")
+            if (gid.isdigit() and len(gid) >= 6)
+            else _msg_btn("🗳️ 승부예측", f"#승부예측 {home}")
+        )
 
         cards.append(
             _basic_card(
                 title=f"📋 {home} vs {away} 선발 라인업 {title_tag}",
                 description=card_desc,
-                thumbnail_url=get_team_logo(home),
+                thumbnail_url=card_thumb,
                 buttons=[
-                    _msg_btn("🗳️ 승부예측", f"#승부예측 {home}"),
-                    _msg_btn("🔴 실시간 스코어", "실시간 점수"),
+                    first_btn,
+                    _msg_btn("🗳️ 승부예측", f"#승부예측 {home}") if (gid.isdigit() and len(gid) >= 6) else _msg_btn("🔴 실시간 스코어", "실시간 점수"),
                     _share_btn("📤 라인업 공유하기"),
                 ],
+                fixed_ratio=c_fixed,
+                width=c_w,
+                height=c_h,
             )
         )
 
     outputs: list[dict[str, Any]] = [
-        {"carousel": {"type": "basicCard", "items": cards}},
+        {"carousel": {"type": "basicCard", "items": cards[:5]}},
     ]
+    if primary_board_url:
+        outputs.append(
+            {
+                "simpleImage": {
+                    "imageUrl": primary_board_url,
+                    "altText": primary_board_alt,
+                }
+            }
+        )
     lineup_qrs = [
         QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+        QuickReply(label="📋 정관장 라인업", messageText="정관장 라인업"),
+        QuickReply(label="📋 가스공사 라인업", messageText="가스공사 라인업"),
+        QuickReply(label="📋 DB 라인업", messageText="DB 라인업"),
+        QuickReply(label="📋 SK 라인업", messageText="SK 라인업"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="⭐ 관심선수", messageText="관심선수"),

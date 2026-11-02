@@ -1,11 +1,12 @@
 """Kakao OpenBuilder Skill endpoint router — Full Pro Basketball Bot (10 core features)."""
 
 import hmac
+import os
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Header, Request
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -120,6 +121,25 @@ def _json_200(response: KakaoSkillResponse) -> JSONResponse:
     return JSONResponse(content=response.model_dump(), status_code=200)
 
 
+_DEFAULT_PUBLIC_BASE_URL = os.environ.get(
+    "PUBLIC_BASE_URL",
+    "https://activity-lexmark-insert-styles.trycloudflare.com",
+)
+
+
+def _resolve_public_base_url(request: Request | None = None) -> str:
+    """Resolve externally reachable HTTPS base URL for Kakao image assets."""
+    if request is not None:
+        host = (
+            request.headers.get("x-forwarded-host")
+            or request.headers.get("host")
+            or ""
+        ).strip()
+        if host and not host.startswith(("127.0.0.1", "localhost", "0.0.0.0")):
+            return f"https://{host}"
+    return _DEFAULT_PUBLIC_BASE_URL
+
+
 async def _dispatch_command(
     utterance: str,
     db: AsyncSession,
@@ -127,6 +147,7 @@ async def _dispatch_command(
     user_service: UserService,
     user: User,
     default_mode: str = "today",
+    base_url: str | None = _DEFAULT_PUBLIC_BASE_URL,
 ) -> KakaoSkillResponse | None:
     """
     Unified command dispatcher supporting all 10 Pro Basketball Bot features:
@@ -402,7 +423,7 @@ async def _dispatch_command(
             prefs.get("notifications", {}),
         )
 
-    # 2. Lineup (라인업 / 선발라인업 / 베스트 5 - 프로야구봇 핵심 기능)
+    # 2. Lineup (라인업 / 선발라인업 / 베스트 5 - 프로야구봇 핵심 기능 & Daum 2단 라인업 보드)
     if (
         u_compact in ("라인업", "선발라인업", "선발명단", "베스트5", "스타팅", "엔트리")
         or "라인업" in u_compact
@@ -415,9 +436,39 @@ async def _dispatch_command(
             if norm_t in TEAM_LINEUPS:
                 target_lineup_team = norm_t
         today_games = await game_service.get_today_games(db)
+        if target_lineup_team and not any(
+            target_lineup_team in (g.get("home_team"), g.get("away_team")) for g in today_games
+        ):
+            try:
+                recent_t = await game_service.get_recent_results(db, team=target_lineup_team, limit=2)
+            except TypeError:
+                recent_t = await game_service.get_recent_results(db, limit=4)
+                recent_t = [
+                    g for g in recent_t
+                    if target_lineup_team in (g.get("home_team"), g.get("away_team"))
+                ]
+            if recent_t:
+                today_games = recent_t + today_games
+            else:
+                try:
+                    sched_t = await game_service.get_kbl_schedule(db, days=7, team=target_lineup_team, limit=2)
+                    if sched_t:
+                        today_games = sched_t + today_games
+                except Exception:
+                    pass
         if not today_games:
             today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
-        return build_lineup_response(today_games, favorite_team=fav_team, target_team=target_lineup_team)
+        if not today_games:
+            try:
+                today_games = await game_service.get_recent_results(db, limit=4)
+            except Exception:
+                pass
+        return build_lineup_response(
+            today_games,
+            favorite_team=fav_team,
+            target_team=target_lineup_team,
+            base_url=base_url,
+        )
 
     # 3. Game Summary & Recap (요약 / 한줄평 / [구단명] 요약 - 프로야구봇 핵심 바이럴 기능)
     if (
@@ -1074,8 +1125,71 @@ async def _dispatch_command(
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/lineup-image/game/{game_id}.png")
+async def get_game_lineup_board_image(
+    game_id: str,
+    home: str = "SK",
+    away: str = "DB",
+) -> Response:
+    """
+    Dynamically render 2-column KBL starting lineup board PNG (960x540)
+    with circular player portraits, colored jersey numbers, and team logos,
+    matching `https://sports.daum.net/match/{game_id}?tab=lineup`.
+    """
+    from services.content.lineup_board import (
+        fetch_daum_match_lineup_sync,
+        render_lineup_board_png,
+    )
+
+    norm_home = normalize_team_name(home) if home else "SK"
+    norm_away = normalize_team_name(away) if away else "DB"
+    if norm_home not in TEAM_LINEUPS:
+        norm_home = "SK"
+    if norm_away not in TEAM_LINEUPS:
+        norm_away = "DB"
+
+    h_team, a_team, h_starters, a_starters, _ = fetch_daum_match_lineup_sync(
+        game_id, fallback_home=norm_home, fallback_away=norm_away
+    )
+    png_bytes = render_lineup_board_png(h_team, a_team, h_starters, a_starters)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
+@router.get("/lineup-image/matchup/{home}/{away}.png")
+async def get_matchup_lineup_board_image(
+    home: str,
+    away: str,
+) -> Response:
+    """Render 2-column KBL starting lineup board PNG (960x540) for *home* vs *away*."""
+    from services.content.lineup_board import (
+        get_baseline_starters_with_photos,
+        render_lineup_board_png,
+    )
+
+    norm_home = normalize_team_name(home) if home else "SK"
+    norm_away = normalize_team_name(away) if away else "DB"
+    if norm_home not in TEAM_LINEUPS:
+        norm_home = "SK"
+    if norm_away not in TEAM_LINEUPS:
+        norm_away = "DB"
+
+    h_starters = get_baseline_starters_with_photos(norm_home)
+    a_starters = get_baseline_starters_with_photos(norm_away)
+    png_bytes = render_lineup_board_png(norm_home, norm_away, h_starters, a_starters)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
 @router.post("/today-games")
 async def today_games(
+    request: Request,
     payload: KakaoSkillPayload,
     db: Annotated[AsyncSession, Depends(get_db)],
     game_service: Annotated[GameService, Depends(_get_game_service)],
@@ -1098,7 +1212,13 @@ async def today_games(
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
         resp = await _dispatch_command(
-            utterance, db, game_service, user_service, user, default_mode="today"
+            utterance,
+            db,
+            game_service,
+            user_service,
+            user,
+            default_mode="today",
+            base_url=_resolve_public_base_url(request),
         )
         assert resp is not None
         return _json_200(resp)
@@ -1114,6 +1234,7 @@ async def today_games(
 
 @router.post("/match-search")
 async def match_search(
+    request: Request,
     payload: KakaoSkillPayload,
     db: Annotated[AsyncSession, Depends(get_db)],
     game_service: Annotated[GameService, Depends(_get_game_service)],
@@ -1137,7 +1258,13 @@ async def match_search(
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
         resp = await _dispatch_command(
-            raw_query, db, game_service, user_service, user, default_mode="search"
+            raw_query,
+            db,
+            game_service,
+            user_service,
+            user,
+            default_mode="search",
+            base_url=_resolve_public_base_url(request),
         )
         if resp is not None:
             return _json_200(resp)

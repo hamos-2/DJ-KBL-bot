@@ -687,5 +687,31 @@ class TestProBasketballBotFeatures:
         assert "DB 촌철살인 한줄평" in fb_commentary["title"]
         assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in fb_commentary["buttons"])
 
+        # 6. Lineup 2-column visual board image (matching Daum ?tab=lineup)
+        from services.content.lineup_board import (
+            get_baseline_starters_with_photos,
+            render_lineup_board_png,
+        )
+
+        lineup_board_resp = build_lineup_response(
+            sample_games,
+            favorite_team="정관장",
+            target_team="정관장",
+            base_url="https://activity-lexmark-insert-styles.trycloudflare.com",
+        )
+        board_cards = lineup_board_resp.template.outputs[0]["carousel"]["items"]
+        assert board_cards[0]["thumbnail"]["fixedRatio"] is True
+        assert "/integrations/kakao/skills/lineup-image/game/" in board_cards[0]["thumbnail"]["imageUrl"]
+        assert "simpleImage" in lineup_board_resp.template.outputs[1]
+
+        png_bytes = render_lineup_board_png(
+            "한국가스공사",
+            "정관장",
+            get_baseline_starters_with_photos("한국가스공사"),
+            get_baseline_starters_with_photos("정관장"),
+        )
+        assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+        assert len(png_bytes) > 5000
+
 
 
