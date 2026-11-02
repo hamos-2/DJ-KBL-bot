@@ -419,6 +419,20 @@ class GameService:
             raw = await client.get(cache_key)
             if raw:
                 return json.loads(raw)
+
+            # Check pre-synced news cache from IngestionWorker
+            raw_worker = await client.get("kbl:news:latest")
+            if raw_worker:
+                all_news = json.loads(raw_worker)
+                if not team:
+                    return all_news
+                team_news = [
+                    item for item in all_news
+                    if team in item.get("title", "") or team in item.get("description", "")
+                ]
+                if len(team_news) >= 3:
+                    await client.set(cache_key, json.dumps(team_news), ex=600)
+                    return team_news
         except Exception:
             pass
 
@@ -447,6 +461,17 @@ class GameService:
             raw = await client.get(cache_key)
             if raw:
                 return json.loads(raw)
+
+            # Check pre-synced highlights cache from IngestionWorker
+            raw_worker = await client.get("kbl:highlights:latest")
+            if raw_worker:
+                all_hl = json.loads(raw_worker)
+                if not team:
+                    return all_hl
+                team_hl = [item for item in all_hl if team in item.get("title", "")]
+                if len(team_hl) >= 2:
+                    await client.set(cache_key, json.dumps(team_hl), ex=600)
+                    return team_hl
         except Exception:
             pass
 
