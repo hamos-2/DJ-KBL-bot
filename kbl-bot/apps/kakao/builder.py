@@ -799,7 +799,11 @@ def build_game_summary_response(
     winner_stars = [p for p in KBL_PLAYERS if p.get("team") == winner]
     mvp = winner_stars[0] if winner_stars else {"name": f"{winner} 수훈선수", "pts": 24.0, "reb": 9.0, "ast": 5.0}
     gid = target.get("game_id", "")
-    vod_url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/video/kbl"
+    vod_url = (
+        f"https://sports.daum.net/match/{gid}"
+        if gid
+        else "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
+    )
 
     turning_short, summary_30, full_commentary = _build_witty_kbl_commentary(
         winner=winner,
@@ -1327,18 +1331,30 @@ def build_highlights_response(
     Build response for '주요장면'.
     Returns pure listCard with verified official logos and action buttons.
     """
+    import urllib.parse
+
     if favorite_team:
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
         header = f"🎬 [{full_name}] 주요장면 & 하이라이트"
         default_img = get_team_logo(favorite_team)
+        daum_vclip_url = (
+            f"https://search.daum.net/search?w=vclip&q="
+            f"{urllib.parse.quote(f'KBL {favorite_team} 하이라이트')}"
+        )
     else:
         header = "🎬 KBL 프로농구 주요장면 & 하이라이트"
         default_img = DEFAULT_SPORTS_LOGO
+        daum_vclip_url = "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
 
     items: list[dict[str, Any]] = []
     for item in highlights[:5]:
         title = item.get("title", "KBL 경기 하이라이트")
-        url = item.get("url") or "https://www.youtube.com/@kbl_official/videos"
+        raw_url = item.get("url") or "https://www.youtube.com/@kbl_official/videos"
+        # Replace broken legacy /video/kbl SPA route (which redirects to 404 www.daum.net/video/v/kbl)
+        if "sports.daum.net/video/kbl" in raw_url:
+            url = daum_vclip_url
+        else:
+            url = raw_url
         arena = item.get("arena") or "📺 SPOTV / KBL TV 공식 영상"
         items.append({
             "title": title,
@@ -1360,7 +1376,7 @@ def build_highlights_response(
         items=items,
         buttons=[
             _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@kbl_official/videos"),
-            _link_btn("🎬 다음 KBL 영상관", "https://sports.daum.net/video/kbl"),
+            _link_btn("🎬 다음 KBL 영상관", daum_vclip_url),
         ],
     )
     return KakaoSkillResponse(

@@ -821,7 +821,7 @@ def build_highlights_from_games(
         items.append(
             {
                 "title": "🎬 Daum 스포츠 KBL 공식 영상관 & 명장면 모음",
-                "url": "https://sports.daum.net/video/kbl",
+                "url": "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8",
                 "arena": "Daum 스포츠 KBL 영상관",
             }
         )

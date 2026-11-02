@@ -378,6 +378,9 @@ class TestProBasketballBotFeatures:
         )
         gen_card = gen_resp.template.outputs[0]["listCard"]
         assert "KBL 프로농구 주요장면" in gen_card["header"]["title"]
+        daum_btn = next(b for b in gen_card["buttons"] if "다음 KBL 영상관" in b["label"])
+        assert "search.daum.net/search?w=vclip" in daum_btn["webLinkUrl"]
+        assert "sports.daum.net/video/kbl" not in daum_btn["webLinkUrl"]
 
     def test_custom_player_builders(self) -> None:
         """build_single_player_response and build_team_players_response must render toggle buttons."""
