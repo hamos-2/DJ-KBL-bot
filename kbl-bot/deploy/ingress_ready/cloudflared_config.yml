@@ -1,0 +1,18 @@
+# Cloudflare Named Tunnel Configuration (Removes 200 concurrent request cap)
+# 1. Login: cloudflared tunnel login
+# 2. Create: cloudflared tunnel create kbl-prod-tunnel
+# 3. Route DNS: cloudflared tunnel route dns kbl-prod-tunnel kblbot.example.com
+# 4. Run: cloudflared tunnel --config deploy/ingress_ready/cloudflared_config.yml run
+
+tunnel: kbl-prod-tunnel
+credentials-file: /etc/cloudflared/kbl-prod-tunnel.json
+
+ingress:
+  - hostname: kblbot.example.com
+    service: http://kbl_api:8000
+    originRequest:
+      connectTimeout: 5s
+      keepAliveConnections: 1000
+      keepAliveTimeout: 90s
+      http2Origin: true
+  - service: http_status:404

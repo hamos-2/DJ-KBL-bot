@@ -1,0 +1,12 @@
+# Caddyfile — Direct OCI Public IP (168.110.6.240) HTTPS Reverse Proxy (Zero Cloudflare limits)
+# Usage: docker run -d --name kbl_caddy --network host -v $PWD/deploy/ingress_ready/Caddyfile:/etc/caddy/Caddyfile caddy:2-alpine
+
+kblbot.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8000 {
+        transport http {
+            keepalive 90s
+            keepalive_idle_conns 1000
+        }
+    }
+}
