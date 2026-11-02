@@ -725,6 +725,10 @@ async def _dispatch_command(
             return build_team_players_response(norm_t, team_players, fav_players)
 
     # 3-B. Favorite players menu / direct player action / single player lookup
+    _FAV_MENU_ACTIONS = (
+        "설정", "관리", "등록", "추가", "목록", "현황", "보기", "메뉴", "안내",
+        "어디", "탭", "입력", "선택", "변경", "조회", "찾기", "검색", "추천",
+    )
     is_fav_menu = (
         u_compact in (
             "관심선수",
@@ -734,10 +738,17 @@ async def _dispatch_command(
             "관심선수설정",
             "관심선수등록",
             "관심선수추가",
+            "관심선수입력",
+            "관심선수선택",
+            "관심선수변경",
+            "관심선수조회",
+            "관심선수찾기",
+            "관심선수검색",
             "선수관리",
             "선수설정",
             "선수등록",
             "선수추가",
+            "선수입력",
             "선수검색",
             "선수목록",
             "내관심선수",
@@ -745,11 +756,11 @@ async def _dispatch_command(
         )
         or (
             "관심선수" in u_compact
-            and any(k in u_compact for k in ("설정", "관리", "등록", "추가", "목록", "현황", "보기", "메뉴", "안내", "어디", "탭"))
+            and any(k in u_compact for k in _FAV_MENU_ACTIONS)
         )
         or (
             "선수" in u_compact
-            and any(k in u_compact for k in ("설정", "등록", "관리"))
+            and any(k in u_compact for k in ("설정", "등록", "관리", "입력"))
         )
     )
     has_player_prefix = (
@@ -761,11 +772,17 @@ async def _dispatch_command(
 
     clean_sub = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u).strip()
     clean_target = re.sub(r"^#?(관심선수|선수검색|선수)\s*", "", u)
-    clean_target = re.sub(r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색|설정|관리|목록|현황|보기|안내|어디|탭)+\s*", "", clean_target).strip()
+    clean_target = re.sub(
+        r"\s*(등록|추가|관심선수|삭제|해제|제거|빼기|넣기|검색|설정|관리|목록|현황|보기|안내|어디|탭|입력|선택|변경|조회|찾기|추천|선수)+\s*",
+        "",
+        clean_target,
+    ).strip()
 
     # Helper to find player by name or nickname across star players and team lineups
     def _find_player(query_str: str) -> dict | None:
         c = query_str.replace(" ", "").strip()
+        if len(c) >= 4 and c.endswith("선수"):
+            c = c[:-2]
         if not c or len(c) < 2:
             return None
         # 1. Search KBL_PLAYERS
@@ -773,7 +790,7 @@ async def _dispatch_command(
             pc = p["name"].replace(" ", "")
             if c == pc or c in pc or pc in c:
                 return p
-        # 2. Search starters & key bench in TEAM_LINEUPS
+        # 2. Search starters, foreign players, asian quota, & key bench in TEAM_LINEUPS
         for team_name, lineup_info in TEAM_LINEUPS.items():
             for starter in lineup_info.get("starters", []):
                 s_name = starter.get("name", "")
@@ -791,7 +808,12 @@ async def _dispatch_command(
                         "stl": 0.8,
                         "blk": 0.3,
                     }
-            for bench_name in lineup_info.get("key_bench", []):
+            extra_names = (
+                lineup_info.get("foreign_players", [])
+                + ([lineup_info["asian_quota"]] if lineup_info.get("asian_quota") else [])
+                + lineup_info.get("key_bench", [])
+            )
+            for bench_name in extra_names:
                 bc = bench_name.replace(" ", "")
                 if c == bc or c in bc or bc in c:
                     return {
@@ -818,7 +840,7 @@ async def _dispatch_command(
         matched_player is None
         and (is_add or is_del or has_player_prefix)
         and len(clean_target) >= 2
-        and clean_target not in ("목록", "현황", "관리", "설정", "안내", "등록", "추가", "삭제", "해제", "보기", "어디", "탭")
+        and clean_target not in _FAV_MENU_ACTIONS
     ):
         matched_player = {
             "name": clean_target,

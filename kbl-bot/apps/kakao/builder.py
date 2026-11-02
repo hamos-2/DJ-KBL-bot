@@ -1583,6 +1583,9 @@ def build_favorite_players_response(
     """
     Build response for '관심선수'.
     Returns pure visual cards (listCard + carousel) without speech bubbles.
+    IMPORTANT: Kakao enforces a strict 30,720-byte per-bubble limit (bubbleExtraBytesLimit),
+    where each basicCard inside a carousel uses ~4,200 bytes internally.
+    Therefore, carousel_items MUST be capped at <= 5 cards (~20,500 bytes).
     """
     items = []
     if fav_players:
@@ -1597,10 +1600,22 @@ def build_favorite_players_response(
                     "link": {"web": "https://sports.daum.net/record/kbl"},
                 })
             else:
+                # Fallback lookup in TEAM_LINEUPS if not in KBL_PLAYERS
+                found_team = None
+                for t_code, l_info in TEAM_LINEUPS.items():
+                    all_t_names = (
+                        [s.get("name", "") for s in l_info.get("starters", [])]
+                        + l_info.get("foreign_players", [])
+                        + ([l_info["asian_quota"]] if l_info.get("asian_quota") else [])
+                        + l_info.get("key_bench", [])
+                    )
+                    if name in all_t_names:
+                        found_team = t_code
+                        break
                 items.append({
-                    "title": f"⭐ {name}",
+                    "title": f"⭐ {name}" + (f" ({found_team})" if found_team else ""),
                     "description": "내 등록 관심선수",
-                    "imageUrl": DEFAULT_SPORTS_LOGO,
+                    "imageUrl": get_team_logo(found_team) if found_team else DEFAULT_SPORTS_LOGO,
                 })
     else:
         items.append({
@@ -1658,67 +1673,32 @@ def build_favorite_players_response(
     carousel_items.append(
         _basic_card(
             title="⭐ 인기 가드 등록",
-            description="버튼을 누르면 즉시 등록/해제됩니다.",
+            description="버튼을 누르면 즉시 등록/해제됩니다. (선수 이름 직접 입력 가능)",
             thumbnail_url=get_team_logo("KT"),
             buttons=[_player_toggle_btn(n) for n in star_guards],
         )
     )
 
-    star_bigs = ["자밀 워니", "아셈 마레이", "유기상"]
-    carousel_items.append(
-        _basic_card(
-            title="⭐ 인기 빅맨/슈터 등록",
-            description="버튼을 누르면 즉시 등록/해제됩니다.",
-            thumbnail_url=get_team_logo("SK"),
-            buttons=[_player_toggle_btn(n) for n in star_bigs],
+    if not favorite_team or not fav_players:
+        star_bigs = ["자밀 워니", "아셈 마레이", "유기상"]
+        carousel_items.append(
+            _basic_card(
+                title="⭐ 인기 빅맨/슈터 등록",
+                description="버튼을 누르면 즉시 등록/해제됩니다.",
+                thumbnail_url=get_team_logo("SK"),
+                buttons=[_player_toggle_btn(n) for n in star_bigs],
+            )
         )
-    )
 
     carousel_items.append(
         _basic_card(
-            title="🏀 [구단별 선수] 수도권",
-            description="서울 SK, 수원 KT, 서울 삼성 선수 명단을 확인하고 등록하세요.",
-            thumbnail_url=get_team_logo("SK"),
+            title="🏀 [구단별 선수] 수도권·경기·강원·영남권",
+            description="10개 구단(SK·KT·삼성·DB·정관장·소노·LG·KCC·모비스·가스공사) 선수단을 확인하세요.",
+            thumbnail_url=get_team_logo(favorite_team or "SK"),
             buttons=[
-                _msg_btn("🏀 서울 SK 선수", "SK 선수"),
-                _msg_btn("🏀 수원 KT 선수", "KT 선수"),
-                _msg_btn("🏀 서울 삼성 선수", "삼성 선수"),
-            ],
-        )
-    )
-    carousel_items.append(
-        _basic_card(
-            title="🏀 [구단별 선수] 경기·강원",
-            description="원주 DB, 안양 정관장, 고양 소노 선수 명단을 확인하고 등록하세요.",
-            thumbnail_url=get_team_logo("DB"),
-            buttons=[
-                _msg_btn("🏀 원주 DB 선수", "DB 선수"),
-                _msg_btn("🏀 안양 정관장 선수", "정관장 선수"),
-                _msg_btn("🏀 고양 소노 선수", "소노 선수"),
-            ],
-        )
-    )
-    carousel_items.append(
-        _basic_card(
-            title="🏀 [구단별 선수] 영남권",
-            description="창원 LG, 부산 KCC, 울산 현대모비스 선수 명단을 확인하고 등록하세요.",
-            thumbnail_url=get_team_logo("LG"),
-            buttons=[
-                _msg_btn("🏀 창원 LG 선수", "LG 선수"),
-                _msg_btn("🏀 부산 KCC 선수", "KCC 선수"),
-                _msg_btn("🏀 현대모비스 선수", "현대모비스 선수"),
-            ],
-        )
-    )
-    carousel_items.append(
-        _basic_card(
-            title="🏀 [구단별 선수] 대구 & 전체",
-            description="대구 한국가스공사 선수단 및 10개 구단 전체 메뉴를 확인하세요.",
-            thumbnail_url=get_team_logo("한국가스공사"),
-            buttons=[
-                _msg_btn("🏀 한국가스공사 선수", "한국가스공사 선수"),
                 _msg_btn("🏀 10개 구단 전체 메뉴", "구단별 선수"),
-                _msg_btn("🏅 KBL 선수 순위", "선수순위"),
+                _msg_btn("🏀 서울 SK 선수", "SK 선수"),
+                _msg_btn("🏀 원주 DB 선수", "DB 선수"),
             ],
         )
     )
@@ -1736,11 +1716,8 @@ def build_favorite_players_response(
 
     outputs = [list_card]
     if carousel_items:
-        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:10]}})
-
-    return KakaoSkillResponse(
-        template=KakaoTemplate(outputs=outputs, quickReplies=FAVORITE_PLAYERS_QUICK_REPLIES)
-    )
+        # Strict 5-card limit so Kakao's internal messageBytes (~4.2KB/card) stays <= 21KB (< 30,720B limit)
+        outputs.append({"carousel": {"type": "basicCard", "items": carousel_items[:5]}})
 
     return KakaoSkillResponse(
         template=KakaoTemplate(outputs=outputs, quickReplies=FAVORITE_PLAYERS_QUICK_REPLIES)

@@ -429,10 +429,11 @@ class TestProBasketballBotFeatures:
             assert any(t in b for b in all_buttons), f"Team {t} missing from player menu buttons"
         assert len(menu_resp.template.quickReplies) == 10
 
-        # 2. Favorite players response carousel contains 10-team browsing cards
+        # 2. Favorite players response carousel contains 10-team browsing cards and stays <= 5 cards (< 30,720B Kakao bubble limit)
         fav_resp = build_favorite_players_response(fav_players=["김선형"], favorite_team="KT")
         assert fav_resp.version == "2.0"
         fav_cards = fav_resp.template.outputs[1]["carousel"]["items"]
+        assert len(fav_cards) <= 5, f"Carousel has {len(fav_cards)} cards, exceeding Kakao 30KB bubble limit!"
         fav_card_titles = [c["title"] for c in fav_cards]
         assert any("수도권" in t for t in fav_card_titles)
         assert any("경기·강원" in t for t in fav_card_titles)
