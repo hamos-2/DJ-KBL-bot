@@ -121,6 +121,22 @@ async def test_game_summary_recap_feature_parity(dummy_user):
         assert "경기 요약" in card["head"]["title"]
         assert "LG" in card["imageTitle"]["title"]
 
+    for team_cmd, expected_team in [
+        ("LG 요약", "LG"),
+        ("KT 한줄평", "KT"),
+        ("DB 요약", "DB"),
+        ("정관장 요약", "정관장"),
+        ("가스공사 요약", "한국가스공사"),
+    ]:
+        t_resp = await _dispatch_command(team_cmd, db, game_service, user_service, dummy_user)
+        assert t_resp is not None
+        t_card = t_resp.template.outputs[0]["itemCard"]
+        assert f"{expected_team} 경기 요약" in t_card["head"]["title"]
+        assert len(t_resp.template.outputs) == 2
+        c_card = t_resp.template.outputs[1]["basicCard"]
+        assert "촌철살인 한줄평" in c_card["title"]
+        assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in c_card["buttons"])
+
 
 @pytest.mark.asyncio
 async def test_prediction_feature_parity(dummy_user):

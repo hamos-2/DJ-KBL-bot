@@ -419,10 +419,30 @@ async def _dispatch_command(
             today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
         return build_lineup_response(today_games, favorite_team=fav_team, target_team=target_lineup_team)
 
-    # 3. Game Summary & Recap (요약 / 한줄평 - 프로야구봇 핵심 기능)
-    if u_compact in ("요약", "한줄평", "경기요약", "게임요약", "총평", "리캡"):
-        recent_games = await game_service.get_recent_results(db, limit=6)
-        return build_game_summary_response(recent_games, favorite_team=fav_team)
+    # 3. Game Summary & Recap (요약 / 한줄평 / [구단명] 요약 - 프로야구봇 핵심 바이럴 기능)
+    if (
+        u_compact in ("요약", "한줄평", "경기요약", "게임요약", "총평", "리캡")
+        or any(k in u_compact for k in ("요약", "한줄평", "총평", "리캡"))
+    ):
+        target_summary_team = None
+        raw_t = re.sub(r"(#|경기|게임|오늘|어제|최근|요약|한줄평|총평|리캡|\s)+", "", u).strip()
+        if raw_t:
+            norm_t = normalize_team_name(raw_t)
+            if norm_t in TEAM_LINEUPS:
+                target_summary_team = norm_t
+        recent_games = []
+        if target_summary_team:
+            try:
+                recent_games = await game_service.get_recent_results(db, team=target_summary_team, limit=6)
+            except TypeError:
+                recent_games = await game_service.get_recent_results(db, limit=6)
+        if not recent_games:
+            recent_games = await game_service.get_recent_results(db, limit=8)
+        return build_game_summary_response(
+            recent_games,
+            favorite_team=fav_team,
+            target_team=target_summary_team,
+        )
 
     # 4. Cheering & Match Prediction (승부예측 / 응원하기 / #승부예측 / #응원)
     if (

@@ -600,17 +600,165 @@ def build_lineup_response(
     )
 
 
+def _build_witty_kbl_commentary(
+    winner: str,
+    loser: str,
+    hs: int,
+    as_: int,
+    mvp: dict[str, Any],
+    focus_team: str | None = None,
+) -> tuple[str, str, str]:
+    """
+    Generate KBL fan-native witty one-liner ('촌철살인 한줄평') inspired by 프로야구봇 (_HhRnC).
+    Returns (turning_point_short, summary_30, full_commentary).
+    """
+    diff = abs(hs - as_)
+    w_lineup = get_team_lineup(winner) or {}
+    l_lineup = get_team_lineup(loser) or {}
+    w_coach = w_lineup.get("head_coach", f"{winner} 벤치")
+    l_coach = l_lineup.get("head_coach", f"{loser} 벤치")
+    loser_stars = [p for p in KBL_PLAYERS if p.get("team") == loser]
+    l_star = loser_stars[0]["name"] if loser_stars else f"{loser} 주전진"
+
+    if diff <= 4:
+        turning_short = f"4Q 클러치 {diff}점차 극장승"
+        summary_30 = f"{mvp['name']} 위닝샷! {diff}점차 극장승"[:30]
+        if focus_team == loser:
+            full_msg = (
+                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"\"심장 부여잡은 4쿼터 막판 원포제션 승부! {l_star}의 분전에도 마지막 클러치 포제션 야투 한 방이 림을 외면하며 {winner}에 {diff}점 차로 뼈아픈 석패를 당했습니다. {l_coach} 감독의 다음 경기 리벤지 매치 플랜이 절실합니다!\""
+            )
+        else:
+            full_msg = (
+                f"🔥 [{winner} 시점 촌철살인 한줄평]\n"
+                f"\"이게 바로 KBL 클러치 농구! 4쿼터 종료 직전 숨 막히는 승부처에서 {w_coach} 감독의 작전타임 승부수와 에이스 {mvp['name']}({mvp['pts']}점 {mvp['ast']}어시)의 강심장 클러치 득점이 터지며 {loser} 상대로 짜릿한 {diff}점 차 극장승을 완성했습니다!\""
+            )
+    elif diff <= 10:
+        turning_short = f"후반 승부처 제압 ({diff}점차)"
+        summary_30 = f"{mvp['name']} 맹활약! 승부처 완벽 제압"[:30]
+        if focus_team == loser:
+            full_msg = (
+                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"\"쫓아갈 만하면 터진 상대의 찬물 외곽포! {loser}({l_coach} 감독)는 {l_star}를 앞세워 추격전을 벌였으나, 3·4쿼터 승부처 턴오버와 {mvp['name']} 수비 제어 실패가 겹치며 {diff}점 차로 아쉬운 패배를 기록했습니다.\""
+            )
+        else:
+            full_msg = (
+                f"⚡ [{winner} 시점 촌철살인 한줄평]\n"
+                f"\"3·4쿼터 약속의 땅을 지배한 {winner}! {w_coach} 감독의 탄탄한 로테이션과 {mvp['name']}({mvp['pts']}점 {mvp['reb']}리바 {mvp['ast']}어시)의 내외곽 폭격으로 {loser}의 추격 의지를 꺾고 {diff}점 차 기분 좋은 승리를 챙겼습니다!\""
+            )
+    else:
+        turning_short = f"공수 압도 {diff}점차 대승"
+        summary_30 = f"{winner} 화력 대폭발! {diff}점차 완승"[:30]
+        if focus_team == loser:
+            full_msg = (
+                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"\"공수 밸런스가 급격히 흔들린 하루! {loser}({l_coach} 감독)는 초반부터 {winner}의 트랜지션과 {mvp['name']}의 화력에 주도권을 내주며 {diff}점 차 완패를 당했습니다. 분위기 쇄신이 시급합니다!\""
+            )
+        else:
+            full_msg = (
+                f"🚀 [{winner} 시점 촌철살인 한줄평]\n"
+                f"\"코트를 폭격한 {winner}의 무자비한 화력쇼! {w_coach} 감독표 에너지 농구와 {mvp['name']}({mvp['pts']}점 {mvp['reb']}리바)의 원맨쇼가 폭발하며 일찌감치 가비지 타임을 선언, {loser}를 {diff}점 차로 완벽히 제압했습니다!\""
+            )
+
+    return turning_short[:30], summary_30[:30], full_msg
+
+
+SUMMARY_QUICK_REPLIES: list[QuickReply] = [
+    QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
+    QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
+    QuickReply(label="💬 DB 요약", messageText="DB 요약"),
+    QuickReply(label="💬 SK 요약", messageText="SK 요약"),
+    QuickReply(label="💬 정관장 요약", messageText="정관장 요약"),
+    QuickReply(label="💬 가스공사 요약", messageText="가스공사 요약"),
+    QuickReply(label="💬 KCC 요약", messageText="KCC 요약"),
+    QuickReply(label="💬 LG 요약", messageText="LG 요약"),
+    QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
+    QuickReply(label="🏆 팀순위", messageText="팀순위"),
+]
+
+
 def build_game_summary_response(
     games: list[dict[str, Any]],
     favorite_team: str | None = None,
+    target_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '요약' / '한줄평' (Game recap, MVP player stats, and key turning points).
-    Matches 프로야구봇's 요약 feature.
+    Build response for '요약' / '한줄평' / '[구단명] 요약' (Game recap, MVP player stats,
+    and KBL fan-native '촌철살인 한줄평' with KakaoTalk viral share button).
+    Matches 프로야구봇's '[구단명] 요약' viral engine.
     """
+    focus_team = target_team or favorite_team
     finished_games = [g for g in games if g.get("status") == "FINAL"]
     if not finished_games:
         finished_games = games[:3]
+
+    # If user explicitly queried "[구단명] 요약" (target_team), look for that team's game first
+    matched_target_game = None
+    if target_team:
+        matched_target_game = next(
+            (g for g in finished_games if target_team in (g.get("home_team"), g.get("away_team"))),
+            None,
+        )
+        if matched_target_game is None:
+            matched_target_game = next(
+                (g for g in games if target_team in (g.get("home_team"), g.get("away_team"))),
+                None,
+            )
+
+    # Fallback: if target_team was explicitly requested but has no game in DB yet,
+    # render a rich team power-recap & witty season one-liner for target_team!
+    if target_team and matched_target_game is None:
+        t_lineup = get_team_lineup(target_team) or {}
+        coach = t_lineup.get("head_coach", "감독")
+        starters = t_lineup.get("starters", [])
+        starter_names = ", ".join(s["name"] for s in starters[:5]) if starters else "주전 베스트 5"
+        foreigns = ", ".join(t_lineup.get("foreign_players", []))
+        asian_q = t_lineup.get("asian_quota", "")
+        team_stars = [p for p in KBL_PLAYERS if p.get("team") == target_team]
+        ace = team_stars[0] if team_stars else {"name": f"{target_team} 에이스", "pts": 18.5, "reb": 5.2, "ast": 4.8}
+
+        one_liner = (
+            f"🔥 [{target_team} 촌철살인 전력 한줄평]\n"
+            f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}({ace['pts']}점 {ace['ast']}어시)과 "
+            f"외국인 원투펀치({foreigns}), 아시아쿼터({asian_q})의 공수 시너지가 터지면 어느 팀도 막기 힘든 다크호스입니다!\""
+        )
+        item_card_output = _item_card(
+            head_title=f"📋 {target_team} 경기 요약",
+            image_title={
+                "title": f"🏀 {target_team} 전력 요약 & 한줄평",
+                "description": f"{coach} 감독 · 베스트5 리캡",
+                "imageUrl": get_team_logo(target_team),
+            },
+            item_list=[
+                {"title": "핵심MVP", "description": f"{ace['name']} ({ace['pts']}점 {ace['ast']}어시)"},
+                {"title": "베스트5", "description": starter_names[:30]},
+                {"title": "외인/AQ", "description": f"{foreigns} / {asian_q}"[:30]},
+            ],
+            summary={"title": "한줄평", "description": f"{coach}표 {target_team}, 화력 폭발 예고!"[:30]},
+            buttons=[
+                _share_btn("📤 한줄평 공유하기"),
+                _msg_btn(f"📋 {target_team} 라인업", f"{target_team} 라인업"),
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+            ],
+        )
+        commentary_card = {
+            "basicCard": _basic_card(
+                title=f"💬 {target_team} 촌철살인 한줄평",
+                description=one_liner,
+                thumbnail_url=get_team_logo(target_team),
+                buttons=[
+                    _share_btn("📤 한줄평 공유하기"),
+                    _msg_btn(f"🏀 {target_team} 선수단", f"{target_team} 선수"),
+                    _msg_btn("🏆 정규리그 순위표", "팀순위"),
+                ],
+            )
+        }
+        return KakaoSkillResponse(
+            template=KakaoTemplate(
+                outputs=[item_card_output, commentary_card],
+                quickReplies=SUMMARY_QUICK_REPLIES,
+            )
+        )
 
     if not finished_games:
         card = _list_card(
@@ -626,10 +774,12 @@ def build_game_summary_response(
             ],
         )
         return KakaoSkillResponse(
-            template=KakaoTemplate(outputs=[card], quickReplies=MAIN_MENU_QUICK_REPLIES)
+            template=KakaoTemplate(outputs=[card], quickReplies=SUMMARY_QUICK_REPLIES)
         )
 
-    if favorite_team:
+    if matched_target_game:
+        finished_games = [matched_target_game] + [g for g in finished_games if g != matched_target_game]
+    elif favorite_team:
         fav_game = next(
             (g for g in finished_games if favorite_team in (g.get("home_team"), g.get("away_team"))),
             None,
@@ -642,7 +792,8 @@ def build_game_summary_response(
     away = target.get("away_team", "?")
     hs = int(target.get("home_score") or 0)
     as_ = int(target.get("away_score") or 0)
-    winner = home if hs > as_ else away
+    winner = home if hs >= as_ else away
+    loser = away if winner == home else home
     diff = abs(hs - as_)
 
     winner_stars = [p for p in KBL_PLAYERS if p.get("team") == winner]
@@ -650,45 +801,59 @@ def build_game_summary_response(
     gid = target.get("game_id", "")
     vod_url = f"https://sports.daum.net/match/{gid}" if gid else "https://sports.daum.net/video/kbl"
 
-    clutch_msg = (
-        "4쿼터 막판 원포제션 접전 상황에서 결정적인 슛과 집중력 있는 수비로 짜릿한 역전승을 거두었습니다."
-        if diff <= 5
-        else f"경기 초반부터 주도권을 잡은 {winner}(이)가 압도적인 공수 밸런스로 {diff}점 차 완승을 거두었습니다."
+    turning_short, summary_30, full_commentary = _build_witty_kbl_commentary(
+        winner=winner,
+        loser=loser,
+        hs=hs,
+        as_=as_,
+        mvp=mvp,
+        focus_team=focus_team,
     )
 
-    lines = [
-        f"📋 [경기 요약 & 한줄평] {home} {hs} : {as_} {away}\n",
-        f"👑 승리팀: {winner}",
-        f"⭐ 경기 MVP: {mvp['name']} ({winner})",
-        f"   └ 활약: {mvp['pts']}점 ｜ {mvp['reb']}리바운드 ｜ {mvp['ast']}어시스트\n",
-        f"📝 승부처 한줄평:\n\"{clutch_msg}\"\n",
-        f"💡 전체 하이라이트 영상 및 주요 장면은 '주요장면' 메뉴에서 시청하실 수 있습니다.",
-    ]
+    head_label = f"📋 {target_team} 경기 요약" if target_team else "📋 경기 요약"
+    badge_team = target_team if (target_team and target_team in (home, away)) else winner
 
     item_card_output = _item_card(
-        head_title="📋 경기 요약",
+        head_title=head_label,
         image_title={
             "title": f"👑 {winner} 승리 ({hs}:{as_})",
             "description": f"{home} vs {away} 경기 리캡",
-            "imageUrl": get_team_logo(winner),
+            "imageUrl": get_team_logo(badge_team),
         },
         item_list=[
             {"title": "경기MVP", "description": f"{mvp['name']} ({mvp['pts']}점 {mvp['reb']}리바)"},
             {"title": "승리구단", "description": f"{winner} ({diff}점 차 승)"},
-            {"title": "승부처", "description": ("접전 역전승" if diff <= 5 else f"{diff}점 차 완승")},
+            {"title": "승부처", "description": turning_short},
         ],
-        summary={"title": "한줄평", "description": clutch_msg[:30]},
+        summary={"title": "한줄평", "description": summary_30},
         buttons=[
+            _share_btn("📤 한줄평 공유하기"),
             _link_btn("▶️ 공식 하이라이트 영상", vod_url),
-            _msg_btn("🏆 정규리그 순위표", "팀순위"),
             _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
         ],
     )
 
+    commentary_card_output = {
+        "basicCard": _basic_card(
+            title=f"💬 {home} vs {away} 촌철살인 한줄평",
+            description=(
+                f"🏀 최종 스코어: {home} {hs} : {as_} {away}\n"
+                f"⭐ 수훈선수: {mvp['name']} ({mvp['pts']}점·{mvp['reb']}리바·{mvp['ast']}어시)\n\n"
+                f"{full_commentary}"
+            ),
+            thumbnail_url=get_team_logo(badge_team),
+            buttons=[
+                _share_btn("📤 한줄평 공유하기"),
+                _link_btn("▶️ 하이라이트 영상", vod_url),
+                _msg_btn("🏆 정규리그 순위표", "팀순위"),
+            ],
+        )
+    }
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[item_card_output],
-            quickReplies=MAIN_MENU_QUICK_REPLIES,
+            outputs=[item_card_output, commentary_card_output],
+            quickReplies=SUMMARY_QUICK_REPLIES,
         )
     )
 
