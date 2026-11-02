@@ -402,12 +402,50 @@ def build_home_menu_response(
 def build_lineup_response(
     today_games: list[dict[str, Any]],
     favorite_team: str | None = None,
+    target_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
-    Build response for '라인업' (Starting 5 lineups & head coaches for today's games).
+    Build response for '라인업' (Starting 5 lineups, head coaches, foreign imports, and Asian quotas).
     Matches 프로야구봇's 선발 라인업 feature.
     """
-    if not today_games:
+    cards: list[dict[str, Any]] = []
+
+    if target_team:
+        t_lineup = get_team_lineup(target_team) or {}
+        if t_lineup:
+            full_name = TEAM_INFO.get(target_team, {}).get("full_name", f"{target_team} 프로농구단")
+            t_coach = t_lineup.get("head_coach", "")
+            t_starters = t_lineup.get("starters", [])
+            t_foreign = ", ".join(t_lineup.get("foreign_players", []))
+            t_aq = t_lineup.get("asian_quota", "")
+            t_bench = ", ".join(t_lineup.get("key_bench", [])[:4])
+            s_lines = "\n".join(
+                f"{s.get('pos', '')} {s.get('name', '')} #{s.get('no', '')}" for s in t_starters
+            )
+            desc = (
+                f"🏀 2026-2027 {full_name}\n"
+                f"👨‍💼 감독: {t_coach} 감독\n"
+                f"────────────────────\n"
+                f"⭐ [베스트 5 선발]\n{s_lines}\n"
+                f"────────────────────\n"
+                f"🌎 외인: {t_foreign}\n"
+                f"🌏 아시아쿼터: {t_aq}\n"
+                f"🔄 식스맨: {t_bench}"
+            )
+            cards.append(
+                _basic_card(
+                    title=f"📋 [{target_team}] 2026-27 공식 라인업",
+                    description=desc[:380],
+                    thumbnail_url=get_team_logo(target_team),
+                    buttons=[
+                        _msg_btn(f"⭐ {target_team} 선수단", f"{target_team} 선수"),
+                        _msg_btn(f"📅 {target_team} 일정", f"{target_team} 일정"),
+                        _msg_btn("🏀 구단별 라인업", "구단별 선수"),
+                    ],
+                )
+            )
+
+    if not today_games and not cards:
         card = _list_card(
             header_title="📋 KBL 선발 라인업",
             items=[{
@@ -424,7 +462,7 @@ def build_lineup_response(
             template=KakaoTemplate(outputs=[card], quickReplies=MAIN_MENU_QUICK_REPLIES)
         )
 
-    first_start = today_games[0].get("start_time")
+    first_start = today_games[0].get("start_time") if today_games else None
     date_label = ""
     if first_start:
         try:
@@ -434,13 +472,13 @@ def build_lineup_response(
             pass
 
     lines: list[str] = [f"📋 KBL 선발 라인업 (베스트 5){date_label}\n"]
-    cards: list[dict[str, Any]] = []
 
-    # Prioritize favorite team's game
+    # Prioritize target_team or favorite_team's game
+    focus_team = target_team or favorite_team
     sorted_games = sorted(
         today_games,
         key=lambda g: (
-            0 if favorite_team and favorite_team in (g.get("home_team"), g.get("away_team")) else 1,
+            0 if focus_team and focus_team in (g.get("home_team"), g.get("away_team")) else 1,
             str(g.get("start_time") or ""),
         ),
     )
@@ -1421,9 +1459,20 @@ def build_team_players_response(
             return _msg_btn(f"➖ {name} 해제", f"#관심선수 삭제 {name}")
         return _msg_btn(f"➕ {name} 등록", f"#관심선수 {name}")
 
+    t_info = TEAM_LINEUPS.get(team, {})
+    t_coach = t_info.get("head_coach", "")
+    t_foreign = ", ".join(t_info.get("foreign_players", []))
+    t_aq = t_info.get("asian_quota", "")
+    t_bench = ", ".join(t_info.get("key_bench", [])[:4])
+
     card1 = _basic_card(
         title=f"⭐ [{team}] Best 5 등록 (1/2)",
-        description=f"⭐️ {full} 베스트 5 주전 멤버 (1~3)",
+        description=(
+            f"⭐️ {full} ({t_coach} 감독)\n"
+            f"• 주전 (1~3): {', '.join(starter_names[:3])}\n"
+            f"• 외국인 용병: {t_foreign}\n"
+            f"• 아시아쿼터: {t_aq}"
+        )[:300],
         thumbnail_url=get_team_logo(team),
         buttons=[_p_toggle_btn(name) for name in starter_names[:3]],
     )
@@ -1431,7 +1480,11 @@ def build_team_players_response(
     b2.append(_msg_btn("🏀 다른 구단 찾기", "구단별 선수"))
     card2 = _basic_card(
         title=f"⭐ [{team}] Best 5 등록 (2/2)",
-        description=f"⭐️ {full} 베스트 5 주전 멤버 (4~5)",
+        description=(
+            f"⭐️ {full} ({t_coach} 감독)\n"
+            f"• 주전 (4~5): {', '.join(starter_names[3:5])}\n"
+            f"• 식스맨/벤치: {t_bench}"
+        )[:300],
         thumbnail_url=get_team_logo(team),
         buttons=b2,
     )

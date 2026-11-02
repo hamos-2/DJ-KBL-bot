@@ -39,6 +39,28 @@ class RosterManager:
         "SK", "DB", "KT", "LG", "정관장", "KCC", "한국가스공사", "현대모비스", "소노", "삼성"
     }
 
+    # Former coaches who must never revert to their old clubs in 2026-2027
+    OUTDATED_COACHES_BY_TEAM: dict[str, set[str]] = {
+        "DB": {"김주성"},
+        "정관장": {"김상식"},
+        "삼성": {"김효범", "은희석"},
+        "KT": {"송영진", "서동철"},
+        "KCC": {"전창진"},
+        "현대모비스": {"조동현", "유재학"},
+        "소노": {"김승기", "김태술"},
+    }
+
+    # Players who transferred and must never appear in their former clubs' 2026-2027 rosters
+    TRANSFERRED_PLAYER_QUARANTINE: list[tuple[str, str]] = [
+        ("김선형", "SK"),
+        ("허훈", "KT"),
+        ("김낙현", "한국가스공사"),
+        ("이관희", "DB"),
+        ("이승현", "KCC"),
+        ("장재석", "현대모비스"),
+        ("숀 롱", "현대모비스"),
+    ]
+
     def __init__(self) -> None:
         # Working in-memory copies initialized from official baseline
         self._lineups: dict[str, dict[str, Any]] = copy.deepcopy(kbl_data.TEAM_LINEUPS)
@@ -90,6 +112,8 @@ class RosterManager:
             coach = info.get("head_coach", "").strip()
             if not coach or len(coach) < 2:
                 errors.append(f"[Rule 2] {team} has missing or invalid head coach: '{coach}'")
+            elif coach in self.OUTDATED_COACHES_BY_TEAM.get(team, set()):
+                errors.append(f"[Rule 2] {team} has outdated former head coach: '{coach}'")
 
             # 3. Exactly 5 Starters
             starters = info.get("starters", [])

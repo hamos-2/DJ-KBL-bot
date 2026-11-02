@@ -602,8 +602,8 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
 # Dynamic in-season roster & lineup cache
 # ---------------------------------------------------------------------------
 
-_ROSTER_DYNAMIC_KEY = "kbl:roster:dynamic_store"
-_ROSTER_TRANSACTIONS_KEY = "kbl:roster:transactions"
+_ROSTER_DYNAMIC_KEY = "kbl:roster:dynamic_store:v2026_11_02"
+_ROSTER_TRANSACTIONS_KEY = "kbl:roster:transactions:v2026_11_02"
 
 
 async def save_dynamic_roster_cache(data: dict[str, Any]) -> None:

@@ -24,15 +24,15 @@ class TestRosterManagerBaseline:
 
     def test_verified_head_coaches(self, roster_mgr: RosterManager) -> None:
         assert roster_mgr.get_team_lineup("SK")["head_coach"] == "전희철"
-        assert roster_mgr.get_team_lineup("DB")["head_coach"] == "김주성"
-        assert roster_mgr.get_team_lineup("KT")["head_coach"] == "송영진"
+        assert roster_mgr.get_team_lineup("DB")["head_coach"] == "이규섭"
+        assert roster_mgr.get_team_lineup("KT")["head_coach"] == "문경은"
         assert roster_mgr.get_team_lineup("LG")["head_coach"] == "조상현"
-        assert roster_mgr.get_team_lineup("KCC")["head_coach"] == "전창진"
+        assert roster_mgr.get_team_lineup("KCC")["head_coach"] == "이상민"
         assert roster_mgr.get_team_lineup("한국가스공사")["head_coach"] == "강혁"
-        assert roster_mgr.get_team_lineup("현대모비스")["head_coach"] == "조동현"
-        assert roster_mgr.get_team_lineup("정관장")["head_coach"] == "김상식"
-        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "김승기"
-        assert roster_mgr.get_team_lineup("삼성")["head_coach"] == "김효범"
+        assert roster_mgr.get_team_lineup("현대모비스")["head_coach"] == "양동근"
+        assert roster_mgr.get_team_lineup("정관장")["head_coach"] == "유도훈"
+        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "손창환"
+        assert roster_mgr.get_team_lineup("삼성")["head_coach"] == "김상식"
 
     def test_retired_player_exclusion(self, roster_mgr: RosterManager) -> None:
         players = roster_mgr.get_players()
@@ -43,22 +43,24 @@ class TestRosterManagerBaseline:
     def test_kim_sun_hyung_exclusion_from_sk(self, roster_mgr: RosterManager) -> None:
         sk_starters = [s["name"] for s in roster_mgr.get_team_lineup("SK")["starters"]]
         assert "김선형" not in sk_starters
+        kt_starters = [s["name"] for s in roster_mgr.get_team_lineup("KT")["starters"]]
+        assert "김선형" in kt_starters
 
 
 class TestInSeasonMutations:
     """Verify dynamic mutations during the season (coach replacement, trades, starters)."""
 
     def test_update_head_coach(self, roster_mgr: RosterManager) -> None:
-        # Simulate mid-season coach change (e.g. Sono interim coach)
-        tx = roster_mgr.update_head_coach("소노", "김태술", reason="시즌 중 감독 대행 선임")
+        # Simulate mid-season coach change
+        tx = roster_mgr.update_head_coach("소노", "이정석", reason="시즌 중 감독 대행 선임")
         assert tx["type"] == "COACH_CHANGE"
-        assert tx["old_coach"] == "김승기"
-        assert tx["new_coach"] == "김태술"
-        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "김태술"
+        assert tx["old_coach"] == "손창환"
+        assert tx["new_coach"] == "이정석"
+        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "이정석"
 
-        # Revert back to 김승기
-        roster_mgr.update_head_coach("소노", "김승기", reason="원복")
-        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "김승기"
+        # Revert back to 손창환
+        roster_mgr.update_head_coach("소노", "손창환", reason="원복")
+        assert roster_mgr.get_team_lineup("소노")["head_coach"] == "손창환"
 
     def test_transfer_player(self, roster_mgr: RosterManager) -> None:
         # Simulate mid-season player transfer
@@ -139,9 +141,9 @@ class TestRosterIntegrityRules:
         assert any("Rule 3" in e for e in errors)
 
     def test_integrity_catches_duplicate_starter_across_clubs(self, roster_mgr: RosterManager) -> None:
-        # Copy Heo Hoon from KT to KCC starters without KCC registration
-        heo_starter = next(s for s in roster_mgr._lineups["KT"]["starters"] if s["name"] == "허훈")
-        roster_mgr._lineups["KCC"]["starters"][0] = heo_starter
+        # Copy Heo Hoon from KCC to KT starters without KT registration
+        heo_starter = next(s for s in roster_mgr._lineups["KCC"]["starters"] if s["name"] == "허훈")
+        roster_mgr._lineups["KT"]["starters"][0] = heo_starter
         ok, errors = roster_mgr.verify_roster_integrity()
         assert ok is False
         assert any("Rule 7" in e or "Rule 5" in e for e in errors)

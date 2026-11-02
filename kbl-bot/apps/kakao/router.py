@@ -218,7 +218,7 @@ async def _dispatch_command(
             except Exception as e:
                 msg = f"❌ 감독 변경 실패: {e}"
         else:
-            msg = "💡 사용법: `#감독변경 [구단명] [신임감독명]`\n예시: `#감독변경 삼성 김효범`"
+            msg = "💡 사용법: `#감독변경 [구단명] [신임감독명]`\n예시: `#감독변경 DB 이규섭`"
         return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u.startswith("#트레이드") or u.startswith("트레이드"):
@@ -406,11 +406,18 @@ async def _dispatch_command(
     if (
         u_compact in ("라인업", "선발라인업", "선발명단", "베스트5", "스타팅", "엔트리")
         or "라인업" in u_compact
+        or "베스트5" in u_compact
     ):
+        target_lineup_team = None
+        raw_t = re.sub(r"(#|선발|공식|라인업|명단|베스트\s*5|스타팅|엔트리|\s)+", "", u).strip()
+        if raw_t:
+            norm_t = normalize_team_name(raw_t)
+            if norm_t in TEAM_LINEUPS:
+                target_lineup_team = norm_t
         today_games = await game_service.get_today_games(db)
         if not today_games:
             today_games = await game_service.get_kbl_schedule(db, days=7, limit=4)
-        return build_lineup_response(today_games, favorite_team=fav_team)
+        return build_lineup_response(today_games, favorite_team=fav_team, target_team=target_lineup_team)
 
     # 3. Game Summary & Recap (요약 / 한줄평 - 프로야구봇 핵심 기능)
     if u_compact in ("요약", "한줄평", "경기요약", "게임요약", "총평", "리캡"):

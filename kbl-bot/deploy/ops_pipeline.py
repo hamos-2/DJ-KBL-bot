@@ -116,11 +116,22 @@ def run_ops_pipeline(base_url: str = DEFAULT_TARGET_URL) -> int:
         res, _ = run_post("현대모비스 선수", base_url)
         text = str(res)
         assert "함지훈" not in text, "Retired player Ham Ji-hoon detected in active roster!"
+        assert "양동근" in text, f"Expected Mobis coach 양동근 in response: {text}"
+        assert "조동현" not in text, "Outdated Mobis coach 조동현 detected!"
 
     def test_kim_sun_hyung_quarantine():
         res, _ = run_post("SK 선수", base_url)
         text = str(res)
         assert "김선형" not in text, "Transfer player Kim Sun-hyung detected in SK roster!"
+        assert "김낙현" in text and "자밀 워니" in text
+
+        res_db, _ = run_post("DB 라인업", base_url)
+        db_text = str(res_db)
+        assert "이규섭" in db_text and "김주성" not in db_text, f"DB coach mismatch: {db_text}"
+
+        res_jkj, _ = run_post("정관장 라인업", base_url)
+        jkj_text = str(res_jkj)
+        assert "유도훈" in jkj_text and "김상식" not in jkj_text, f"JungKwanJang coach mismatch: {jkj_text}"
 
     results["Data Integrity"].append(check_step("7 Golden Invariants Roster Diagnostic", test_7_invariants_diagnostic))
     results["Data Integrity"].append(check_step("Season 2026-2027 Active Rollover Verification", test_season_rollover_active))
