@@ -421,17 +421,68 @@ class DaumSportsDataProvider(SportsDataProvider):
         recent_games: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Fetch latest KBL news articles from Daum Search, enriched with recent game recaps.
-        Prioritizes the active season search query (e.g. "2026-2027 KBL 프로농구").
+        Fetch latest KBL news articles from Daum Sports Match News API (`SPORTS_GAME_NEWS` / `?tab=news`),
+        falling back to Daum Search enriched with recent game recaps.
         """
-        from services.content.kbl_data import parse_daum_news_html
+        from services.content.kbl_data import get_team_logo, parse_daum_news_html
+
+        client = self._get_client()
+
+        # Tier 0: Official Daum Sports Match News API (`SPORTS_GAME_NEWS?id={game_id}&limit=10`)
+        if recent_games:
+            candidate_games = recent_games
+            if team:
+                t_games = [g for g in recent_games if team in (g.get("home_team"), g.get("away_team"))]
+                if t_games:
+                    candidate_games = t_games
+
+            match_articles: list[dict[str, Any]] = []
+            seen_urls: set[str] = set()
+            for g in candidate_games[:3]:
+                gid = str(g.get("game_id") or "")
+                if not (gid.isdigit() and len(gid) >= 6):
+                    continue
+                try:
+                    resp = await client.get(
+                        f"{_DAUM_ARMS_BASE}/SPORTS_GAME_NEWS",
+                        params={"id": gid, "limit": 10},
+                    )
+                    if resp.status_code == 200:
+                        doc = (resp.json() or {}).get("document") or {}
+                        contents = ((doc.get("data") or {}).get("contents")) or []
+                        for c in contents:
+                            url = c.get("pcUrl") or c.get("moUrl") or f"https://sports.daum.net/match/{gid}?tab=news"
+                            if url in seen_urls:
+                                continue
+                            seen_urls.add(url)
+                            cp_name = str(c.get("cpName") or "다음스포츠").strip()
+                            created_raw = str(c.get("createdAt") or "")
+                            mm_dd = ""
+                            if len(created_raw) >= 16 and "-" in created_raw:
+                                mm_dd = f"{created_raw[5:7]}.{created_raw[8:10]} {created_raw[11:16]}"
+                            img_url = str(c.get("image") or "").replace("http://", "https://").strip()
+                            fallback_logo = get_team_logo(team or g.get("home_team", "SK"))
+                            match_articles.append(
+                                {
+                                    "title": str(c.get("title") or "KBL 현장 뉴스").strip(),
+                                    "url": url,
+                                    "imageUrl": img_url or fallback_logo,
+                                    "time": f"{cp_name} · {mm_dd}".strip(" ·"),
+                                    "source": cp_name,
+                                }
+                            )
+                except Exception as exc:
+                    logger.debug("SPORTS_GAME_NEWS fetch skipped", game_id=gid, error=str(exc))
+
+            if len(match_articles) >= 3:
+                return match_articles[:10]
+
         season_full = get_current_season_full()
         queries = (
             [f"{season_full} 프로농구 {team}", f"프로농구 {team}"]
             if team
             else [f"{season_full} KBL 프로농구", "KBL 프로농구"]
         )
-        client = self._get_client()
         for q in queries:
             try:
                 params = {"w": "news", "q": q}
