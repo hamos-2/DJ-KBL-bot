@@ -1195,6 +1195,49 @@ async def get_game_lineup_board_image(
     )
 
 
+@router.get("/lineup-image/team/{team}.png")
+async def get_single_team_lineup_board_image(
+    team: str,
+    game_id: str = "",
+) -> Response:
+    """
+    Render a single-team KBL starting lineup board PNG (800x800) for *team* only
+    (no opponent team), using live Daum starters if *game_id* is provided.
+    """
+    from services.content.lineup_board import (
+        fetch_daum_match_lineup_sync,
+        get_baseline_starters_with_photos,
+        render_single_team_lineup_board_png,
+    )
+    from services.content.kbl_data import get_team_lineup
+
+    norm_team = normalize_team_name(team) if team else "SK"
+    if norm_team not in TEAM_LINEUPS:
+        norm_team = "SK"
+
+    t_info = get_team_lineup(norm_team) or {}
+    coach = str(t_info.get("head_coach") or "")
+    starters = get_baseline_starters_with_photos(norm_team)
+
+    gid = str(game_id or "").strip()
+    if gid.isdigit() and len(gid) >= 6:
+        h_team, a_team, h_live, a_live, is_off = fetch_daum_match_lineup_sync(
+            gid, fallback_home=norm_team, fallback_away="SK"
+        )
+        if is_off:
+            if norm_team == h_team and h_live:
+                starters = h_live
+            elif norm_team == a_team and a_live:
+                starters = a_live
+
+    png_bytes = render_single_team_lineup_board_png(norm_team, starters, coach=coach)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
 @router.get("/lineup-image/matchup/{home}/{away}.png")
 async def get_matchup_lineup_board_image(
     home: str,

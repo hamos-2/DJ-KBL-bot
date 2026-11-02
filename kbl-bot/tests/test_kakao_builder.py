@@ -709,8 +709,9 @@ class TestProBasketballBotFeatures:
         )
         assert len(lineup_board_resp.template.outputs) == 1
         board_cards = lineup_board_resp.template.outputs[0]["carousel"]["items"]
+        assert len(board_cards) == 1
         assert board_cards[0]["thumbnail"]["fixedRatio"] is True
-        assert "/integrations/kakao/skills/lineup-image/game/" in board_cards[0]["thumbnail"]["imageUrl"]
+        assert "/integrations/kakao/skills/lineup-image/team/" in board_cards[0]["thumbnail"]["imageUrl"]
 
         png_bytes = render_lineup_board_png(
             "한국가스공사",

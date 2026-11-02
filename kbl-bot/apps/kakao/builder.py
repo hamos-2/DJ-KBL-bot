@@ -463,6 +463,7 @@ def build_lineup_response(
             t_thumb_url = get_team_logo(target_team)
             t_fixed = False
             t_w, t_h = None, None
+            tg_id = ""
             if t_game:
                 tg_id = str(t_game.get("game_id") or "")
                 tg_home = t_game.get("home_team", target_team)
@@ -471,18 +472,12 @@ def build_lineup_response(
                     _, _, h_live, a_live, is_off = fetch_daum_match_lineup_sync(tg_id, tg_home, tg_away)
                     if is_off:
                         t_starters = h_live if target_team == tg_home else a_live
-                if base_url:
-                    q_h = urllib.parse.quote(tg_home)
-                    q_a = urllib.parse.quote(tg_away)
-                    t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{tg_id or '0'}.png?home={q_h}&away={q_a}&v=800"
-                    t_fixed, t_w, t_h = True, 800, 800
-                    primary_board_url = t_thumb_url
-                    primary_board_alt = f"📋 {tg_home} vs {tg_away} 선발 라인업 보드"
-            elif base_url:
-                opp = "DB" if target_team != "DB" else "SK"
-                q_h = urllib.parse.quote(target_team)
-                q_a = urllib.parse.quote(opp)
-                t_thumb_url = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/matchup/{q_h}/{q_a}.png?v=800"
+            if base_url:
+                q_t = urllib.parse.quote(target_team)
+                gid_param = f"game_id={tg_id}&" if (tg_id.isdigit() and len(tg_id) >= 6) else ""
+                t_thumb_url = (
+                    f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/team/{q_t}.png?{gid_param}v=800"
+                )
                 t_fixed, t_w, t_h = True, 800, 800
                 primary_board_url = t_thumb_url
                 primary_board_alt = f"📋 {target_team} 선발 라인업 보드"
@@ -533,7 +528,7 @@ def build_lineup_response(
             template=KakaoTemplate(outputs=[card], quickReplies=MAIN_MENU_QUICK_REPLIES)
         )
 
-    for g in sorted_games[:3]:
+    for g in ([] if target_team else sorted_games[:3]):
         gid = str(g.get("game_id") or "")
         home = g.get("home_team", "?")
         away = g.get("away_team", "?")

@@ -533,3 +533,128 @@ def render_lineup_board_png(
     except Exception:
         pass
     return png_bytes
+
+
+def render_single_team_lineup_board_png(
+    team: str,
+    starters: list[dict[str, Any]],
+    coach: str = "",
+) -> bytes:
+    """
+    Render a 1-column (single-team) KBL starting lineup board PNG (800 x 800 px)
+    when the user requests a specific club's lineup (e.g. '정관장 라인업', 'SK 라인업').
+    Displays only the requested team's logo, head coach, and 5 starters (portrait + number + name + position).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    sig_payload = f"v1_single_800x800:{team}:{coach}:" + "|".join(
+        f"{p.get('no')}-{p.get('name')}" for p in starters[:5]
+    )
+    sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
+    board_path = _BOARD_DIR / f"board_single_{sig}.png"
+    if board_path.exists():
+        try:
+            return board_path.read_bytes()
+        except Exception:
+            pass
+
+    urls_to_fetch: list[str] = [get_team_logo(team)]
+    for p in starters[:5]:
+        u = p.get("imageUrl") or get_player_photo_url(str(p.get("name") or ""))
+        if u:
+            urls_to_fetch.append(u)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(_download_image_cached, urls_to_fetch))
+
+    width, height = 800, 800
+    header_h = 95
+    row_h = (height - header_h) // 5  # 141px per starter row
+
+    img = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Top header background (#FAFAFA)
+    draw.rectangle((0, 0, width, header_h), fill=(250, 250, 250, 255))
+    draw.line((0, header_h, width, header_h), fill=(235, 235, 235, 255), width=2)
+
+    # Horizontal row dividers
+    for r_idx in range(1, 5):
+        y = header_h + r_idx * row_h
+        draw.line((0, y, width, y), fill=(240, 241, 243, 255), width=1)
+
+    font_header = _load_font(25, bold=True)
+    font_coach = _load_font(20, bold=False)
+    font_num = _load_font(27, bold=True)
+    font_name = _load_font(26, bold=True)
+    font_pos = _load_font(21, bold=False)
+
+    full_name = TEAM_INFO.get(team, {}).get("full_name", f"{team} 프로농구단")
+    logo_img = _download_image_cached(get_team_logo(team))
+    if logo_img is not None:
+        logo_resized = logo_img.resize((52, 52), Image.Resampling.LANCZOS)
+        img.paste(logo_resized, (32, (header_h - 52) // 2), logo_resized)
+
+    draw.text(
+        (98, header_h // 2),
+        full_name,
+        font=font_header,
+        fill=(17, 17, 17, 255),
+        anchor="lm",
+    )
+    if coach:
+        draw.text(
+            (width - 36, header_h // 2),
+            f"{coach} 감독",
+            font=font_coach,
+            fill=(110, 110, 110, 255),
+            anchor="rm",
+        )
+
+    num_color = (217, 43, 43, 255) if team in ("정관장", "SK", "LG", "모비스", "현대모비스") else (0, 172, 71, 255)
+
+    for r_idx, player in enumerate(starters[:5]):
+        row_top = header_h + r_idx * row_h
+        row_center_y = row_top + row_h // 2
+
+        p_name = str(player.get("name") or "").strip()
+        p_no = str(player.get("no") or "").replace("#", "").strip()
+        p_pos = str(player.get("pos") or "").strip()
+        p_url = player.get("imageUrl") or get_player_photo_url(p_name)
+
+        raw_avatar = _download_image_cached(p_url)
+        avatar = _make_circular_avatar(raw_avatar, diameter=100)
+        img.paste(avatar, (36, row_top + (row_h - 100) // 2), avatar)
+
+        draw.text(
+            (176, row_center_y),
+            p_no,
+            font=font_num,
+            fill=num_color,
+            anchor="mm",
+        )
+
+        draw.text(
+            (226, row_center_y),
+            p_name,
+            font=font_name,
+            fill=(17, 17, 17, 255),
+            anchor="lm",
+        )
+
+        if p_pos:
+            draw.text(
+                (width - 36, row_center_y),
+                p_pos,
+                font=font_pos,
+                fill=(130, 130, 130, 255),
+                anchor="rm",
+            )
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        board_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
