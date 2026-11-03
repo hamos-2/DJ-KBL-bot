@@ -216,7 +216,7 @@ class TestProBasketballBotFeatures:
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
             "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📅 일정", "🎬 주요장면", "🏆 팀순위", "🎖️ 선수순위", "⚙️ 설정",
+            "📅 일정", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
         ]
         assert labels == expected
 
@@ -266,7 +266,7 @@ class TestProBasketballBotFeatures:
         qr_labels = [q.label for q in set_main.template.quickReplies]
         assert qr_labels == [
             "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📅 일정", "🎬 주요장면", "🏆 팀순위", "🎖️ 선수순위", "⚙️ 설정",
+            "📅 일정", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
         ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
@@ -519,11 +519,20 @@ class TestProBasketballBotFeatures:
         assert "관심선수" in MAIN_MENU_QUICK_REPLIES[4].label
         assert MAIN_MENU_QUICK_REPLIES[4].messageText == "관심선수"
 
-        # 2. build_home_menu_response includes "⭐ 관심선수 설정" action button
+        # 2. build_home_menu_response includes carousel with game card and news card
         home_resp = build_home_menu_response(favorite_team="KT")
-        home_card = home_resp.template.outputs[0]["basicCard"]
+        carousel_items = (
+            home_resp.template.outputs[0]["carousel"]["items"]
+            if "carousel" in home_resp.template.outputs[0]
+            else [home_resp.template.outputs[0]["basicCard"]]
+        )
+        assert len(carousel_items) >= 2
+        home_card = carousel_items[0]
+        news_card = carousel_items[1]
         btn_labels = [btn["label"] for btn in home_card["buttons"]]
         assert any("관심선수" in l for l in btn_labels)
+        news_btn_labels = [btn["label"] for btn in news_card["buttons"]]
+        assert any("뉴스" in l for l in news_btn_labels)
 
         # 3. build_favorite_players_response includes FAVORITE_PLAYERS_QUICK_REPLIES and carousel options
         fav_resp = build_favorite_players_response(

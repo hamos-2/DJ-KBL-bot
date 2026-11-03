@@ -39,9 +39,9 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="📋 라인업", messageText="라인업"),
     QuickReply(label="⭐ 관심선수", messageText="관심선수"),
     QuickReply(label="📅 일정", messageText="일정"),
+    QuickReply(label="📰 최신 뉴스", messageText="뉴스"),
     QuickReply(label="🎬 주요장면", messageText="주요장면"),
     QuickReply(label="🏆 팀순위", messageText="팀순위"),
-    QuickReply(label="🎖️ 선수순위", messageText="선수순위"),
     QuickReply(label="⚙️ 설정", messageText="설정"),
 ]
 
@@ -304,7 +304,7 @@ def build_home_menu_response(
                 buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
-                    _msg_btn("⭐ 관심선수 설정", "관심선수"),
+                    _msg_btn("📰 KBL 최신 뉴스", "뉴스"),
                 ],
             ),
         ]
@@ -389,35 +389,48 @@ def build_home_menu_response(
                 _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ]
 
-        action_card = {
-            "basicCard": _basic_card(
-                title=card_title,
-                description=card_desc,
-                thumbnail_url=logo_url,
-                buttons=buttons,
-            )
-        }
+        game_card = _basic_card(
+            title=card_title,
+            description=card_desc,
+            thumbnail_url=logo_url,
+            buttons=buttons,
+        )
     else:
-        action_card = {
-            "basicCard": _basic_card(
-                title=f"🏀 {full_team}",
-                description=(
-                    f"내 응원팀 설정 완료! ❤️\n"
-                    f"하단 버튼을 눌러 오늘 경기와 일정을 확인하세요."
-                    f"{fav_p_str}"
-                ),
-                thumbnail_url=logo_url,
-                buttons=[
-                    _msg_btn("📅 오늘 경기", "오늘 경기"),
-                    _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
-                    _msg_btn("⭐ 관심선수 설정", "관심선수"),
-                ],
-            )
-        }
+        game_card = _basic_card(
+            title=f"🏀 {full_team}",
+            description=(
+                f"내 응원팀 설정 완료! ❤️\n"
+                f"하단 버튼을 눌러 오늘 경기와 일정을 확인하세요."
+                f"{fav_p_str}"
+            ),
+            thumbnail_url=logo_url,
+            buttons=[
+                _msg_btn("📅 오늘 경기", "오늘 경기"),
+                _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
+                _msg_btn("⭐ 관심선수 설정", "관심선수"),
+            ],
+        )
+
+    # Card 2: 실시간 KBL & 구단 뉴스 전용 카드
+    news_card = _basic_card(
+        title="📰 실시간 KBL & 구단 뉴스",
+        description=(
+            f"🏀 내 응원팀 {full_team} 주요 소식과 최신 속보를 실시간으로 확인하세요!\n"
+            f"• 10개 구단 최신 소식 및 감독·선수 인터뷰 제공"
+        ),
+        thumbnail_url=logo_url or DEFAULT_SPORTS_LOGO,
+        buttons=[
+            _msg_btn(f"📰 {favorite_team} 뉴스", f"{favorite_team} 뉴스"),
+            _msg_btn("🏀 10개 구단 뉴스", "구단별 뉴스"),
+            _msg_btn("🎬 주요장면 보기", "주요장면"),
+        ],
+    )
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[action_card],
+            outputs=[
+                {"carousel": {"type": "basicCard", "items": [game_card, news_card]}}
+            ],
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )

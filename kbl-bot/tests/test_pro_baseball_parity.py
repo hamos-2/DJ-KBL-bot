@@ -299,7 +299,11 @@ async def test_visual_cards_onboarding_lineup_and_summary():
         "period": 2, "game_clock": "05:10", "status": "LIVE", "arena": "수원"
     }
     home_live_resp = build_home_menu_response(favorite_team="KT", team_game=live_game)
-    live_card = home_live_resp.template.outputs[0]["basicCard"]
+    live_card = (
+        home_live_resp.template.outputs[0]["carousel"]["items"][0]
+        if "carousel" in home_live_resp.template.outputs[0]
+        else home_live_resp.template.outputs[0]["basicCard"]
+    )
     assert "LIVE" in live_card["title"]
     assert "KT" in live_card["title"]
     assert "45" in live_card["title"]
@@ -309,7 +313,11 @@ async def test_visual_cards_onboarding_lineup_and_summary():
         "start_time": "2026-11-01T07:30:00Z", "arena": "잠실학생"
     }
     home_sched_resp = build_home_menu_response(favorite_team="SK", team_game=sched_game)
-    sched_card = home_sched_resp.template.outputs[0]["basicCard"]
+    sched_card = (
+        home_sched_resp.template.outputs[0]["carousel"]["items"][0]
+        if "carousel" in home_sched_resp.template.outputs[0]
+        else home_sched_resp.template.outputs[0]["basicCard"]
+    )
     assert "경기 안내" in sched_card["title"]
     assert "SK vs 삼성" in sched_card["title"]
 
