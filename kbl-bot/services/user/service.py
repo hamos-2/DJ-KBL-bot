@@ -54,7 +54,12 @@ class UserService:
         key_hmac = self._crypto.hmac_sha256(kakao_user_key)
         cached_user = self._user_cache.get(key_hmac)
         if cached_user is not None:
-            return cached_user, False
+            try:
+                if cached_user not in db:
+                    cached_user = await db.merge(cached_user)
+                return cached_user, False
+            except Exception:
+                self._user_cache.pop(key_hmac, None)
 
         stmt = select(User).where(User.kakao_user_key_hmac == key_hmac)
         result = await db.execute(stmt)

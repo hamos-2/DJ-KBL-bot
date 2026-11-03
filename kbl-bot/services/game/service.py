@@ -59,6 +59,51 @@ def kst_day_bounds_utc(target_date: date) -> tuple[datetime, datetime]:
     return start_kst.astimezone(UTC), end_kst.astimezone(UTC)
 
 
+def _sort_news_by_team_relevance(
+    news_items: list[dict[str, Any]], team: str
+) -> list[dict[str, Any]]:
+    """
+    Sort news items so dedicated articles featuring *team*'s stars, head coach,
+    or club name prominently appear at the top, pushing generic multi-game roundups down.
+    """
+    from services.content.kbl_data import get_team_lineup
+
+    lineup = get_team_lineup(team) or {}
+    coach = str(lineup.get("head_coach") or "")
+    starters = [s.get("name", "") for s in lineup.get("starters", [])]
+    player_keywords = set()
+    for s in starters:
+        for part in s.split():
+            if len(part) >= 2:
+                player_keywords.add(part)
+    if coach and len(coach) >= 2:
+        player_keywords.add(coach)
+
+    def _score(item: dict[str, Any]) -> int:
+        title = item.get("title", "")
+        has_player = any(k in title for k in player_keywords)
+        has_team_prominent = (
+            title.startswith(f"[{team}")
+            or title.startswith(f"'{team}")
+            or f" {team} " in title
+            or f"{team}," in title
+            or f"{team}는" in title
+            or f"{team}가" in title
+            or f"{team}의" in title
+        )
+        if has_player and has_team_prominent:
+            return 0
+        if has_player:
+            return 1
+        if has_team_prominent:
+            return 2
+        if team in title:
+            return 3
+        return 4
+
+    return sorted(news_items, key=_score)
+
+
 class GameService:
     """
     Handles game retrieval, matchup search, snapshot persistence, and stale detection.
@@ -408,51 +453,6 @@ class GameService:
             if len(combined) >= 5:
                 break
         return combined
-
-
-def _sort_news_by_team_relevance(
-    news_items: list[dict[str, Any]], team: str
-) -> list[dict[str, Any]]:
-    """
-    Sort news items so dedicated articles featuring *team*'s stars, head coach,
-    or club name prominently appear at the top, pushing generic multi-game roundups down.
-    """
-    from services.content.kbl_data import get_team_lineup
-
-    lineup = get_team_lineup(team) or {}
-    coach = str(lineup.get("head_coach") or "")
-    starters = [s.get("name", "") for s in lineup.get("starters", [])]
-    player_keywords = set()
-    for s in starters:
-        for part in s.split():
-            if len(part) >= 2:
-                player_keywords.add(part)
-    if coach and len(coach) >= 2:
-        player_keywords.add(coach)
-
-    def _score(item: dict[str, Any]) -> int:
-        title = item.get("title", "")
-        has_player = any(k in title for k in player_keywords)
-        has_team_prominent = (
-            title.startswith(f"[{team}")
-            or title.startswith(f"'{team}")
-            or f" {team} " in title
-            or f"{team}," in title
-            or f"{team}는" in title
-            or f"{team}가" in title
-            or f"{team}의" in title
-        )
-        if has_player and has_team_prominent:
-            return 0
-        if has_player:
-            return 1
-        if has_team_prominent:
-            return 2
-        if team in title:
-            return 3
-        return 4
-
-    return sorted(news_items, key=_score)
 
     async def get_latest_news(
         self, db: AsyncSession | None = None, team: str | None = None
