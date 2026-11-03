@@ -1,5 +1,6 @@
 """Daum Sports KBL data provider with 3-tier fallback (ARMS API -> Hermes API -> Daum Search)."""
 
+import asyncio
 import re
 from datetime import UTC, date, datetime
 from typing import Any
