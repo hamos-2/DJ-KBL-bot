@@ -65,17 +65,34 @@ def _sort_news_by_team_relevance(
     """
     Sort news items so dedicated articles featuring *team*'s stars, head coach,
     or club name prominently appear at the top, pushing generic multi-game roundups down.
-    """
-    from services.content.kbl_data import get_team_lineup
 
-    lineup = get_team_lineup(team) or {}
+    Dynamically extracts active players and head coach from RosterManager (no hardcoding),
+    ensuring automatic adaptation across seasons and in-season roster movements.
+    """
+    try:
+        from services.roster.manager import get_roster_manager
+
+        roster_mgr = get_roster_manager()
+        lineup = roster_mgr.get_team_lineup(team) or {}
+        team_players = roster_mgr.get_players(team)
+    except Exception:
+        from services.content.kbl_data import get_team_lineup
+
+        lineup = get_team_lineup(team) or {}
+        team_players = []
+
     coach = str(lineup.get("head_coach") or "")
     starters = [s.get("name", "") for s in lineup.get("starters", [])]
-    player_keywords = set()
+    player_keywords: set[str] = set()
+
     for s in starters:
         for part in s.split():
             if len(part) >= 2:
                 player_keywords.add(part)
+    for p in team_players:
+        p_name = str(p.get("name") or "")
+        if len(p_name) >= 2:
+            player_keywords.add(p_name)
     if coach and len(coach) >= 2:
         player_keywords.add(coach)
 
