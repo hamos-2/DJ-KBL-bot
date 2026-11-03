@@ -252,6 +252,7 @@ def build_home_menu_response(
     favorite_team: str | None = None,
     fav_players: list[str] | None = None,
     team_game: dict[str, Any] | None = None,
+    base_url: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build the Pro Basketball Bot welcome / home menu response.
@@ -259,53 +260,63 @@ def build_home_menu_response(
     carousel immediately (matching 프로야구봇 _HhRnC onboarding flow).
     When a favorite team is selected, immediately presents the team's current
     live game status, today's schedule, or upcoming matchup.
+    Uses compact, elegant 2:1 (800x400) visual banners to avoid oversized raw logos.
     """
+    b_url = (base_url or _DEFAULT_PUBLIC_BASE_URL).rstrip("/")
+
     if not favorite_team:
-        welcome_text = (
-            "🏀 환영합니다! KBL 프로농구봇입니다.\n\n"
-            "가장 먼저 응원하시는 구단을 선택해 주세요! ❤️\n"
-            "응원팀을 설정하시면 오늘 경기, 일정, 결과, 실시간 스코어, 승부예측이 [응원팀 맞춤]으로 제공됩니다."
-        )
         team_cards = [
             _basic_card(
                 title="❤️ 응원팀 선택 (수도권 구단)",
                 description="서울 SK, 수원 KT, 서울 삼성\n응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
-                thumbnail_url=TEAM_LOGOS.get("SK", DEFAULT_SPORTS_LOGO),
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/capital.png?v=800x400",
                 buttons=[
                     _msg_btn("❤️ 서울 SK", "#응원팀 SK"),
                     _msg_btn("❤️ 수원 KT", "#응원팀 KT"),
                     _msg_btn("❤️ 서울 삼성", "#응원팀 삼성"),
                 ],
+                fixed_ratio=True,
+                width=800,
+                height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (경기·강원 구단)",
                 description="원주 DB, 안양 정관장, 고양 소노\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=TEAM_LOGOS.get("DB", DEFAULT_SPORTS_LOGO),
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/gangwon_gyeonggi.png?v=800x400",
                 buttons=[
                     _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                     _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
                     _msg_btn("❤️ 고양 소노", "#응원팀 소노"),
                 ],
+                fixed_ratio=True,
+                width=800,
+                height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (영남권 구단)",
                 description="창원 LG, 부산 KCC, 울산 현대모비스\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=TEAM_LOGOS.get("LG", DEFAULT_SPORTS_LOGO),
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/yeongnam.png?v=800x400",
                 buttons=[
                     _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
                     _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
                     _msg_btn("❤️ 울산 현대모비스", "#응원팀 현대모비스"),
                 ],
+                fixed_ratio=True,
+                width=800,
+                height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (대구 한국가스공사)",
                 description="대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
-                thumbnail_url=TEAM_LOGOS.get("한국가스공사", DEFAULT_SPORTS_LOGO),
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/daegu.png?v=800x400",
                 buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
                     _msg_btn("📰 KBL 최신 뉴스", "뉴스"),
                 ],
+                fixed_ratio=True,
+                width=800,
+                height=400,
             ),
         ]
         return KakaoSkillResponse(
@@ -318,7 +329,9 @@ def build_home_menu_response(
         )
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
-    logo_url = get_team_logo(favorite_team)
+    home_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/team/{favorite_team}.png?v=800x400"
+    news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=800x400"
+
     fav_p_str = (
         f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}"
         if fav_players
@@ -392,8 +405,11 @@ def build_home_menu_response(
         game_card = _basic_card(
             title=card_title,
             description=card_desc,
-            thumbnail_url=logo_url,
+            thumbnail_url=home_banner_url,
             buttons=buttons,
+            fixed_ratio=True,
+            width=800,
+            height=400,
         )
     else:
         game_card = _basic_card(
@@ -403,27 +419,33 @@ def build_home_menu_response(
                 f"하단 버튼을 눌러 오늘 경기와 일정을 확인하세요."
                 f"{fav_p_str}"
             ),
-            thumbnail_url=logo_url,
+            thumbnail_url=home_banner_url,
             buttons=[
                 _msg_btn("📅 오늘 경기", "오늘 경기"),
                 _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
                 _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ],
+            fixed_ratio=True,
+            width=800,
+            height=400,
         )
 
-    # Card 2: 실시간 KBL & 구단 뉴스 전용 카드
+    # Card 2: 실시간 KBL & 구단 뉴스 전용 카드 (2:1 비율 800x400 배너)
     news_card = _basic_card(
         title="📰 실시간 KBL & 구단 뉴스",
         description=(
             f"🏀 내 응원팀 {full_team} 주요 소식과 최신 속보를 실시간으로 확인하세요!\n"
             f"• 10개 구단 최신 소식 및 감독·선수 인터뷰 제공"
         ),
-        thumbnail_url=logo_url or DEFAULT_SPORTS_LOGO,
+        thumbnail_url=news_banner_url,
         buttons=[
             _msg_btn(f"📰 {favorite_team} 뉴스", f"{favorite_team} 뉴스"),
             _msg_btn("🏀 10개 구단 뉴스", "구단별 뉴스"),
             _msg_btn("🎬 주요장면 보기", "주요장면"),
         ],
+        fixed_ratio=True,
+        width=800,
+        height=400,
     )
 
     return KakaoSkillResponse(

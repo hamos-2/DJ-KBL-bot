@@ -198,7 +198,7 @@ async def _dispatch_command(
                 logger.warning("Failed to lookup team game for home menu", error=str(exc))
 
         return build_home_menu_response(
-            fav_team, prefs.get("favorite_players", []), team_game=team_game
+            fav_team, prefs.get("favorite_players", []), team_game=team_game, base_url=base_url
         )
 
     # 0.5 Channel Notices & Announcements (공지 / 소식 / 채널소개 / 이벤트)
@@ -1329,6 +1329,47 @@ async def get_team_starters_banner(team: str, part: int = 1) -> Response:
         part_label = "(1/2)"
 
     png_bytes = render_team_starters_banner_png(norm_team, target_names, part_label=part_label)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/banner/home/team/{team}.png")
+async def get_team_home_banner(team: str) -> Response:
+    """Render compact, elegant 2:1 (800x400) banner for home/welcome screen."""
+    from services.content.lineup_board import render_team_home_banner_png
+
+    norm_team = normalize_team_name(team) if team else "SK"
+    png_bytes = render_team_home_banner_png(norm_team)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/banner/home/news/{team}.png")
+async def get_news_home_banner(team: str) -> Response:
+    """Render compact, elegant 2:1 (800x400) banner for home news card."""
+    from services.content.lineup_board import render_news_home_banner_png
+
+    norm_team = normalize_team_name(team) if (team and team != "all") else None
+    png_bytes = render_news_home_banner_png(norm_team)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/banner/home/region/{region_key}.png")
+async def get_region_onboarding_banner(region_key: str) -> Response:
+    """Render compact 2:1 (800x400) banner for onboarding region cards."""
+    from services.content.lineup_board import render_onboarding_region_banner_png
+
+    png_bytes = render_onboarding_region_banner_png(region_key)
     return Response(
         content=png_bytes,
         media_type="image/png",

@@ -1008,3 +1008,172 @@ def render_all_teams_banner_png(width: int = 800, height: int = 400) -> bytes:
     except Exception:
         pass
     return png_bytes
+
+
+def render_team_home_banner_png(
+    team: str, width: int = 800, height: int = 400
+) -> bytes:
+    """Render compact, elegant 2:1 (800x400) banner for home/welcome screen."""
+    t_clean = team.strip() if team else "SK"
+    banner_path = _BANNER_DIR / f"banner_home_{t_clean}_v1.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    full_t = TEAM_INFO.get(t_clean, {}).get("full_name", f"{t_clean} 농구단")
+    arena = TEAM_INFO.get(t_clean, {}).get("arena", "홈경기장")
+
+    img = Image.new("RGBA", (width, height), (248, 249, 252, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Outer border & header bar
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 234, 255), width=2)
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 248, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 234, 255), width=1)
+
+    font_title = _load_font(23, bold=True)
+    draw.text((width // 2, 34), f"🏀 {full_t}", font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    # Center logo badge with soft circular frame (diameter 150)
+    cx, cy = width // 2, 195
+    r = 75
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=(226, 230, 238, 255), width=2)
+
+    logo = _download_image_cached(get_team_logo(t_clean))
+    if logo:
+        # Resize logo to 120x120 so it fits comfortably inside the 150px circle
+        l_resized = logo.resize((120, 120), Image.Resampling.LANCZOS)
+        img.paste(l_resized, (cx - 60, cy - 60), l_resized if l_resized.mode == "RGBA" else None)
+
+    # Subtitles
+    font_sub = _load_font(18, bold=False)
+    font_hint = _load_font(15, bold=False)
+    draw.text((width // 2, 305), f"2026-2027 KBL 정규리그 • {arena}", font=font_sub, fill=(110, 115, 125, 255), anchor="mm")
+    draw.text((width // 2, 348), "일정 • 선발 라인업 • 경기결과 • 실시간 점수", font=font_hint, fill=(24, 119, 242, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
+
+
+def render_news_home_banner_png(
+    team: str | None = None, width: int = 800, height: int = 400
+) -> bytes:
+    """Render compact, elegant 2:1 (800x400) banner for home news card."""
+    t_clean = team.strip() if team else "all"
+    banner_path = _BANNER_DIR / f"banner_home_news_{t_clean}_v1.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    img = Image.new("RGBA", (width, height), (248, 249, 252, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Outer border & header bar
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 234, 255), width=2)
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 248, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 234, 255), width=1)
+
+    font_title = _load_font(23, bold=True)
+    header_text = f"📰 {team} 최신 뉴스 & 주요 소식" if (team and team != "all") else "📰 실시간 KBL 뉴스 & 주요 헤드라인"
+    draw.text((width // 2, 34), header_text, font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    cx, cy = width // 2, 195
+    r = 75
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=(226, 230, 238, 255), width=2)
+
+    logo_url = get_team_logo(team) if (team and team != "all") else DEFAULT_SPORTS_LOGO
+    logo = _download_image_cached(logo_url)
+    if logo:
+        l_resized = logo.resize((120, 120), Image.Resampling.LANCZOS)
+        img.paste(l_resized, (cx - 60, cy - 60), l_resized if l_resized.mode == "RGBA" else None)
+
+    font_sub = _load_font(18, bold=False)
+    font_hint = _load_font(15, bold=False)
+    sub_text = f"{team} 감독·선수 인터뷰 및 경기 분석 리포트" if (team and team != "all") else "10개 구단 속보 및 현장 인터뷰 제공"
+    draw.text((width // 2, 305), sub_text, font=font_sub, fill=(110, 115, 125, 255), anchor="mm")
+    draw.text((width // 2, 348), "실시간 속보 • 공식 인터뷰 • 하이라이트 영상", font=font_hint, fill=(24, 119, 242, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
+
+
+def render_onboarding_region_banner_png(
+    region_key: str, width: int = 800, height: int = 400
+) -> bytes:
+    """Render compact 2:1 (800x400) banner for onboarding region cards."""
+    rk = region_key.lower().strip()
+    banner_path = _BANNER_DIR / f"banner_region_{rk}_v1.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    region_map: dict[str, tuple[str, list[str]]] = {
+        "capital": ("수도권 구단 선택 (SK • KT • 삼성)", ["SK", "KT", "삼성"]),
+        "gangwon_gyeonggi": ("경기·강원 구단 선택 (DB • 정관장 • 소노)", ["DB", "정관장", "소노"]),
+        "yeongnam": ("영남권 구단 선택 (LG • KCC • 현대모비스)", ["LG", "KCC", "현대모비스"]),
+        "daegu": ("대구 구단 선택 (대구 한국가스공사)", ["한국가스공사"]),
+    }
+
+    title, teams = region_map.get(rk, ("응원팀 선택", ["SK", "DB", "LG"]))
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(_download_image_cached, [get_team_logo(t) for t in teams]))
+
+    img = Image.new("RGBA", (width, height), (248, 249, 252, 255))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(225, 228, 234, 255), width=2)
+    draw.rectangle((0, 0, width, 68), fill=(240, 243, 248, 255))
+    draw.line((0, 68, width, 68), fill=(225, 228, 234, 255), width=1)
+
+    font_title = _load_font(23, bold=True)
+    draw.text((width // 2, 34), f"❤️ {title}", font=font_title, fill=(30, 30, 30, 255), anchor="mm")
+
+    font_name = _load_font(20, bold=True)
+    font_sub = _load_font(15, bold=False)
+
+    n = len(teams)
+    slot_w = width // n
+    for i, t in enumerate(teams):
+        cx = slot_w * i + slot_w // 2
+        cy = 195
+        r = 58 if n > 1 else 75
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=(226, 230, 238, 255), width=2)
+
+        logo = _download_image_cached(get_team_logo(t))
+        if logo:
+            size = 90 if n > 1 else 120
+            l_resized = logo.resize((size, size), Image.Resampling.LANCZOS)
+            img.paste(l_resized, (cx - size // 2, cy - size // 2), l_resized if l_resized.mode == "RGBA" else None)
+
+        alias = "현대모비스" if t == "현대모비스" else ("한국가스공사" if t == "한국가스공사" else t)
+        draw.text((cx, 285), alias, font=font_name, fill=(25, 25, 25, 255), anchor="mm")
+        draw.text((cx, 320), "응원팀 설정하기", font=font_sub, fill=(24, 119, 242, 255), anchor="mm")
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes

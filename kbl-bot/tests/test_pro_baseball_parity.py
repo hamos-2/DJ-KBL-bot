@@ -273,7 +273,7 @@ async def test_visual_cards_onboarding_lineup_and_summary():
     assert carousel["type"] == "basicCard"
     for item in carousel["items"]:
         assert "thumbnail" in item
-        assert "daumcdn.net" in item["thumbnail"]["imageUrl"]
+        assert "banner/home/region" in item["thumbnail"]["imageUrl"] or "daumcdn.net" in item["thumbnail"]["imageUrl"]
 
     # 2. Lineup
     sample_games = [
