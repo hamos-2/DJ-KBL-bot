@@ -1379,6 +1379,28 @@ async def get_region_onboarding_banner(region_key: str) -> Response:
     )
 
 
+@router.get("/banner/settings/{mode}.png")
+async def get_notification_settings_banner(
+    mode: str,
+    s1: int = 1,
+    s2: int = 1,
+    s3: int = 1,
+    team: str = "SK",
+) -> Response:
+    """Render 2:1 (800x400) live ON/OFF visual switchboard banner for notification settings."""
+    from services.content.lineup_board import render_notification_settings_banner_png
+
+    norm_team = normalize_team_name(team) if team else "SK"
+    png_bytes = render_notification_settings_banner_png(
+        mode=mode, s1=s1, s2=s2, s3=s3, team=norm_team
+    )
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
 @router.post("/today-games")
 async def today_games(
     payload: KakaoSkillPayload,

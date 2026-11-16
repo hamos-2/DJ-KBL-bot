@@ -2674,16 +2674,38 @@ def build_settings_response(
         f"• 🗳️ 경기 승부예측 알림: {on_off(pred_on)}"
     )
 
-    logo_url = get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO
+    import urllib.parse
+
+    b_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    t_code = favorite_team if (favorite_team and favorite_team in TEAM_INFO) else "SK"
+    q_team = urllib.parse.quote(t_code)
+
+    overview_banner_url = (
+        f"{b_url}/integrations/kakao/skills/banner/home/team/{q_team}.png?v=home_v3_800x400"
+    )
+    core_banner_url = (
+        f"{b_url}/integrations/kakao/skills/banner/settings/core.png"
+        f"?s1={1 if lineup_on else 0}&s2={1 if start_on else 0}&s3={1 if end_on else 0}"
+        f"&team={q_team}&v=notif_v1"
+    )
+    situational_banner_url = (
+        f"{b_url}/integrations/kakao/skills/banner/settings/situational.png"
+        f"?s1={1 if clutch_on else 0}&s2={1 if pred_on else 0}&s3=1"
+        f"&team={q_team}&v=notif_v1"
+    )
+
     cards = [
         _basic_card(
             title="⚙️ 프로농구봇 알림 및 환경설정",
             description=summary_desc[:380],
-            thumbnail_url=logo_url,
+            thumbnail_url=overview_banner_url,
             buttons=[
                 _msg_btn("❤️ 응원팀 변경", "#응원팀변경"),
                 _msg_btn("⭐ 관심선수 관리", "관심선수"),
             ],
+            fixed_ratio=False,
+            width=800,
+            height=400,
         ),
         _basic_card(
             title="🔔 경기 핵심 알림 ON/OFF",
@@ -2693,12 +2715,15 @@ def build_settings_response(
                 f"• 경기 시작 알림: {on_off(start_on)}\n"
                 f"• 경기 종료 알림: {on_off(end_on)}"
             ),
-            thumbnail_url=DEFAULT_SPORTS_LOGO,
+            thumbnail_url=core_banner_url,
             buttons=[
                 _msg_btn(f"라인업알림 {'OFF' if lineup_on else 'ON'}", "#알림 라인업"),
                 _msg_btn(f"시작알림 {'OFF' if start_on else 'ON'}", "#알림 시작"),
                 _msg_btn(f"종료알림 {'OFF' if end_on else 'ON'}", "#알림 종료"),
             ],
+            fixed_ratio=False,
+            width=800,
+            height=400,
         ),
         _basic_card(
             title="🔔 상황별 알림 ON/OFF",
@@ -2708,12 +2733,15 @@ def build_settings_response(
                 f"• 당일 승부예측 : {on_off(pred_on)}\n"
                 f"• 내 응원팀: {full_team}"
             ),
-            thumbnail_url=DEFAULT_SPORTS_LOGO,
+            thumbnail_url=situational_banner_url,
             buttons=[
                 _msg_btn(f"클러치알림 {'OFF' if clutch_on else 'ON'}", "#알림 클러치"),
                 _msg_btn(f"승부예측알림 {'OFF' if pred_on else 'ON'}", "#알림 승부예측"),
                 _msg_btn("❤️ 응원팀 변경", "#응원팀변경"),
             ],
+            fixed_ratio=False,
+            width=800,
+            height=400,
         ),
     ]
 

@@ -1204,3 +1204,146 @@ def render_onboarding_region_banner_png(
     except Exception:
         pass
     return png_bytes
+
+
+def render_notification_settings_banner_png(
+    mode: str,
+    s1: int = 1,
+    s2: int = 1,
+    s3: int = 1,
+    team: str | None = None,
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """
+    Render a custom 2:1 (800x400) visual dashboard banner for '경기 핵심 알림' (mode='core')
+    and '상황별 알림' (mode='situational') with live ON/OFF status cards and club emblem.
+    """
+    m_key = "situational" if mode == "situational" else "core"
+    t_clean = (team or "SK").strip()
+    if t_clean not in TEAM_INFO:
+        t_clean = "SK"
+    sig_str = f"notif_v1:{m_key}:{s1}:{s2}:{s3}:{t_clean}"
+    sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:12]
+    banner_path = _BANNER_DIR / f"banner_notif_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    img = Image.new("RGBA", (width, height), (246, 248, 252, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Outer border & header bar
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(222, 226, 234, 255), width=2)
+    draw.rectangle((0, 0, width, 64), fill=(238, 242, 248, 255))
+    draw.line((0, 64, width, 64), fill=(222, 226, 234, 255), width=1)
+
+    font_title = _load_font(24, bold=True)
+    font_card_title = _load_font(22, bold=True)
+    font_card_sub = _load_font(16, bold=False)
+    font_badge = _load_font(19, bold=True)
+
+    header_title = (
+        f"[{t_clean}] 경기 핵심 알림 실시간 스위치"
+        if m_key == "core"
+        else f"[{t_clean}] 상황별 맞춤 알림 실시간 스위치"
+    )
+    draw.text((width // 2, 32), header_title, font=font_title, fill=(22, 24, 29, 255), anchor="mm")
+
+    if m_key == "core":
+        cards_meta = [
+            ("선발 라인업", "경기 20분 전 발표", bool(s1)),
+            ("경기 시작", "팁오프 10분 전", bool(s2)),
+            ("경기 종료", "최종 스코어·MVP", bool(s3)),
+        ]
+    else:
+        cards_meta = [
+            ("4Q 클러치", "승부처 박빙 접전", bool(s1)),
+            ("당일 승부예측", "투표·적중 정산", bool(s2)),
+            (f"{t_clean} 전용 알림", "내 응원팀 맞춤", True),
+        ]
+
+    logo = _download_image_cached(get_team_logo(t_clean))
+
+    slot_w = width // 3
+    for i, (c_title, c_sub, is_on) in enumerate(cards_meta):
+        cx = slot_w * i + slot_w // 2
+        card_left = cx - 108
+        card_right = cx + 108
+        card_top = 86
+        card_bottom = 372
+
+        # Card box
+        border_col = (59, 130, 246, 255) if is_on else (209, 213, 219, 255)
+        bg_col = (255, 255, 255, 255) if is_on else (249, 250, 251, 255)
+        draw.rounded_rectangle(
+            (card_left, card_top, card_right, card_bottom),
+            radius=18,
+            fill=bg_col,
+            outline=border_col,
+            width=2,
+        )
+
+        # Top emblem / status circle inside card
+        circle_y = 148
+        circle_r = 40
+        draw.ellipse(
+            (cx - circle_r, circle_y - circle_r, cx + circle_r, circle_y + circle_r),
+            fill=(240, 245, 255, 255) if is_on else (243, 244, 246, 255),
+            outline=border_col,
+            width=2,
+        )
+        if logo is not None:
+            l_res = logo.resize((62, 62), Image.Resampling.LANCZOS)
+            img.paste(l_res, (cx - 31, circle_y - 31), l_res if l_res.mode == "RGBA" else None)
+
+        # Card labels
+        draw.text(
+            (cx, 224),
+            c_title,
+            font=font_card_title,
+            fill=(17, 24, 39, 255) if is_on else (107, 114, 128, 255),
+            anchor="mm",
+        )
+        draw.text(
+            (cx, 258),
+            c_sub,
+            font=font_card_sub,
+            fill=(100, 116, 139, 255),
+            anchor="mm",
+        )
+
+        # Bottom ON / OFF pill switch
+        pill_w, pill_h = 148, 46
+        p_left = cx - pill_w // 2
+        p_top = 298
+        pill_col = (16, 185, 129, 255) if is_on else (156, 163, 175, 255)
+        if m_key == "situational" and i == 2:
+            pill_col = (37, 99, 235, 255)
+            pill_text = f"{t_clean} 설정됨"
+        else:
+            pill_text = "ON 켜짐" if is_on else "OFF 꺼짐"
+
+        draw.rounded_rectangle(
+            (p_left, p_top, p_left + pill_w, p_top + pill_h),
+            radius=23,
+            fill=pill_col,
+        )
+        draw.text(
+            (cx, p_top + pill_h // 2),
+            pill_text,
+            font=font_badge,
+            fill=(255, 255, 255, 255),
+            anchor="mm",
+        )
+
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
