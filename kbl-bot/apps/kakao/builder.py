@@ -1056,11 +1056,8 @@ def build_game_summary_response(
             "reb": int(round(float(base_mvp.get("reb") or 6))),
             "ast": int(round(float(base_mvp.get("ast") or 4))),
         }
-    vod_url = (
-        f"https://sports.daum.net/match/{gid}"
-        if gid
-        else "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
-    )
+    from services.content.kbl_data import resolve_kbl_highlight_video_url
+    vod_url, _ = resolve_kbl_highlight_video_url(home, away, target.get("start_time"))
 
     turning_short, summary_30, full_commentary = _build_witty_kbl_commentary(
         winner=winner,

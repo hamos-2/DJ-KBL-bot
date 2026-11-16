@@ -752,6 +752,98 @@ def parse_daum_news_html(
     return items[:10]
 
 
+_HIGHLIGHT_VIDEO_CACHE: dict[str, tuple[str, str | None]] = {}
+
+
+def resolve_kbl_highlight_video_url(
+    home_team: str,
+    away_team: str,
+    start_time: str | None = None,
+    timeout: float = 2.0,
+) -> tuple[str, str | None]:
+    """
+    Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
+    and thumbnail (`https://i.ytimg.com/vi/.../hqdefault.jpg`) for a 2026-27 KBL matchup.
+    Falls back to a season-filtered 2026-27 KCC 프로농구 YouTube search URL if not uploaded yet.
+    """
+    h = str(home_team or "").strip()
+    a = str(away_team or "").strip()
+    mm_dd = ""
+    yymmdd = ""
+    if start_time:
+        try:
+            dt = datetime.fromisoformat(str(start_time).replace("Z", "+00:00")).astimezone(
+                timezone(timedelta(hours=9))
+            )
+            mm_dd = f"{dt.month}/{dt.day}"
+            yymmdd = dt.strftime("%y%m%d")
+        except Exception:
+            pass
+
+    cache_key = f"{h}:{a}:{yymmdd or mm_dd}"
+    if cache_key in _HIGHLIGHT_VIDEO_CACHE:
+        return _HIGHLIGHT_VIDEO_CACHE[cache_key]
+
+    fallback_q = urllib.parse.quote(f"2026-27 KCC 프로농구 {h} vs {a} 하이라이트")
+    fallback_url = f"https://www.youtube.com/results?search_query={fallback_q}"
+
+    if not h or not a or h == "?" or a == "?":
+        return fallback_url, None
+
+    try:
+        import httpx
+
+        date_hint = f" {mm_dd} 경기" if mm_dd else ""
+        q1 = urllib.parse.quote(f"[{h} vs {a}]{date_hint} 2026-27 KCC 프로농구 하이라이트 TVING")
+        with httpx.Client(
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=timeout,
+            follow_redirects=True,
+            verify=False,
+        ) as client:
+            resp = client.get(f"https://www.youtube.com/results?search_query={q1}")
+            if resp.status_code == 200:
+                matches = re.findall(
+                    r'"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]\}' ,
+                    resp.text,
+                )
+                # 1. Exact date + 2026-27 KCC 프로농구 official TVING highlight
+                for vid, tit in matches:
+                    if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
+                        if not mm_dd or (f" {mm_dd} " in tit or f"]{mm_dd}" in tit or f"] {mm_dd}" in tit):
+                            res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                            _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                            return res
+
+                # 2. If exact date TVING highlight not uploaded yet, check same-day club highlight (yymmdd)
+                if yymmdd:
+                    q2 = urllib.parse.quote(f"{h} {a} {yymmdd}")
+                    resp2 = client.get(f"https://www.youtube.com/results?search_query={q2}&sp=CAI%253D")
+                    if resp2.status_code == 200:
+                        matches2 = re.findall(
+                            r'"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]\}' ,
+                            resp2.text,
+                        )
+                        for vid, tit in matches2:
+                            if yymmdd in tit and h in tit and a in tit and not any(
+                                bad in tit for bad in ("분석", "프로토", "전력비교", "예측")
+                            ):
+                                res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                                _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                                return res
+
+                # 3. Most recent 2026-27 head-to-head TVING highlight between these two clubs
+                for vid, tit in matches:
+                    if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
+                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                        _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                        return res
+    except Exception:
+        pass
+
+    return fallback_url, None
+
+
 def build_highlights_from_games(
     recent_games: list[dict[str, Any]],
     raw_html: str = "",
@@ -759,11 +851,8 @@ def build_highlights_from_games(
 ) -> list[dict[str, Any]]:
     """
     Build high-reliability KBL highlight video links from official channels.
-    Links directly to:
-    - Official Daum match center (https://sports.daum.net/match/{game_id})
-    - Official KBL TV / SPOTV HD highlights on YouTube
-    - Official KBL VOD center (https://www.kbl.or.kr/game/vod)
-    - Official Daum KBL Video Channel (https://sports.daum.net/video/kbl)
+    Resolves direct YouTube watch URLs (`https://www.youtube.com/watch?v=...`)
+    from TVING SPORTS / club channels for 2026-27 KCC 프로농구 games.
     """
     items: list[dict[str, Any]] = []
 
@@ -781,69 +870,58 @@ def build_highlights_from_games(
             a = g.get("away_team", "?")
             hs = g.get("home_score", 0)
             as_ = g.get("away_score", 0)
-            arena = g.get("arena") or ""
-            game_id = g.get("game_id")
 
             if team and team in (h, a):
                 opp = a if h == team else h
                 tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
                 title = f"[{tag}] {team} vs {opp} 명장면 영상 ({h} {hs}:{as_} {a})"
-                q_str = urllib.parse.quote(f"KBL {team} {opp} 하이라이트")
             else:
                 tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
                 title = f"[{tag}] {h} {hs} : {as_} {a} 하이라이트"
-                q_str = urllib.parse.quote(f"KBL {h} {a} 하이라이트")
 
-            video_url = f"https://www.youtube.com/results?search_query={q_str}"
-            source_label = "📺 SPOTV / KBL TV 공식 하이라이트"
+            video_url, yt_thumb = resolve_kbl_highlight_video_url(h, a, g.get("start_time"))
+            source_label = "📺 TVING / KBL 공식 하이라이트"
 
             items.append(
                 {
                     "title": title,
                     "url": video_url,
                     "arena": source_label,
-                    "imageUrl": get_team_logo(h if h in KBL_TEAMS else a),
+                    "imageUrl": yt_thumb or get_team_logo(h if h in KBL_TEAMS else a),
                 }
             )
 
     if team:
         full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")
-        q_team = urllib.parse.quote(f"KBL {team} 하이라이트")
+        q_team = urllib.parse.quote(f"2026-27 KCC 프로농구 {team} 하이라이트 TVING")
         items.append(
             {
                 "title": f"🎬 {full} 최신 공식 하이라이트 영상",
                 "url": f"https://www.youtube.com/results?search_query={q_team}",
-                "arena": "📺 SPOTV / 구단 공식 영상관",
+                "arena": "📺 TVING SPORTS / 구단 공식 영상관",
                 "imageUrl": get_team_logo(team),
             }
         )
     else:
         items.append(
             {
-                "title": "🎬 KBL TV 공식 유튜브 채널 (최신 영상)",
-                "url": "https://www.youtube.com/@kbl_official/videos",
-                "arena": "📺 KBL 공식 유튜브 채널",
+                "title": "🎬 TVING SPORTS 프로농구 공식 하이라이트 모음",
+                "url": "https://www.youtube.com/@tvingsports/search?query=2026-27+KCC+%ED%94%84%EB%A1%9C%EB%86%8D%EA%B5%AC+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8",
+                "arena": "📺 TVING SPORTS 공식 유튜브",
                 "imageUrl": DEFAULT_SPORTS_LOGO,
             }
         )
         items.append(
             {
-                "title": "🎬 Daum 스포츠 KBL 공식 영상관 & 명장면 모음",
-                "url": "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8",
-                "arena": "Daum 스포츠 KBL 영상관",
-            }
-        )
-        items.append(
-            {
-                "title": "🏀 KBL 공식 VOD 센터 (경기별 다시보기/하이라이트)",
-                "url": "https://www.kbl.or.kr/game/vod",
-                "arena": "KBL 공식 연맹 VOD",
+                "title": "🏀 KBL 공식 홈페이지 하이라이트 영상관",
+                "url": "https://www.kbl.or.kr/media/highlight",
+                "arena": "KBL 공식 연맹 미디어",
             }
         )
 
     items.append(
         {
-            "title": "📺 KBL TV 공식 유튜브 채널 (풀HD 하이라이트)",
+            "title": "📺 KBL TV 공식 유튜브 채널 (주요장면/인터뷰)",
             "url": "https://www.youtube.com/@kbl_official/videos",
             "arena": "YouTube KBL 공식 채널",
         }
