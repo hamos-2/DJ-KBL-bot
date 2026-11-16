@@ -1785,7 +1785,7 @@ def build_player_rankings_response(
         })
 
     next_cat_map = {
-        "pts": ("ast", "도움(어시스트)", "어시스트순위"),
+        "pts": ("ast", "어시스트", "어시스트순위"),
         "ast": ("reb", "리바운드", "리바운드순위"),
         "reb": ("stl", "스틸", "스틸순위"),
         "stl": ("blk", "블록슛", "블록순위"),
