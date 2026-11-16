@@ -269,52 +269,52 @@ def build_home_menu_response(
             _basic_card(
                 title="❤️ 응원팀 선택 (수도권 구단)",
                 description="서울 SK, 수원 KT, 서울 삼성\n응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/capital.png?v=nanum20261117_800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/capital.png?v=home_v3_800x400",
                 buttons=[
                     _msg_btn("❤️ 서울 SK", "#응원팀 SK"),
                     _msg_btn("❤️ 수원 KT", "#응원팀 KT"),
                     _msg_btn("❤️ 서울 삼성", "#응원팀 삼성"),
                 ],
-                fixed_ratio=True,
+                fixed_ratio=False,
                 width=800,
                 height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (경기·강원 구단)",
                 description="원주 DB, 안양 정관장, 고양 소노\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/gangwon_gyeonggi.png?v=nanum20261117_800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/gangwon_gyeonggi.png?v=home_v3_800x400",
                 buttons=[
                     _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                     _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
                     _msg_btn("❤️ 고양 소노", "#응원팀 소노"),
                 ],
-                fixed_ratio=True,
+                fixed_ratio=False,
                 width=800,
                 height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (영남권 구단)",
                 description="창원 LG, 부산 KCC, 울산 현대모비스\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/yeongnam.png?v=nanum20261117_800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/yeongnam.png?v=home_v3_800x400",
                 buttons=[
                     _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
                     _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
                     _msg_btn("❤️ 울산 현대모비스", "#응원팀 현대모비스"),
                 ],
-                fixed_ratio=True,
+                fixed_ratio=False,
                 width=800,
                 height=400,
             ),
             _basic_card(
                 title="❤️ 응원팀 선택 (대구 한국가스공사)",
                 description="대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/daegu.png?v=nanum20261117_800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/daegu.png?v=home_v3_800x400",
                 buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
                     _msg_btn("📰 KBL 최신 뉴스", "뉴스"),
                 ],
-                fixed_ratio=True,
+                fixed_ratio=False,
                 width=800,
                 height=400,
             ),
@@ -329,8 +329,8 @@ def build_home_menu_response(
         )
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
-    home_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/team/{favorite_team}.png?v=nanum20261117_800x400"
-    news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=nanum20261117_800x400"
+    home_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/team/{favorite_team}.png?v=home_v3_800x400"
+    news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=home_v3_800x400"
 
     fav_p_str = (
         f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}"
@@ -407,7 +407,7 @@ def build_home_menu_response(
             description=card_desc,
             thumbnail_url=home_banner_url,
             buttons=buttons,
-            fixed_ratio=True,
+            fixed_ratio=False,
             width=800,
             height=400,
         )
@@ -425,7 +425,7 @@ def build_home_menu_response(
                 _msg_btn("🗳️ 오늘 승부예측", f"#승부예측 {favorite_team}"),
                 _msg_btn("⭐ 관심선수 설정", "관심선수"),
             ],
-            fixed_ratio=True,
+            fixed_ratio=False,
             width=800,
             height=400,
         )
@@ -443,7 +443,7 @@ def build_home_menu_response(
             _msg_btn("🏀 10개 구단 뉴스", "구단별 뉴스"),
             _msg_btn("🎬 주요장면 보기", "주요장면"),
         ],
-        fixed_ratio=True,
+        fixed_ratio=False,
         width=800,
         height=400,
     )
