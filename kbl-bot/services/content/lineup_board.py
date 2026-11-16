@@ -283,6 +283,19 @@ def set_cached_board_image(sig: str, img_bytes: bytes) -> None:
     _BOARD_IMAGE_MEMORY_CACHE[sig] = img_bytes
 
 
+def invalidate_lineup_caches(game_id: str | None = None) -> None:
+    """Evict in-memory lineup and rendered PNG board caches when lineups change."""
+    if game_id:
+        gid = str(game_id).strip()
+        _GAME_LINEUP_CACHE.pop(gid, None)
+        _MEMORY_GAME_LINEUP_CACHE.pop(gid, None)
+    else:
+        _GAME_LINEUP_CACHE.clear()
+        _MEMORY_GAME_LINEUP_CACHE.clear()
+    # Always clear board image cache so updated starters/numbers re-render immediately
+    _BOARD_IMAGE_MEMORY_CACHE.clear()
+
+
 
 def get_player_photo_url(player_name: str) -> str | None:
     """Return official Daum KBL headshot URL for *player_name* if available."""
@@ -321,15 +334,18 @@ def fetch_daum_match_lineup_sync(
     fallback_home: str | None = None,
     fallback_away: str | None = None,
     timeout: float = 2.5,
+    force_refresh: bool = False,
+    ttl: float = 120.0,
 ) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]], bool]:
     """
     Fetch live or finished match starting 5 from Daum ARMS API (`SPORTS_GAME?detail=true`).
     Returns (home_team, away_team, home_starters, away_starters, is_official_daum_lineup).
     """
     gid = str(game_id).strip()
-    cached = get_cached_game_lineup(gid)
-    if cached is not None:
-        return cached
+    if not force_refresh:
+        cached = get_cached_game_lineup(gid)
+        if cached is not None:
+            return cached
 
     home_team = fallback_home or "SK"
     away_team = fallback_away or "DB"
@@ -381,7 +397,7 @@ def fetch_daum_match_lineup_sync(
                         away_team, [_map_p(p) for p in a_started[:5]], is_official_daum=True
                     )["verified_starters"]
                     res = (home_team, away_team, h_list, a_list, True)
-                    set_cached_game_lineup(gid, res, ttl=600.0)
+                    set_cached_game_lineup(gid, res, ttl=ttl)
                     return res
         except Exception:
             pass

@@ -441,6 +441,211 @@ class RosterManager:
         logger.debug("Leaderboard stats synced into active roster", updated_count=updated_count)
         return updated_count
 
+    @staticmethod
+    def _normalize_pos(raw_pos: str | None) -> str:
+        """Map Daum/Naver position codes (GD/FD/CT/가드/포워드/센터) to canonical G/F/C."""
+        p = str(raw_pos or "").strip().upper()
+        mapping = {
+            "G": "G",
+            "GD": "G",
+            "PG": "G",
+            "SG": "G",
+            "가드": "G",
+            "F": "F",
+            "FD": "F",
+            "SF": "F",
+            "PF": "F",
+            "포워드": "F",
+            "C": "C",
+            "CT": "C",
+            "센터": "C",
+            "G/F": "G/F",
+            "F/C": "F/C",
+        }
+        return mapping.get(p, "G/F")
+
+    def sync_from_official_match_lineup(
+        self,
+        team: str,
+        live_starters: list[dict[str, Any]],
+        naver_players: list[dict[str, Any]] | None = None,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """
+        Automatically reflect an official match-day starting 5 change in real time.
+        Auto-registers newly debuted replacement players (e.g. foreign replacements),
+        cross-checks integrity constraints, moves displaced starters to key_bench,
+        and syncs back to kbl_data.TEAM_LINEUPS.
+        """
+        norm_t = self._normalize_team(team)
+        if norm_t not in self._lineups or len(live_starters) != 5:
+            return {"changed": False, "team": norm_t, "skipped": True}
+
+        naver_index = {
+            (p["team"], p["name"]): p for p in (naver_players or [])
+        }
+        normalized_starters: list[dict[str, str]] = []
+        seen_names: set[str] = set()
+
+        for s in live_starters:
+            name = str(s.get("name") or "").strip()
+            if not name or name in seen_names:
+                return {"changed": False, "team": norm_t, "skipped": True}
+            if name == "함지훈" or (norm_t == "SK" and name == "김선형"):
+                logger.warning("Blocked invalid starter during realtime sync", team=norm_t, player=name)
+                return {"changed": False, "team": norm_t, "skipped": True}
+            seen_names.add(name)
+
+            n_rec = naver_index.get((norm_t, name))
+            pos = self._normalize_pos((n_rec or {}).get("pos") or s.get("pos"))
+            no = str((n_rec or {}).get("no") or s.get("no") or "0").replace("#", "").strip() or "0"
+
+            # Ensure starter exists in self._players for this club (Rule 7)
+            existing_p = next(
+                (p for p in self._players if p["name"] == name and p["team"] == norm_t),
+                None,
+            )
+            if not existing_p:
+                # Register newly signed/transferred player safely
+                new_p = {
+                    "name": name,
+                    "team": norm_t,
+                    "pos": pos,
+                    "no": no,
+                    "pts": float(n_rec["pts"]) if n_rec else 8.0,
+                    "reb": float(n_rec["reb"]) if n_rec else 3.0,
+                    "ast": float(n_rec["ast"]) if n_rec else 2.0,
+                    "tpm": float(n_rec["tpm"]) if n_rec else 0.8,
+                    "stl": float(n_rec["stl"]) if n_rec else 0.6,
+                    "blk": float(n_rec["blk"]) if n_rec else 0.3,
+                }
+                # Remove from any former club's starters/bench (except homonyms like 이정현)
+                if name != "이정현":
+                    for other_t, other_info in self._lineups.items():
+                        if other_t != norm_t:
+                            other_info["key_bench"] = [
+                                b for b in other_info.get("key_bench", []) if b != name
+                            ]
+                self._players.append(new_p)
+            else:
+                if no and no != "0":
+                    existing_p["no"] = no
+                if pos:
+                    existing_p["pos"] = pos
+
+            normalized_starters.append({"pos": pos, "name": name, "no": no})
+
+        old_starters_list = self._lineups[norm_t].get("starters", [])
+        old_names = [s.get("name", "") for s in old_starters_list]
+        new_names = [s["name"] for s in normalized_starters]
+        old_nos = [str(s.get("no", "")) for s in old_starters_list]
+        new_nos = [s["no"] for s in normalized_starters]
+
+        if old_names == new_names and old_nos == new_nos:
+            return {"changed": False, "team": norm_t}
+
+        # Update starters and keep displaced starters in key_bench (avoid duplicates)
+        new_name_set = set(new_names)
+        old_bench = list(self._lineups[norm_t].get("key_bench", []))
+        updated_bench = [b for b in old_bench if b not in new_name_set]
+        for old_n in old_names:
+            if old_n and old_n not in new_name_set and old_n not in updated_bench:
+                updated_bench.append(old_n)
+
+        self._lineups[norm_t]["starters"] = normalized_starters
+        self._lineups[norm_t]["key_bench"] = updated_bench
+        self._last_synced_at = datetime.now(UTC).isoformat()
+
+        entry = {
+            "type": "REALTIME_LINEUP_SYNC",
+            "team": norm_t,
+            "old_starters": old_names,
+            "new_starters": new_names,
+            "reason": reason or "Official match lineup change detected",
+            "timestamp": self._last_synced_at,
+        }
+        self._record_transaction(entry)
+        self._sync_back_to_kbl_data()
+        logger.info("Realtime lineup change reflected", **entry)
+        return {"changed": True, **entry}
+
+    def sync_from_naver_season_roster(self, naver_players: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Sync active player stats, uniform numbers, and newly debuted players
+        from Naver Sports (seasonCode=49) into the active RosterManager pool.
+        """
+        if not naver_players:
+            return {"updated": 0, "added": 0, "transferred": 0}
+
+        updated = 0
+        added = 0
+        transferred = 0
+
+        for np in naver_players:
+            name = str(np.get("name") or "").strip()
+            team = self._normalize_team(str(np.get("team") or "").strip())
+            if not name or team not in self.EXPECTED_TEAMS or np.get("is_retire"):
+                continue
+            if name == "함지훈" or (team == "SK" and name == "김선형"):
+                continue
+
+            pos = self._normalize_pos(np.get("pos"))
+            no = str(np.get("no") or "0").strip() or "0"
+            gp = int(np.get("gp") or 0)
+
+            exact_p = next(
+                (p for p in self._players if p["name"] == name and p["team"] == team),
+                None,
+            )
+            if exact_p:
+                if gp > 0:
+                    for k in ("pts", "reb", "ast", "tpm", "stl", "blk"):
+                        if np.get(k) is not None:
+                            exact_p[k] = round(float(np[k]), 1)
+                    if no and no != "0":
+                        exact_p["no"] = no
+                    if pos:
+                        exact_p["pos"] = pos
+                    updated += 1
+            elif gp >= 1:
+                # Check if an existing player (excluding homonym 이정현) transferred teams
+                other_p = (
+                    next((p for p in self._players if p["name"] == name), None)
+                    if name != "이정현"
+                    else None
+                )
+                if other_p and other_p["team"] != team:
+                    self.transfer_player(
+                        name, team, pos=pos, back_number=no,
+                        reason="Naver Season 49 team transfer sync",
+                    )
+                    transferred += 1
+                else:
+                    self._players.append({
+                        "name": name,
+                        "team": team,
+                        "pos": pos,
+                        "no": no,
+                        "pts": round(float(np.get("pts") or 0.0), 1),
+                        "reb": round(float(np.get("reb") or 0.0), 1),
+                        "ast": round(float(np.get("ast") or 0.0), 1),
+                        "tpm": round(float(np.get("tpm") or 0.0), 1),
+                        "stl": round(float(np.get("stl") or 0.0), 1),
+                        "blk": round(float(np.get("blk") or 0.0), 1),
+                    })
+                    added += 1
+
+        if updated or added or transferred:
+            self._last_synced_at = datetime.now(UTC).isoformat()
+            self._sync_back_to_kbl_data()
+            logger.info(
+                "Naver Season 49 roster synced",
+                updated=updated,
+                added=added,
+                transferred=transferred,
+            )
+        return {"updated": updated, "added": added, "transferred": transferred}
+
     # ---------------------------------------------------------------------------
     # Redis Persistence
     # ---------------------------------------------------------------------------

@@ -79,6 +79,8 @@ class IngestionWorker:
         # Track last monotonic poll timestamp per game to honour scheduled_interval
         self._last_polled_at: dict[str, float] = {}
         self._last_window_sync_at: float = 0.0
+        self._last_lineup_sync_at: float = 0.0
+        self._last_naver_sync_at: float = 0.0
 
     def start(self) -> None:
         """Schedule the worker loop as a background asyncio task."""
@@ -113,6 +115,7 @@ class IngestionWorker:
             try:
                 await self._sync_upcoming_window_if_due()
                 has_live = await self._poll_all_games()
+                await self._sync_realtime_lineups_if_due()
                 sleep_sec = self._live_interval if has_live else min(self._scheduled_interval, 30)
             except asyncio.CancelledError:
                 raise
@@ -336,3 +339,88 @@ class IngestionWorker:
                     await invalidate_standings_and_rankings_cache()
                 except Exception as exc:
                     logger.warning("Failed to invalidate standings/rankings cache on final transition", error=str(exc))
+            if new_status in (_STATUS_LIVE, _STATUS_FINAL):
+                await self._sync_realtime_lineups_if_due(force=True)
+
+    async def _sync_realtime_lineups_if_due(self, force: bool = False) -> bool:
+        """
+        Periodically (every 60s, or immediately on game state transitions) check
+        today's official Daum lineups and Naver Season 49 roster, automatically
+        reflecting any lineup/roster changes into RosterManager and Redis cache.
+
+        Returns True if any lineup or roster change was persisted.
+        """
+        now_mono = time.monotonic()
+        if not force and self._last_lineup_sync_at > 0.0 and (now_mono - self._last_lineup_sync_at) < 60.0:
+            return False
+        self._last_lineup_sync_at = now_mono
+
+        try:
+            games = await self._provider.get_schedule(today_kst())
+        except Exception as exc:
+            logger.debug("Realtime lineup sync skipped: schedule unavailable", error=str(exc))
+            return False
+
+        from services.content.lineup_board import (
+            fetch_daum_match_lineup_sync,
+            invalidate_lineup_caches,
+        )
+        from services.roster.manager import get_roster_manager
+        from services.roster.naver_verifier import fetch_naver_season_players
+
+        roster_mgr = get_roster_manager()
+        naver_players: list[dict[str, Any]] = []
+        any_change = False
+
+        # Refresh Naver Season 49 full player pool every 10 minutes (or when forced)
+        if force or self._last_naver_sync_at == 0.0 or (now_mono - self._last_naver_sync_at) >= 600.0:
+            self._last_naver_sync_at = now_mono
+            try:
+                naver_players = await fetch_naver_season_players(timeout=2.5)
+                if naver_players:
+                    n_res = roster_mgr.sync_from_naver_season_roster(naver_players)
+                    if n_res["added"] > 0 or n_res["transferred"] > 0:
+                        any_change = True
+            except Exception as n_err:
+                logger.debug("Naver Season 49 sync skipped", error=str(n_err))
+
+        for g in games:
+            gid = str(g.get("game_id") or "")
+            home = g.get("home_team") or ""
+            away = g.get("away_team") or ""
+            if not gid.isdigit() or len(gid) < 6 or not home or not away:
+                continue
+
+            try:
+                h_team, a_team, h_live, a_live, is_official = await asyncio.to_thread(
+                    fetch_daum_match_lineup_sync, gid, home, away, 2.5, True
+                )
+            except Exception as l_err:
+                logger.debug("Daum match lineup fetch failed", game_id=gid, error=str(l_err))
+                continue
+
+            if not is_official:
+                continue
+
+            game_changed = False
+            for t_code, t_starters in ((h_team, h_live), (a_team, a_live)):
+                res = roster_mgr.sync_from_official_match_lineup(
+                    t_code,
+                    t_starters,
+                    naver_players=naver_players or None,
+                    reason=f"Realtime match {gid} official lineup",
+                )
+                if res.get("changed"):
+                    game_changed = True
+                    any_change = True
+
+            if game_changed:
+                invalidate_lineup_caches(gid)
+
+        if any_change:
+            try:
+                await roster_mgr.save_to_cache()
+            except Exception as c_err:
+                logger.warning("Failed to save realtime lineup sync to Redis", error=str(c_err))
+
+        return any_change
