@@ -521,7 +521,6 @@ def build_lineup_response(
                 target_team, t_starters, is_official_daum=t_is_official
             )
             t_starters = t_verify["verified_starters"]
-            t_badge = t_verify["badge"]
 
             if base_url:
                 import hashlib
@@ -542,7 +541,6 @@ def build_lineup_response(
             )
             desc = (
                 f"🏀 2026-2027 {full_name}\n"
-                f"{t_badge}\n"
                 f"👨‍💼 감독: {t_coach} 감독\n"
                 f"────────────────────\n"
                 f"⭐ [베스트 5 선발]\n{s_lines}\n"

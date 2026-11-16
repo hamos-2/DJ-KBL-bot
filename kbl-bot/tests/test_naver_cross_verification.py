@@ -67,4 +67,4 @@ def test_build_lineup_response_includes_naver_verification_and_updated_roster() 
     desc = card["description"]
     assert "오마리 스펠맨" in desc
     assert "제로드 존스" in desc
-    assert "시즌49" in desc
+    assert "교차검증" not in desc
