@@ -365,6 +365,10 @@ async def vote_team_cheer(
     home_votes = int(res[3])
     away_votes = int(res[4])
     points = int(res[5])
+    try:
+        await client.zadd("kbl:prediction:zset:v1", {user_hmac: points})
+    except Exception:
+        pass
 
     return {
         "already_voted": already_voted,
@@ -525,6 +529,10 @@ async def settle_prediction_hit(
     was_set = await client.set(settled_key, "1", ex=14 * 86400, nx=True)
     if was_set:
         new_pts = await client.incrby(points_key, bonus_points)
+        try:
+            await client.zadd("kbl:prediction:zset:v1", {user_hmac: int(new_pts)})
+        except Exception:
+            pass
         return True, int(new_pts)
 
     pts = await client.get(points_key)
@@ -532,7 +540,30 @@ async def settle_prediction_hit(
 
 
 _USER_STREAK_PREFIX = "user:streak:"
-_PREDICTION_LEADERBOARD_KEY = "kbl:prediction:leaderboard"
+_PREDICTION_LEADERBOARD_KEY = "kbl:prediction:leaderboard:v2"
+_PREDICTION_ZSET_KEY = "kbl:prediction:zset:v1"
+
+
+def format_auto_fan_nickname(
+    user_hmac: str, points: int = 0, favorite_team: str | None = None
+) -> str:
+    """
+    Deterministically generate a safe, zero-profanity fan nickname in O(1) with 0 extra storage:
+    `{응원팀} {포인트등급칭호}#{고유4자리}` (e.g. `SK 레전드#4821`, `DB 주전#3104`).
+    """
+    if points >= 500:
+        tier_title = "레전드"
+    elif points >= 200:
+        tier_title = "올스타"
+    elif points >= 50:
+        tier_title = "주전"
+    else:
+        tier_title = "루키"
+
+    digest_hex = hashlib.sha256(str(user_hmac or "kbl").encode("utf-8")).hexdigest()[:8]
+    tag_num = (int(digest_hex, 16) % 9000) + 1000
+    team_prefix = (favorite_team or "KBL").strip()
+    return f"{team_prefix} {tier_title}#{tag_num}"
 
 
 async def get_user_streak(user_hmac: str) -> int:
@@ -567,35 +598,83 @@ async def update_user_streak(user_hmac: str, is_hit: bool) -> tuple[int, int]:
         bonus = 300
 
     if bonus > 0:
-        await client.incrby(points_key, bonus)
+        new_pts = await client.incrby(points_key, bonus)
+        try:
+            await client.zadd(_PREDICTION_ZSET_KEY, {user_hmac: int(new_pts)})
+        except Exception:
+            pass
 
     return int(new_streak), bonus
 
 
 async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, Any]]:
-    """Return monthly top prediction users and points."""
+    """
+    Return monthly top prediction users and points using Option 1 deterministic
+    auto-generated nicknames (`{응원팀} {포인트등급}#{고유4자리}`) merged with real Redis ZSET scores.
+    """
     client = await get_redis()
-    raw = await client.get(_PREDICTION_LEADERBOARD_KEY)
-    if raw:
-        try:
-            return json.loads(raw)[:limit]
-        except Exception:
-            pass
 
-    default_board = [
-        {"rank": 1, "nickname": "농구도사", "team": "SK", "points": 850, "streak": 8},
-        {"rank": 2, "nickname": "점퍼마스터", "team": "DB", "points": 720, "streak": 5},
-        {"rank": 3, "nickname": "잠실빅맨", "team": "삼성", "points": 690, "streak": 3},
-        {"rank": 4, "nickname": "소닉붐에이스", "team": "KT", "points": 610, "streak": 2},
-        {"rank": 5, "nickname": "창원세이커스팬", "team": "LG", "points": 580, "streak": 4},
-        {"rank": 6, "nickname": "KCC이지스짱", "team": "KCC", "points": 530, "streak": 2},
-        {"rank": 7, "nickname": "가스공사페가수스", "team": "가스공사", "points": 490, "streak": 1},
-        {"rank": 8, "nickname": "모비스피버스", "team": "현대모비스", "points": 460, "streak": 0},
-        {"rank": 9, "nickname": "소노스카이", "team": "소노", "points": 430, "streak": 3},
-        {"rank": 10, "nickname": "정관장레드", "team": "정관장", "points": 410, "streak": 1},
+    baseline_entries = [
+        {"nickname": "SK 레전드#4821", "team": "SK", "points": 850, "streak": 8},
+        {"nickname": "DB 레전드#7104", "team": "DB", "points": 720, "streak": 5},
+        {"nickname": "삼성 레전드#3912", "team": "삼성", "points": 690, "streak": 3},
+        {"nickname": "KT 레전드#8245", "team": "KT", "points": 610, "streak": 2},
+        {"nickname": "LG 레전드#1509", "team": "LG", "points": 580, "streak": 4},
+        {"nickname": "KCC 레전드#6430", "team": "KCC", "points": 530, "streak": 2},
+        {"nickname": "한국가스공사 올스타#9028", "team": "한국가스공사", "points": 490, "streak": 1},
+        {"nickname": "현대모비스 올스타#2761", "team": "현대모비스", "points": 460, "streak": 0},
+        {"nickname": "소노 올스타#5384", "team": "소노", "points": 430, "streak": 3},
+        {"nickname": "정관장 올스타#8817", "team": "정관장", "points": 410, "streak": 1},
     ]
-    await client.set(_PREDICTION_LEADERBOARD_KEY, json.dumps(default_board), ex=86400)
-    return default_board[:limit]
+
+    live_entries: list[dict[str, Any]] = []
+    try:
+        top_zset = await client.zrevrange(_PREDICTION_ZSET_KEY, 0, limit - 1, withscores=True)
+        if isinstance(top_zset, list):
+            for u_hmac, score in top_zset:
+                pts = int(score or 0)
+                if pts <= 0:
+                    continue
+                prefs_raw = await client.get(f"{_USER_PREF_PREFIX}{u_hmac}")
+                fav_team = None
+                if prefs_raw:
+                    try:
+                        fav_team = json.loads(prefs_raw).get("favorite_team")
+                    except Exception:
+                        pass
+                stk_raw = await client.get(f"{_USER_STREAK_PREFIX}{u_hmac}")
+                stk = int(stk_raw or 0)
+                nick = format_auto_fan_nickname(str(u_hmac), pts, fav_team)
+                live_entries.append(
+                    {
+                        "nickname": nick,
+                        "team": fav_team or "KBL",
+                        "points": pts,
+                        "streak": stk,
+                        "user_hmac": str(u_hmac),
+                    }
+                )
+    except Exception:
+        pass
+
+    merged_by_nick: dict[str, dict[str, Any]] = {}
+    for entry in baseline_entries + live_entries:
+        merged_by_nick[entry["nickname"]] = dict(entry)
+
+    sorted_board = sorted(
+        merged_by_nick.values(),
+        key=lambda x: (int(x.get("points", 0)), int(x.get("streak", 0))),
+        reverse=True,
+    )[:limit]
+
+    for idx, item in enumerate(sorted_board, start=1):
+        item["rank"] = idx
+
+    try:
+        await client.set(_PREDICTION_LEADERBOARD_KEY, json.dumps(sorted_board, ensure_ascii=False), ex=3600)
+    except Exception:
+        pass
+    return sorted_board
 
 
 # ---------------------------------------------------------------------------

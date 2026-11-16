@@ -710,7 +710,9 @@ async def _dispatch_command(
             streak = await get_user_streak(user_hmac)
         except Exception:
             streak = 0
-        return build_user_points_response(pts, favorite_team=fav_team, streak=streak)
+        return build_user_points_response(
+            pts, favorite_team=fav_team, streak=streak, user_hmac=user_hmac
+        )
 
     # 2-C. Prediction Leaderboard (승부예측 랭킹 / 예측 랭킹 / 리더보드 / 포인트 랭킹 / 예측왕)
     if (
@@ -751,6 +753,7 @@ async def _dispatch_command(
             user_rank=12,
             streak=streak,
             favorite_team=fav_team,
+            user_hmac=user_hmac,
         )
 
     # 3. Favorite Players & Custom Player Search/Registration

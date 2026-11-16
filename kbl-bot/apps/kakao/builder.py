@@ -2337,12 +2337,16 @@ def build_user_points_response(
     user_points: int,
     favorite_team: str | None = None,
     streak: int = 0,
+    user_hmac: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build rich basicCard response for '포인트' / '내 포인트' / '포인트 확인'.
     Displays total point balance, fan tier status, next tier progress, and point tips.
     """
+    from core.cache.redis import format_auto_fan_nickname
+
     tier_name, badge, needed = get_point_tier(user_points)
+    auto_nick = format_auto_fan_nickname(user_hmac or favorite_team or "kbl", user_points, favorite_team)
     next_msg = (
         f"다음 등급까지 {needed}P 남음!"
         if needed > 0
@@ -2353,6 +2357,7 @@ def build_user_points_response(
 
     desc = (
         f"🏀 나의 승부예측 포인트 현황{fav_team_str}\n\n"
+        f"• 랭킹 닉네임 : {auto_nick}\n"
         f"• 보유 포인트 : {user_points:,} P\n"
         f"• 농구팬 등급 : {tier_name}\n"
         f"• 승급 현황 : {next_msg}{streak_str}\n\n"
@@ -2399,27 +2404,49 @@ def build_prediction_leaderboard_response(
     user_rank: int = 12,
     streak: int = 0,
     favorite_team: str | None = None,
+    user_hmac: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build pure listCard response for '승부예측 랭킹' / '리더보드'.
-    Displays monthly top 5 users, streaks, and current user ranking status.
+    Displays monthly top users with Option 1 auto-generated nicknames (`{응원팀} {등급}#{고유4자리}`),
+    streaks, and current user's live ranking status.
     """
+    from core.cache.redis import format_auto_fan_nickname
+
+    my_nick = (
+        format_auto_fan_nickname(user_hmac, user_points, favorite_team)
+        if user_hmac
+        else None
+    )
     items = []
-    for r in rankings[:5]:
+    max_top = 4 if (my_nick and not any(r.get("nickname") == my_nick for r in rankings[:5])) else 5
+    for r in rankings[:max_top]:
         rank = r.get("rank", 1)
-        nick = r.get("nickname", "팬")
-        team = r.get("team", "")
-        pts = r.get("points", 0)
-        stk = r.get("streak", 0)
+        nick = str(r.get("nickname", "팬"))
+        team = str(r.get("team", ""))
+        pts = int(r.get("points", 0))
+        stk = int(r.get("streak", 0))
         stk_str = f" ({stk}연승🔥)" if stk >= 3 else ""
+        me_tag = " 👈나" if (my_nick and nick == my_nick) else ""
+        if "#" in nick:
+            item_title = f"{rank}위 {nick}{me_tag}"[:35]
+        else:
+            item_title = f"{rank}위 {nick} ({team}팬){me_tag}"[:35]
         items.append({
-            "title": f"{rank}위 {nick} ({team}팬)"[:35],
+            "title": item_title,
             "description": f"{pts:,}P 획득{stk_str}"[:30],
             "imageUrl": get_team_logo(team) if team else DEFAULT_SPORTS_LOGO,
             "link": {"web": "https://sports.daum.net/record/kbl"},
         })
 
-    streak_msg = f" | {streak}연승 중🔥" if streak > 0 else ""
+    if my_nick and not any(r.get("nickname") == my_nick for r in rankings[:5]):
+        streak_msg = f" ({streak}연승🔥)" if streak > 0 else ""
+        items.append({
+            "title": f"나의 닉네임: {my_nick}"[:35],
+            "description": f"보유 {user_points:,}P{streak_msg}"[:30],
+            "imageUrl": get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO,
+            "link": {"web": "https://sports.daum.net/record/kbl"},
+        })
     fav_str = f" [{favorite_team} 팬]" if favorite_team else ""
     header_title = f"🏆 KBL 승부예측 월간 랭킹{fav_str}"[:35].strip()
 
