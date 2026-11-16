@@ -86,11 +86,37 @@ def _short_arena(arena: str | None) -> str:
     return arena.replace("체육관", "").replace("아레나", "").strip()[:4]
 
 
+def _u16_len(text: str) -> int:
+    """Return length in UTF-16 code units (matching Kakao i OpenBuilder JS length)."""
+    return len(str(text).encode("utf-16-le")) // 2
+
+
+def _u16_truncate(text: str, max_u16: int, suffix: str = "") -> str:
+    """Truncate *text* safely so its UTF-16 code unit length never exceeds *max_u16*."""
+    s = str(text or "")
+    if _u16_len(s) <= max_u16:
+        return s
+    suf_len = _u16_len(suffix)
+    limit = max(0, max_u16 - suf_len)
+    out: list[str] = []
+    cur = 0
+    for ch in s:
+        w = _u16_len(ch)
+        if cur + w > limit:
+            break
+        out.append(ch)
+        cur += w
+    res = "".join(out).rstrip()
+    if suffix and len(res) >= 2 and " " in res and len(res) - res.rfind(" ") <= 5:
+        res = res[: res.rfind(" ")].rstrip()
+    return f"{res}{suffix}" if suffix else res
+
+
 def _msg_btn(label: str, message_text: str) -> dict[str, str]:
     """Build an in-card message button dict for Kakao textCard/basicCard."""
     return {
         "action": "message",
-        "label": label[:14],
+        "label": _u16_truncate(label, 14),
         "messageText": message_text,
     }
 
@@ -99,7 +125,7 @@ def _link_btn(label: str, url: str) -> dict[str, str]:
     """Build an in-card webLink button dict for Kakao textCard/basicCard."""
     return {
         "action": "webLink",
-        "label": label[:14],
+        "label": _u16_truncate(label, 14),
         "webLinkUrl": url,
     }
 
@@ -108,7 +134,7 @@ def _share_btn(label: str) -> dict[str, str]:
     """Build an in-card KakaoTalk viral share button dict (action: 'share') for basicCard/listCard."""
     return {
         "action": "share",
-        "label": label[:14],
+        "label": _u16_truncate(label, 14),
     }
 
 
@@ -120,9 +146,15 @@ def _list_card(
     """Build native Kakao listCard component (max 5 items, max 2 buttons)."""
     card_items = []
     for it in items[:5]:
-        item_dict: dict[str, Any] = {"title": str(it.get("title", ""))[:35]}
+        raw_title = str(it.get("title", ""))
+        item_dict: dict[str, Any] = {
+            "title": _u16_truncate(raw_title, 35, suffix="…") if _u16_len(raw_title) > 35 else raw_title
+        }
         if it.get("description"):
-            item_dict["description"] = str(it["description"])[:30]
+            raw_desc = str(it["description"])
+            item_dict["description"] = (
+                _u16_truncate(raw_desc, 30, suffix="…") if _u16_len(raw_desc) > 30 else raw_desc
+            )
         if it.get("imageUrl"):
             item_dict["imageUrl"] = str(it["imageUrl"])
         if it.get("link"):
@@ -130,7 +162,7 @@ def _list_card(
         card_items.append(item_dict)
 
     card: dict[str, Any] = {
-        "header": {"title": header_title[:30]},
+        "header": {"title": _u16_truncate(header_title, 30)},
         "items": card_items,
     }
     if buttons:
@@ -758,11 +790,16 @@ def build_lineup_response(
         ])
     else:
         # Multi-game day: add dynamic match jump quick buttons (Plan B convenience)
+        _qr_alias = {"현대모비스": "모비스", "한국가스공사": "가스공사"}
         for g in sorted_games[:3]:
             h_ = str(g.get("home_team") or "")
             a_ = str(g.get("away_team") or "")
             if h_ and a_:
-                lineup_qrs.append(QuickReply(label=f"📋 {h_} vs {a_}", messageText=f"{h_} 라인업"))
+                sh = _qr_alias.get(h_, h_)
+                sa = _qr_alias.get(a_, a_)
+                lineup_qrs.append(
+                    QuickReply(label=_u16_truncate(f"📋 {sh} vs {sa}", 14), messageText=f"{h_} 라인업")
+                )
         lineup_qrs.extend([
             QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
             QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
@@ -1720,14 +1757,14 @@ def build_team_standings_response(
         }],
         buttons=[
             _msg_btn("🏅 선수 순위 보기", "선수순위"),
-            _link_btn("📊 전체 순위·기록 상세", "https://sports.daum.net/record/kbl"),
+            _link_btn("📊 전체 순위 상세", "https://sports.daum.net/record/kbl"),
         ],
     )
 
     outputs = [card1]
     if bottom_items:
         card2 = _list_card(
-            header_title=f"🔥 {get_current_season()} KBL 6강 PO 경쟁 (6~10위)",
+            header_title=f"🔥 {get_current_season()} KBL 6~10위 순위",
             items=bottom_items,
             buttons=[
                 _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
@@ -1849,11 +1886,14 @@ def build_single_player_response(
 
     from services.content.lineup_board import get_player_photo_url
 
-    toggle_btn = (
-        _msg_btn(f"➖ {name[:4]} 관심선수 해제", f"#관심선수 삭제 {name}")
-        if is_favorite
-        else _msg_btn(f"➕ {name[:4]} 관심선수 등록", f"#관심선수 {name}")
-    )
+    if is_favorite:
+        full_lbl = f"➖ {name} 관심선수 해제"
+        lbl = full_lbl if _u16_len(full_lbl) <= 14 else f"➖ {name} 해제"
+        toggle_btn = _msg_btn(lbl, f"#관심선수 삭제 {name}")
+    else:
+        full_lbl = f"➕ {name} 관심선수 등록"
+        lbl = full_lbl if _u16_len(full_lbl) <= 14 else f"➕ {name} 등록"
+        toggle_btn = _msg_btn(lbl, f"#관심선수 {name}")
 
     card = {
         "basicCard": _basic_card(
@@ -1919,8 +1959,12 @@ def build_team_players_response(
             "imageUrl": get_team_logo(team),
         })
 
+    team_header = f"🏀 [{full}] 공식 베스트 5"
+    if _u16_len(team_header) > 30:
+        team_header = f"🏀 [{team}] 공식 베스트 5"
+
     list_card = _list_card(
-        header_title=f"🏀 [{full}] 공식 베스트 5 (Best 5)",
+        header_title=team_header,
         items=items,
         buttons=[
             _msg_btn("🏀 다른 구단 찾기", "구단별 선수"),
@@ -2468,7 +2512,7 @@ def build_prediction_leaderboard_response(
             "imageUrl": DEFAULT_SPORTS_LOGO,
         }],
         buttons=[
-            _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),
+            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
             _msg_btn("💰 내 포인트 확인", "내 포인트"),
         ],
     )
@@ -2513,17 +2557,17 @@ def build_prediction_results_response(
             items=[
                 {
                     "title": "아직 참여한 승부예측이 없습니다.",
-                    "description": "오늘 경기의 승리팀을 맞히면 기본 +10P, 적중 시 +50P를 지급해 드립니다! 🏀",
+                    "description": "승부예측 참여 +10P, 적중 +50P 보너스!",
                     "imageUrl": DEFAULT_SPORTS_LOGO,
                 },
                 {
                     "title": f"내 보유 포인트: {user_points:,} P ({tier_name})",
-                    "description": "매일 경기 승부예측에 참여하고 포인트를 적립해 보세요.",
+                    "description": "매일 승부예측에 참여해 보세요!",
                     "imageUrl": DEFAULT_SPORTS_LOGO,
                 },
             ],
             buttons=[
-                _msg_btn("🗳️ 오늘 승부예측 참여", "승부예측"),
+                _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
                 _msg_btn("🏀 오늘 경기 보기", "오늘 경기"),
             ],
         )
