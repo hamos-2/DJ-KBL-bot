@@ -598,6 +598,59 @@ async def test_prediction_leaderboard_dispatch_and_builder():
         assert "listCard" in out
 
 
+def test_option1_auto_fan_nickname_and_leaderboard_cards():
+    """Verify Option 1 deterministic auto-generated fan nicknames across tiers and leaderboard/points cards."""
+    from core.cache.redis import format_auto_fan_nickname
+    from apps.kakao.builder import (
+        build_prediction_leaderboard_response,
+        build_user_points_response,
+    )
+
+    n_rookie = format_auto_fan_nickname("user_abc_123", points=10, favorite_team="SK")
+    n_starter = format_auto_fan_nickname("user_abc_123", points=80, favorite_team="SK")
+    n_allstar = format_auto_fan_nickname("user_abc_123", points=250, favorite_team="SK")
+    n_legend = format_auto_fan_nickname("user_abc_123", points=600, favorite_team="SK")
+
+    assert n_rookie.startswith("SK 루키#")
+    assert n_starter.startswith("SK 주전#")
+    assert n_allstar.startswith("SK 올스타#")
+    assert n_legend.startswith("SK 레전드#")
+    # Tag number must be identical across tiers for the same user_hmac
+    tag = n_rookie.split("#")[1]
+    assert len(tag) == 4 and tag.isdigit()
+    assert n_starter.endswith(f"#{tag}")
+    assert n_legend.endswith(f"#{tag}")
+
+    # Points card must include the auto-generated nickname
+    pts_resp = build_user_points_response(
+        user_points=80, favorite_team="SK", streak=2, user_hmac="user_abc_123"
+    )
+    pts_desc = pts_resp.template.outputs[0]["basicCard"]["description"]
+    assert f"랭킹 닉네임 : {n_starter}" in pts_desc
+
+    # Leaderboard card must show Top 4 + user's own nickname in slot 5 when outside Top 5
+    rankings = [
+        {"rank": 1, "nickname": "SK 레전드#4821", "team": "SK", "points": 850, "streak": 8},
+        {"rank": 2, "nickname": "DB 레전드#7104", "team": "DB", "points": 720, "streak": 5},
+        {"rank": 3, "nickname": "삼성 레전드#3912", "team": "삼성", "points": 690, "streak": 3},
+        {"rank": 4, "nickname": "KT 레전드#8245", "team": "KT", "points": 610, "streak": 2},
+        {"rank": 5, "nickname": "LG 레전드#1509", "team": "LG", "points": 580, "streak": 4},
+    ]
+    lb_resp = build_prediction_leaderboard_response(
+        rankings=rankings,
+        user_points=80,
+        streak=2,
+        favorite_team="SK",
+        user_hmac="user_abc_123",
+    )
+    lb_items = lb_resp.template.outputs[0]["listCard"]["items"]
+    assert len(lb_items) == 5
+    assert lb_items[0]["title"] == "1위 SK 레전드#4821"
+    assert lb_items[4]["title"] == f"나의 닉네임: {n_starter}"
+    assert "80P" in lb_items[4]["description"]
+
+
+
 
 
 
