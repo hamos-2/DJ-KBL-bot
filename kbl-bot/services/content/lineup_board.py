@@ -518,7 +518,8 @@ def render_lineup_board_png(
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    sig_payload = f"v3_800x800:{home_team}:{away_team}:" + "|".join(
+    font_sig = getattr(_load_font(22, bold=True), "path", "default")
+    sig_payload = f"v5_800x800:{font_sig}:{home_team}:{away_team}:" + "|".join(
         f"{p.get('no')}-{p.get('name')}" for p in (home_starters + away_starters)
     )
     sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()
@@ -645,7 +646,8 @@ def render_single_team_lineup_board_png(
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    sig_payload = f"v1_single_800x800:{team}:{coach}:" + "|".join(
+    font_sig = getattr(_load_font(25, bold=True), "path", "default")
+    sig_payload = f"v5_single_800x800:{font_sig}:{team}:{coach}:" + "|".join(
         f"{p.get('no')}-{p.get('name')}" for p in starters[:5]
     )
     sig = hashlib.md5(sig_payload.encode("utf-8")).hexdigest()

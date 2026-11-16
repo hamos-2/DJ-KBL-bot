@@ -269,7 +269,7 @@ def build_home_menu_response(
             _basic_card(
                 title="❤️ 응원팀 선택 (수도권 구단)",
                 description="서울 SK, 수원 KT, 서울 삼성\n응원할 구단 버튼을 누르면 내 응원팀으로 즉시 설정됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/capital.png?v=800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/capital.png?v=nanum20261117_800x400",
                 buttons=[
                     _msg_btn("❤️ 서울 SK", "#응원팀 SK"),
                     _msg_btn("❤️ 수원 KT", "#응원팀 KT"),
@@ -282,7 +282,7 @@ def build_home_menu_response(
             _basic_card(
                 title="❤️ 응원팀 선택 (경기·강원 구단)",
                 description="원주 DB, 안양 정관장, 고양 소노\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/gangwon_gyeonggi.png?v=800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/gangwon_gyeonggi.png?v=nanum20261117_800x400",
                 buttons=[
                     _msg_btn("❤️ 원주 DB", "#응원팀 DB"),
                     _msg_btn("❤️ 안양 정관장", "#응원팀 정관장"),
@@ -295,7 +295,7 @@ def build_home_menu_response(
             _basic_card(
                 title="❤️ 응원팀 선택 (영남권 구단)",
                 description="창원 LG, 부산 KCC, 울산 현대모비스\n선택 즉시 일정·결과·순위에서 내 응원팀이 최우선 표시됩니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/yeongnam.png?v=800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/yeongnam.png?v=nanum20261117_800x400",
                 buttons=[
                     _msg_btn("❤️ 창원 LG", "#응원팀 LG"),
                     _msg_btn("❤️ 부산 KCC", "#응원팀 KCC"),
@@ -308,7 +308,7 @@ def build_home_menu_response(
             _basic_card(
                 title="❤️ 응원팀 선택 (대구 한국가스공사)",
                 description="대구 한국가스공사 페가수스를 내 응원팀으로 설정합니다.",
-                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/daegu.png?v=800x400",
+                thumbnail_url=f"{b_url}/integrations/kakao/skills/banner/home/region/daegu.png?v=nanum20261117_800x400",
                 buttons=[
                     _msg_btn("❤️ 한국가스공사", "#응원팀 한국가스공사"),
                     _msg_btn("📅 오늘 경기 보기", "오늘 경기"),
@@ -329,8 +329,8 @@ def build_home_menu_response(
         )
 
     full_team = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
-    home_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/team/{favorite_team}.png?v=800x400"
-    news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=800x400"
+    home_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/team/{favorite_team}.png?v=nanum20261117_800x400"
+    news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=nanum20261117_800x400"
 
     fav_p_str = (
         f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}"
@@ -524,10 +524,14 @@ def build_lineup_response(
             t_badge = t_verify["badge"]
 
             if base_url:
+                import hashlib
                 q_t = urllib.parse.quote(target_team)
                 gid_param = f"game_id={tg_id}&" if (tg_id.isdigit() and len(tg_id) >= 6) else ""
+                t_sig = hashlib.md5(
+                    "|".join(str(s.get("name") or "") for s in t_starters).encode("utf-8")
+                ).hexdigest()[:8]
                 t_thumb_url = (
-                    f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/team/{q_t}.png?{gid_param}v=800"
+                    f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/team/{q_t}.png?{gid_param}v=nanum20261117_{t_sig}"
                 )
                 t_fixed, t_w, t_h = True, 800, 800
                 primary_board_url = t_thumb_url
@@ -696,17 +700,21 @@ def build_lineup_response(
                 f"{a_players_lines}"
             )
 
+        import hashlib
+        g_sig = hashlib.md5(
+            "|".join(str(s.get("name") or "") for s in (h_starters + a_starters)).encode("utf-8")
+        ).hexdigest()[:8]
         if base_url and primary_board_url is None:
             q_h = urllib.parse.quote(home)
             q_a = urllib.parse.quote(away)
-            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=800"
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=nanum20261117_{g_sig}"
             c_fixed, c_w, c_h = True, 800, 800
             primary_board_url = card_thumb
             primary_board_alt = f"📋 {home} vs {away} 선발 라인업 보드"
         elif base_url and not target_team:
             q_h = urllib.parse.quote(home)
             q_a = urllib.parse.quote(away)
-            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=800"
+            card_thumb = f"{base_url.rstrip('/')}/integrations/kakao/skills/lineup-image/game/{gid or '0'}.png?home={q_h}&away={q_a}&v=nanum20261117_{g_sig}"
             c_fixed, c_w, c_h = True, 800, 800
         else:
             card_thumb = get_team_logo(home)
@@ -2111,7 +2119,7 @@ def build_favorite_players_response(
         starter_names = [s["name"] for s in starters_info] if starters_info else [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:5]
         full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
         if len(starter_names) >= 3:
-            thumb_t1 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/1.png?v=800x400"
+            thumb_t1 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/1.png?v=nanum20261117_800x400"
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (1/2)",
@@ -2125,7 +2133,7 @@ def build_favorite_players_response(
         if len(starter_names) >= 4:
             b2 = [_player_toggle_btn(p_name) for p_name in starter_names[3:5]]
             b2.append(_msg_btn(f"🏀 {favorite_team} 선수 전체", f"{favorite_team} 선수"))
-            thumb_t2 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/2.png?v=800x400"
+            thumb_t2 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/2.png?v=nanum20261117_800x400"
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (2/2)",
@@ -2138,7 +2146,7 @@ def build_favorite_players_response(
             )
 
     star_guards = ["김선형", "허훈", "이정현"]
-    thumb_guards = f"{b_url}/integrations/kakao/skills/banner/category/guards.png?v=800x400"
+    thumb_guards = f"{b_url}/integrations/kakao/skills/banner/category/guards.png?v=nanum20261117_800x400"
     carousel_items.append(
         _basic_card(
             title="⭐ 인기 가드 등록",
@@ -2152,7 +2160,7 @@ def build_favorite_players_response(
 
     if not favorite_team or not fav_players:
         star_bigs = ["자밀 워니", "아셈 마레이", "유기상"]
-        thumb_bigs = f"{b_url}/integrations/kakao/skills/banner/category/bigs.png?v=800x400"
+        thumb_bigs = f"{b_url}/integrations/kakao/skills/banner/category/bigs.png?v=nanum20261117_800x400"
         carousel_items.append(
             _basic_card(
                 title="⭐ 인기 빅맨/슈터 등록",
@@ -2164,7 +2172,7 @@ def build_favorite_players_response(
             )
         )
 
-    thumb_teams = f"{b_url}/integrations/kakao/skills/banner/category/all_teams.png?v=800x400"
+    thumb_teams = f"{b_url}/integrations/kakao/skills/banner/category/all_teams.png?v=nanum20261117_800x400"
     carousel_items.append(
         _basic_card(
             title="🏀 [구단별 선수] 수도권·경기·강원·영남권",
