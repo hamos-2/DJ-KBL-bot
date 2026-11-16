@@ -138,6 +138,9 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "한희원", "team": "KT", "pos": "F", "no": "1", "pts": 5.5, "reb": 2.1, "ast": 0.8, "tpm": 1.1, "stl": 0.6, "blk": 0.2},
     {"name": "정창영", "team": "KT", "pos": "G", "no": "7", "pts": 4.3, "reb": 1.8, "ast": 1.5, "tpm": 0.6, "stl": 0.5, "blk": 0.1},
     {"name": "문성곤", "team": "KT", "pos": "F", "no": "10", "pts": 5.2, "reb": 4.1, "ast": 1.4, "tpm": 0.9, "stl": 1.6, "blk": 0.3},
+    {"name": "서민수", "team": "KT", "pos": "F", "no": "34", "pts": 3.0, "reb": 2.9, "ast": 0.8, "tpm": 0.8, "stl": 0.2, "blk": 0.2},
+    {"name": "이두원", "team": "KT", "pos": "C", "no": "21", "pts": 0.2, "reb": 0.8, "ast": 0.1, "tpm": 0.0, "stl": 0.1, "blk": 0.2},
+    {"name": "김준환", "team": "KT", "pos": "G", "no": "17", "pts": 1.2, "reb": 0.8, "ast": 0.2, "tpm": 0.2, "stl": 0.4, "blk": 0.0},
 
     # 창원 LG 세이커스 (감독: 조상현 | 외인: 아셈 마레이, 아치 굿윈 | 아시아쿼터: 칼 타마요)
     {"name": "양준석", "team": "LG", "pos": "G", "no": "5", "pts": 9.0, "reb": 1.8, "ast": 5.1, "tpm": 1.2, "stl": 0.9, "blk": 0.1},
@@ -185,11 +188,13 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "정성우", "team": "한국가스공사", "pos": "G", "no": "3", "pts": 6.5, "reb": 1.8, "ast": 3.3, "tpm": 0.9, "stl": 1.4, "blk": 0.1},
     {"name": "김국찬", "team": "한국가스공사", "pos": "F", "no": "30", "pts": 5.7, "reb": 2.2, "ast": 1.0, "tpm": 1.3, "stl": 0.6, "blk": 0.2},
 
-    # 울산 현대모비스 피버스 (감독: 양동근 | 외인: 게이지 프림, 다리우스 베즐리 | 아시아쿼터: 제리 아바디아노)
+    # 울산 현대모비스 피버스 (감독: 양동근 | 외인: 오마리 스펠맨, 제로드 존스 | 부상: 게이지 프림, 다리우스 베즐리 | 아시아쿼터: 제리 아바디아노)
     {"name": "이우석", "team": "현대모비스", "pos": "G", "no": "11", "pts": 16.3, "reb": 6.0, "ast": 3.8, "tpm": 1.9, "stl": 1.2, "blk": 0.4},
     {"name": "박무빈", "team": "현대모비스", "pos": "G", "no": "3", "pts": 6.8, "reb": 3.3, "ast": 3.2, "tpm": 1.1, "stl": 0.9, "blk": 0.1},
     {"name": "서명진", "team": "현대모비스", "pos": "G", "no": "7", "pts": 6.3, "reb": 2.2, "ast": 2.0, "tpm": 1.2, "stl": 0.8, "blk": 0.1},
     {"name": "이승현", "team": "현대모비스", "pos": "F", "no": "33", "pts": 8.2, "reb": 4.1, "ast": 1.7, "tpm": 0.5, "stl": 0.6, "blk": 0.5},
+    {"name": "오마리 스펠맨", "team": "현대모비스", "pos": "F", "no": "4", "pts": 25.4, "reb": 8.4, "ast": 3.2, "tpm": 4.6, "stl": 0.2, "blk": 1.4},
+    {"name": "제로드 존스", "team": "현대모비스", "pos": "F", "no": "45", "pts": 10.0, "reb": 6.0, "ast": 1.0, "tpm": 1.5, "stl": 1.0, "blk": 0.0},
     {"name": "게이지 프림", "team": "현대모비스", "pos": "C", "no": "44", "pts": 23.4, "reb": 7.3, "ast": 3.3, "tpm": 0.0, "stl": 0.8, "blk": 0.7},
     {"name": "다리우스 베즐리", "team": "현대모비스", "pos": "F", "no": "0", "pts": 21.6, "reb": 9.9, "ast": 4.3, "tpm": 1.8, "stl": 1.4, "blk": 1.5},
     {"name": "제리 아바디아노", "team": "현대모비스", "pos": "G", "no": "26", "pts": 4.5, "reb": 1.3, "ast": 1.4, "tpm": 0.8, "stl": 0.6, "blk": 0.1},
@@ -197,10 +202,12 @@ KBL_PLAYERS: list[dict[str, Any]] = [
     {"name": "조한진", "team": "현대모비스", "pos": "F", "no": "9", "pts": 4.5, "reb": 1.7, "ast": 0.6, "tpm": 0.9, "stl": 0.4, "blk": 0.2},
     {"name": "정준원", "team": "현대모비스", "pos": "F", "no": "1", "pts": 4.2, "reb": 1.8, "ast": 0.8, "tpm": 0.8, "stl": 0.4, "blk": 0.1},
 
-    # 고양 소노 스카이거너스 (감독: 손창환 | 외인: 자니 오브라이언트, 스카티 제임스 | 아시아쿼터: 케빈 켐바오)
+    # 고양 소노 스카이거너스 (감독: 손창환 | 외인: 자니 오브라이언트, 올루페미 올루조비 | 부상: 스카티 제임스 | 아시아쿼터: 케빈 켐바오)
     {"name": "이정현", "team": "소노", "pos": "G", "no": "6", "pts": 16.4, "reb": 2.9, "ast": 4.7, "tpm": 2.8, "stl": 1.9, "blk": 0.2},
     {"name": "이재도", "team": "소노", "pos": "G", "no": "4", "pts": 8.7, "reb": 2.7, "ast": 3.7, "tpm": 1.2, "stl": 1.1, "blk": 0.1},
+    {"name": "김진유", "team": "소노", "pos": "G", "no": "55", "pts": 3.1, "reb": 1.8, "ast": 0.9, "tpm": 0.6, "stl": 0.6, "blk": 0.1},
     {"name": "케빈 켐바오", "team": "소노", "pos": "F", "no": "28", "pts": 13.7, "reb": 4.7, "ast": 3.4, "tpm": 2.1, "stl": 1.2, "blk": 0.4},
+    {"name": "올루페미 올루조비", "team": "소노", "pos": "C", "no": "5", "pts": 11.0, "reb": 3.5, "ast": 0.5, "tpm": 1.0, "stl": 0.0, "blk": 0.0},
     {"name": "스카티 제임스", "team": "소노", "pos": "F", "no": "31", "pts": 20.0, "reb": 8.2, "ast": 2.5, "tpm": 1.9, "stl": 0.9, "blk": 0.6},
     {"name": "자니 오브라이언트", "team": "소노", "pos": "C", "no": "0", "pts": 22.5, "reb": 7.9, "ast": 3.4, "tpm": 2.0, "stl": 0.8, "blk": 0.7},
     {"name": "정희재", "team": "소노", "pos": "F", "no": "9", "pts": 5.3, "reb": 2.2, "ast": 0.8, "tpm": 1.1, "stl": 0.5, "blk": 0.2},
@@ -220,7 +227,8 @@ KBL_PLAYERS: list[dict[str, Any]] = [
 ]
 
 
-# Official 2026-2027 Season Starting 5 Lineups (베스트 5), Head Coaches, Foreign Imports, and Asian Quotas (as of 2026-11-02)
+# Official 2026-2027 Season Active Starting 5 Lineups (베스트 5), Head Coaches, Foreign Imports, and Asian Quotas
+# Cross-verified against Naver Sports (seasonCode=49) & Daum Sports official boxscores (as of 2026-11-16)
 TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     "SK": {
         "head_coach": "전희철",
@@ -228,12 +236,12 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "asian_quota": "알빈 톨렌티노 (#25 F)",
         "starters": [
             {"pos": "G", "name": "김낙현", "no": "4"},
-            {"pos": "G", "name": "오재현", "no": "22"},
+            {"pos": "G", "name": "최원혁", "no": "3"},
             {"pos": "F", "name": "안영준", "no": "8"},
-            {"pos": "F", "name": "에디 다니엘", "no": "36"},
+            {"pos": "F", "name": "오세근", "no": "41"},
             {"pos": "C", "name": "자밀 워니", "no": "34"},
         ],
-        "key_bench": ["아이재아 힉스", "최부경", "오세근", "김형빈", "알빈 톨렌티노", "최원혁"],
+        "key_bench": ["아이재아 힉스", "최부경", "김형빈", "오재현", "에디 다니엘", "알빈 톨렌티노"],
     },
     "DB": {
         "head_coach": "이규섭",
@@ -241,25 +249,25 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
         "asian_quota": "이선 알바노 (#17 G)",
         "starters": [
             {"pos": "G", "name": "이선 알바노", "no": "17"},
-            {"pos": "G", "name": "이용우", "no": "7"},
+            {"pos": "G", "name": "이정현", "no": "3"},
             {"pos": "F", "name": "이유진", "no": "6"},
-            {"pos": "F", "name": "강상재", "no": "26"},
-            {"pos": "F", "name": "헨리 엘런슨", "no": "8"},
+            {"pos": "F", "name": "정효근", "no": "12"},
+            {"pos": "F", "name": "레이션 해먼즈", "no": "22"},
         ],
-        "key_bench": ["레이션 해먼즈", "정효근", "김보배", "이정현", "앨런 윌리엄스"],
+        "key_bench": ["헨리 엘런슨", "이용우", "김보배", "강상재", "앨런 윌리엄스"],
     },
     "KT": {
         "head_coach": "문경은",
         "foreign_players": ["패리스 배스 (#35 F)", "트레이 포터 (#22 C)"],
         "asian_quota": "미구엘 옥존 (#8 G)",
         "starters": [
-            {"pos": "G", "name": "김선형", "no": "5"},
-            {"pos": "G", "name": "미구엘 옥존", "no": "8"},
-            {"pos": "F", "name": "문정현", "no": "12"},
+            {"pos": "G", "name": "정창영", "no": "7"},
+            {"pos": "G", "name": "강성욱", "no": "77"},
+            {"pos": "F", "name": "서민수", "no": "34"},
             {"pos": "F", "name": "패리스 배스", "no": "35"},
-            {"pos": "C", "name": "하윤기", "no": "0"},
+            {"pos": "C", "name": "이두원", "no": "21"},
         ],
-        "key_bench": ["트레이 포터", "강성욱", "전성현", "한희원", "정창영", "문성곤"],
+        "key_bench": ["트레이 포터", "전성현", "문정현", "김준환", "김선형", "하윤기", "미구엘 옥존"],
     },
     "LG": {
         "head_coach": "조상현",
@@ -276,16 +284,16 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     },
     "정관장": {
         "head_coach": "유도훈",
-        "foreign_players": ["존 무니 (#33 C)", "데이본 리드 (#9 F)", "라숀 토마스 (#25 F)"],
+        "foreign_players": ["라숀 토마스 (#25 F)", "데이본 리드 (#9 F)"],
         "asian_quota": "렌즈 아반도 (#12 G)",
         "starters": [
             {"pos": "G", "name": "변준형", "no": "5"},
             {"pos": "G", "name": "박정웅", "no": "4"},
             {"pos": "G", "name": "렌즈 아반도", "no": "12"},
-            {"pos": "F", "name": "이대헌", "no": "21"},
-            {"pos": "C", "name": "존 무니", "no": "33"},
+            {"pos": "F", "name": "한승희", "no": "51"},
+            {"pos": "F", "name": "라숀 토마스", "no": "25"},
         ],
-        "key_bench": ["데이본 리드", "라숀 토마스", "문유현", "박지훈", "한승희", "허일영"],
+        "key_bench": ["데이본 리드", "문유현", "박지훈", "이대헌", "허일영", "존 무니"],
     },
     "KCC": {
         "head_coach": "이상민",
@@ -315,29 +323,29 @@ TEAM_LINEUPS: dict[str, dict[str, Any]] = {
     },
     "현대모비스": {
         "head_coach": "양동근",
-        "foreign_players": ["게이지 프림 (#44 C)", "다리우스 베즐리 (#0 F)"],
+        "foreign_players": ["오마리 스펠맨 (#4 F)", "제로드 존스 (#45 F)"],
         "asian_quota": "제리 아바디아노 (#26 G)",
         "starters": [
             {"pos": "G", "name": "이우석", "no": "11"},
             {"pos": "G", "name": "박무빈", "no": "3"},
             {"pos": "G", "name": "서명진", "no": "7"},
             {"pos": "F", "name": "이승현", "no": "33"},
-            {"pos": "C", "name": "게이지 프림", "no": "44"},
+            {"pos": "F", "name": "오마리 스펠맨", "no": "4"},
         ],
-        "key_bench": ["다리우스 베즐리", "제리 아바디아노", "김경원", "조한진", "정준원"],
+        "key_bench": ["제로드 존스", "제리 아바디아노", "정준원", "김경원", "조한진", "게이지 프림", "다리우스 베즐리"],
     },
     "소노": {
         "head_coach": "손창환",
-        "foreign_players": ["자니 오브라이언트 (#0 C)", "스카티 제임스 (#31 F)"],
+        "foreign_players": ["자니 오브라이언트 (#0 C)", "올루페미 올루조비 (#5 C)"],
         "asian_quota": "케빈 켐바오 (#28 F)",
         "starters": [
             {"pos": "G", "name": "이정현", "no": "6"},
-            {"pos": "G", "name": "이재도", "no": "4"},
+            {"pos": "G", "name": "김진유", "no": "55"},
             {"pos": "F", "name": "케빈 켐바오", "no": "28"},
-            {"pos": "F", "name": "스카티 제임스", "no": "31"},
+            {"pos": "F", "name": "정희재", "no": "9"},
             {"pos": "C", "name": "자니 오브라이언트", "no": "0"},
         ],
-        "key_bench": ["정희재", "최승욱", "임동섭"],
+        "key_bench": ["올루페미 올루조비", "이재도", "최승욱", "임동섭", "스카티 제임스"],
     },
     "삼성": {
         "head_coach": "김상식",

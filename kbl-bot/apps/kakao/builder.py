@@ -505,6 +505,7 @@ def build_lineup_response(
             t_fixed = False
             t_w, t_h = None, None
             tg_id = ""
+            t_is_official = False
             if t_game:
                 tg_id = str(t_game.get("game_id") or "")
                 tg_home = t_game.get("home_team", target_team)
@@ -513,6 +514,15 @@ def build_lineup_response(
                     _, _, h_live, a_live, is_off = fetch_daum_match_lineup_sync(tg_id, tg_home, tg_away)
                     if is_off:
                         t_starters = h_live if target_team == tg_home else a_live
+                        t_is_official = True
+
+            from services.roster.naver_verifier import verify_and_enrich_starters_sync
+            t_verify = verify_and_enrich_starters_sync(
+                target_team, t_starters, is_official_daum=t_is_official
+            )
+            t_starters = t_verify["verified_starters"]
+            t_badge = t_verify["badge"]
+
             if base_url:
                 q_t = urllib.parse.quote(target_team)
                 gid_param = f"game_id={tg_id}&" if (tg_id.isdigit() and len(tg_id) >= 6) else ""
@@ -528,6 +538,7 @@ def build_lineup_response(
             )
             desc = (
                 f"🏀 2026-2027 {full_name}\n"
+                f"{t_badge}\n"
                 f"👨‍💼 감독: {t_coach} 감독\n"
                 f"────────────────────\n"
                 f"⭐ [베스트 5 선발]\n{s_lines}\n"
@@ -626,6 +637,12 @@ def build_lineup_response(
             if is_daum_official:
                 h_starters = h_live
                 a_starters = a_live
+
+        from services.roster.naver_verifier import verify_and_enrich_starters_sync
+        h_verify = verify_and_enrich_starters_sync(home, h_starters, is_official_daum=is_daum_official)
+        a_verify = verify_and_enrich_starters_sync(away, a_starters, is_official_daum=is_daum_official)
+        h_starters = h_verify["verified_starters"]
+        a_starters = a_verify["verified_starters"]
 
         def _format_starter_entry(s: dict[str, Any]) -> str:
             pos = s.get("pos", "").strip()

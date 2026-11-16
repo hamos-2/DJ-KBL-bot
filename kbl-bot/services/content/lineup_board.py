@@ -373,16 +373,26 @@ def fetch_daum_match_lineup_sync(
                             "imageUrl": img,
                         }
 
-                    h_list = [_map_p(p) for p in h_started[:5]]
-                    a_list = [_map_p(p) for p in a_started[:5]]
+                    from services.roster.naver_verifier import verify_and_enrich_starters_sync
+                    h_list = verify_and_enrich_starters_sync(
+                        home_team, [_map_p(p) for p in h_started[:5]], is_official_daum=True
+                    )["verified_starters"]
+                    a_list = verify_and_enrich_starters_sync(
+                        away_team, [_map_p(p) for p in a_started[:5]], is_official_daum=True
+                    )["verified_starters"]
                     res = (home_team, away_team, h_list, a_list, True)
                     set_cached_game_lineup(gid, res, ttl=600.0)
                     return res
         except Exception:
             pass
 
-    h_list = get_baseline_starters_with_photos(home_team)
-    a_list = get_baseline_starters_with_photos(away_team)
+    from services.roster.naver_verifier import verify_and_enrich_starters_sync
+    h_list = verify_and_enrich_starters_sync(
+        home_team, get_baseline_starters_with_photos(home_team), is_official_daum=False
+    )["verified_starters"]
+    a_list = verify_and_enrich_starters_sync(
+        away_team, get_baseline_starters_with_photos(away_team), is_official_daum=False
+    )["verified_starters"]
     return (home_team, away_team, h_list, a_list, False)
 
 

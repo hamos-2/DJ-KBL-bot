@@ -43,8 +43,8 @@ class TestRosterManagerBaseline:
     def test_kim_sun_hyung_exclusion_from_sk(self, roster_mgr: RosterManager) -> None:
         sk_starters = [s["name"] for s in roster_mgr.get_team_lineup("SK")["starters"]]
         assert "김선형" not in sk_starters
-        kt_starters = [s["name"] for s in roster_mgr.get_team_lineup("KT")["starters"]]
-        assert "김선형" in kt_starters
+        kt_players = [p["name"] for p in roster_mgr.get_players("KT")]
+        assert "김선형" in kt_players
 
 
 class TestInSeasonMutations:
@@ -161,11 +161,11 @@ class TestRosterIntegrityRules:
         assert any("김선형" in e for e in errors)
 
     def test_integrity_catches_duplicate_bench_across_clubs(self, roster_mgr: RosterManager) -> None:
-        # Add '오세근' to KT bench while he is in SK bench
-        roster_mgr._lineups["KT"]["key_bench"].append("오세근")
+        # Add '최부경' to KT bench while he is in SK bench
+        roster_mgr._lineups["KT"]["key_bench"].append("최부경")
         ok, errors = roster_mgr.verify_roster_integrity()
         assert ok is False
-        assert any("Duplicate bench player across clubs: 오세근" in e for e in errors)
+        assert any("Duplicate bench player across clubs: 최부경" in e for e in errors)
 
     def test_integrity_catches_ghost_bench_player_who_starts_elsewhere(self, roster_mgr: RosterManager) -> None:
         # Put '허훈' (starts for KT) into DB bench (ghost record)

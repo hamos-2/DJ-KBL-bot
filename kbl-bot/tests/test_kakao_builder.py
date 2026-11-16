@@ -586,18 +586,18 @@ class TestProBasketballBotFeatures:
         assert TEAM_LINEUPS["한국가스공사"]["head_coach"] == "강혁"
         assert TEAM_LINEUPS["현대모비스"]["head_coach"] == "양동근"
 
-        # 4. Verify 2026-2027 real-world rosters across clubs
-        # DB: Albano, Kang Sang-jae, Ellenson
+        # 4. Verify 2026-2027 real-world rosters across clubs (Naver Season 49 + Daum cross-verified)
+        # DB: Albano, Jung Hyo-geun, Hammonds
         db_starters = [s["name"] for s in TEAM_LINEUPS["DB"]["starters"]]
         assert "이선 알바노" in db_starters
-        assert "강상재" in db_starters
-        assert "헨리 엘런슨" in db_starters
+        assert "정효근" in db_starters
+        assert "레이션 해먼즈" in db_starters
 
-        # KT: Kim Sun-hyung, Oczon, Bass, Ha Yoon-gi
+        # KT: Paris Bass, Jung Chang-young, Kang Sung-wook (Kim Sun-hyung, Ha Yoon-gi in KT roster)
         kt_starters = [s["name"] for s in TEAM_LINEUPS["KT"]["starters"]]
-        assert "김선형" in kt_starters
         assert "패리스 배스" in kt_starters
-        assert "하윤기" in kt_starters
+        assert "정창영" in kt_starters
+        assert "강성욱" in kt_starters
 
         # KCC: Heo Hoon & Heo Woong brother backcourt, Shawn Long, Jang Jae-seok
         kcc_starters = [s["name"] for s in TEAM_LINEUPS["KCC"]["starters"]]
