@@ -2743,10 +2743,10 @@ def _build_live_score_item_card(snapshot: dict[str, Any]) -> dict[str, Any]:
         aq = _split_q(a_score, min(4, max(1, p_num)))
 
     item_list = [
-        {"title": "1쿼터", "description": f"{home[:3]} {hq[0]} : {aq[0]} {away[:3]}"},
-        {"title": "2쿼터", "description": f"{home[:3]} {hq[1]} : {aq[1]} {away[:3]}"},
-        {"title": "3쿼터", "description": f"{home[:3]} {hq[2]} : {aq[2]} {away[:3]}"},
-        {"title": "4쿼터", "description": f"{home[:3]} {hq[3]} : {aq[3]} {away[:3]}"},
+        {"title": "1쿼터", "description": f"{home} {hq[0]} : {aq[0]} {away}"},
+        {"title": "2쿼터", "description": f"{home} {hq[1]} : {aq[1]} {away}"},
+        {"title": "3쿼터", "description": f"{home} {hq[2]} : {aq[2]} {away}"},
+        {"title": "4쿼터", "description": f"{home} {hq[3]} : {aq[3]} {away}"},
     ]
 
     # Handle Overtime (OT / 연장전)
@@ -2755,7 +2755,7 @@ def _build_live_score_item_card(snapshot: dict[str, Any]) -> dict[str, Any]:
         ot_h = hq[4] if len(hq) > 4 else max(0, h_score - sum(hq[:4]))
         ot_a = aq[4] if len(aq) > 4 else max(0, a_score - sum(aq[:4]))
         ot_label = f"연장{p_num - 4}차" if p_num > 5 else "연장(OT)"
-        item_list.append({"title": ot_label[:6], "description": f"{home[:3]} {ot_h} : {ot_a} {away[:3]}"})
+        item_list.append({"title": ot_label[:6], "description": f"{home} {ot_h} : {ot_a} {away}"})
 
     if p_num >= 5:
         period_str = f"연장{p_num - 4}차" if p_num > 5 else "연장(OT)"
@@ -2787,7 +2787,7 @@ def _build_live_score_item_card(snapshot: dict[str, Any]) -> dict[str, Any]:
 
     # Prediction locks at 3Q start; switch 3rd button to Lineup after 3Q starts
     if status == "LIVE" and str(period).isdigit() and int(period) >= 3:
-        third_btn = _msg_btn(f"📋 {home[:4]} 라인업", f"{home} 라인업")
+        third_btn = _msg_btn(f"📋 {home[:6]} 라인업", f"{home} 라인업")
     elif status == "FINAL":
         third_btn = _msg_btn("📊 경기 요약", "경기 요약")
     else:
@@ -2811,7 +2811,7 @@ def _build_live_score_item_card(snapshot: dict[str, Any]) -> dict[str, Any]:
         ]
         summary_block = {
             "title": "최종점수" if status == "FINAL" else "현재점수",
-            "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
+            "description": f"{home} {h_score} : {a_score} {away}",
         }
 
     return _item_card(
