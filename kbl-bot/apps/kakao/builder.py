@@ -1845,10 +1845,12 @@ def build_single_player_response(
     fav_badge = "⭐ 관심선수 등록됨\n" if is_favorite else ""
     notice_str = f"✅ {notice}\n" if notice else ""
 
+    from services.content.lineup_board import get_player_photo_url
+
     toggle_btn = (
-        _msg_btn(f"➖ {name} 관심선수 해제", f"#관심선수 삭제 {name}")
+        _msg_btn(f"➖ {name[:4]} 관심선수 해제", f"#관심선수 삭제 {name}")
         if is_favorite
-        else _msg_btn(f"➕ {name} 관심선수 등록", f"#관심선수 {name}")
+        else _msg_btn(f"➕ {name[:4]} 관심선수 등록", f"#관심선수 {name}")
     )
 
     card = {
@@ -1860,7 +1862,7 @@ def build_single_player_response(
                 f"• 시즌 평균: {pts}점 | {reb}리바 | {ast}어시\n"
                 f"• 세부 기록: 3점슛 {tpm}개 | 스틸 {stl}개"
             ),
-            thumbnail_url=get_team_logo(team),
+            thumbnail_url=get_player_photo_url(name) or get_team_logo(team),
             buttons=[
                 toggle_btn,
                 _msg_btn("⭐ 관심선수 목록", "관심선수"),
@@ -1897,13 +1899,15 @@ def build_team_players_response(
 
     sorted_players = sorted(players, key=_player_sort_key)
 
+    from services.content.lineup_board import get_player_photo_url
+
     items = []
     for p in sorted_players[:5]:
         star = "⭐ " if p["name"] in fav_players else ""
         items.append({
             "title": f"{star}{p['name']} ({p['pos']} #{p['no']})",
             "description": f"평균 {p['pts']}점 | {p['reb']}리바 | {p['ast']}어시",
-            "imageUrl": get_team_logo(team),
+            "imageUrl": get_player_photo_url(p["name"]) or get_team_logo(team),
             "link": {"web": "https://sports.daum.net/record/kbl"},
         })
     if not items:
@@ -1917,7 +1921,7 @@ def build_team_players_response(
         header_title=f"🏀 [{full}] 공식 베스트 5 (Best 5)",
         items=items,
         buttons=[
-            _msg_btn("🏀 다른 구단 선수 찾기", "구단별 선수"),
+            _msg_btn("🏀 다른 구단 찾기", "구단별 선수"),
             _msg_btn("⭐ 내 관심선수 목록", "관심선수"),
         ],
     )
@@ -2057,17 +2061,21 @@ def build_favorite_players_response(
     where each basicCard inside a carousel uses ~4,200 bytes internally.
     Therefore, carousel_items MUST be capped at <= 5 cards (~20,500 bytes).
     """
+    from services.content.lineup_board import get_player_photo_url
+
     b_url = (base_url or _DEFAULT_PUBLIC_BASE_URL).rstrip("/")
+    fallback_logo = get_team_logo(favorite_team or "SK")
     items = []
     if fav_players:
         for name in fav_players[:5]:
+            p_photo = get_player_photo_url(name)
             p_info = next((p for p in KBL_PLAYERS if p["name"] == name), None)
             if p_info:
                 p_team = p_info["team"]
                 items.append({
                     "title": f"⭐ {p_info['name']} ({p_team} #{p_info['no']})",
                     "description": f"시즌 평균: {p_info['pts']}점 | {p_info['reb']}리바 | {p_info['ast']}어시",
-                    "imageUrl": get_team_logo(p_team),
+                    "imageUrl": p_photo or get_team_logo(p_team),
                     "link": {"web": "https://sports.daum.net/record/kbl"},
                 })
             else:
@@ -2086,13 +2094,13 @@ def build_favorite_players_response(
                 items.append({
                     "title": f"⭐ {name}" + (f" ({found_team})" if found_team else ""),
                     "description": "내 등록 관심선수",
-                    "imageUrl": get_team_logo(found_team) if found_team else DEFAULT_SPORTS_LOGO,
+                    "imageUrl": p_photo or (get_team_logo(found_team) if found_team else fallback_logo),
                 })
     else:
         items.append({
             "title": "등록된 관심선수가 없습니다.",
             "description": "아래 카드 버튼을 눌러 좋아하는 선수를 등록해보세요!",
-            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "imageUrl": fallback_logo,
         })
 
     header_title = "⭐ 내 관심선수 현황"
@@ -2103,7 +2111,7 @@ def build_favorite_players_response(
         header_title=header_title,
         items=items,
         buttons=[
-            _msg_btn("🏀 10개 구단 선수 찾기", "구단별 선수"),
+            _msg_btn("🏀 구단별 선수 찾기", "구단별 선수"),
             _msg_btn("🏅 전체 선수 순위", "선수순위"),
         ],
     )
@@ -2133,7 +2141,7 @@ def build_favorite_players_response(
             )
         if len(starter_names) >= 4:
             b2 = [_player_toggle_btn(p_name) for p_name in starter_names[3:5]]
-            b2.append(_msg_btn(f"🏀 {favorite_team} 선수 전체", f"{favorite_team} 선수"))
+            b2.append(_msg_btn(f"🏀 {favorite_team} 선수단", f"{favorite_team} 선수"))
             thumb_t2 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/2.png?v=nanum20261117_800x400"
             carousel_items.append(
                 _basic_card(
@@ -2180,7 +2188,7 @@ def build_favorite_players_response(
             description="10개 구단(SK·KT·삼성·DB·정관장·소노·LG·KCC·모비스·가스공사) 선수단을 확인하세요.",
             thumbnail_url=thumb_teams,
             buttons=[
-                _msg_btn("🏀 10개 구단 전체 메뉴", "구단별 선수"),
+                _msg_btn("🏀 구단별 선수 메뉴", "구단별 선수"),
                 _msg_btn("🏀 서울 SK 선수", "SK 선수"),
                 _msg_btn("🏀 원주 DB 선수", "DB 선수"),
             ],
