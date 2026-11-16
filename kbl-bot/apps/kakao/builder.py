@@ -1960,7 +1960,7 @@ def build_team_players_response(
         })
 
     team_header = f"🏀 [{full}] 공식 베스트 5"
-    if _u16_len(team_header) > 30:
+    if _u16_len(team_header) > 24:
         team_header = f"🏀 [{team}] 공식 베스트 5"
 
     list_card = _list_card(
