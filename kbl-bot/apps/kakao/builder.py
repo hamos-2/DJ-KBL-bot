@@ -1627,7 +1627,7 @@ def build_highlights_response(
     items: list[dict[str, Any]] = []
     for item in highlights[:5]:
         title = item.get("title", "KBL 경기 하이라이트")
-        raw_url = item.get("url") or "https://www.youtube.com/@kbl_official/videos"
+        raw_url = item.get("url") or "https://www.youtube.com/@onkbl/videos"
         # Replace broken legacy /video/kbl SPA route (which redirects to 404 www.daum.net/video/v/kbl)
         if "sports.daum.net/video/kbl" in raw_url:
             url = daum_vclip_url
@@ -1646,14 +1646,14 @@ def build_highlights_response(
             "title": "등록된 주요장면 영상이 없습니다.",
             "description": "KBL TV 및 Daum 스포츠 공식 영상관에서 시청하실 수 있습니다.",
             "imageUrl": default_img,
-            "link": {"web": "https://www.youtube.com/@kbl_official/videos"},
+            "link": {"web": "https://www.youtube.com/@onkbl/videos"},
         })
 
     card = _list_card(
         header_title=header,
         items=items,
         buttons=[
-            _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@kbl_official/videos"),
+            _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@onkbl/videos"),
             _link_btn("🎬 다음 KBL 영상관", daum_vclip_url),
         ],
     )

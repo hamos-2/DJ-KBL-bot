@@ -935,7 +935,7 @@ def build_highlights_from_games(
     items.append(
         {
             "title": "📺 KBL TV 공식 유튜브 채널 (주요장면/인터뷰)",
-            "url": "https://www.youtube.com/@kbl_official/videos",
+            "url": "https://www.youtube.com/@onkbl/videos",
             "arena": "YouTube KBL 공식 채널",
         }
     )
