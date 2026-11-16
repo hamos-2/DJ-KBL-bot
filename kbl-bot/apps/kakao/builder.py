@@ -1615,25 +1615,28 @@ def build_highlights_response(
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
         header = f"🎬 [{full_name}] 주요장면 & 하이라이트"
         default_img = get_team_logo(favorite_team)
-        daum_vclip_url = (
-            f"https://search.daum.net/search?w=vclip&q="
-            f"{urllib.parse.quote(f'KBL {favorite_team} 하이라이트')}"
+        tving_vclip_url = (
+            f"https://www.youtube.com/@tvingsports/search?query="
+            f"{urllib.parse.quote(f'2026-27 KCC 프로농구 {favorite_team} 하이라이트')}"
         )
     else:
         header = "🎬 KBL 프로농구 주요장면 & 하이라이트"
         default_img = DEFAULT_SPORTS_LOGO
-        daum_vclip_url = "https://search.daum.net/search?w=vclip&q=KBL+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
+        tving_vclip_url = (
+            "https://www.youtube.com/@tvingsports/search?query="
+            "2026-27+KCC+%ED%94%84%EB%A1%9C%EB%86%8D%EA%B5%AC+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8"
+        )
 
     items: list[dict[str, Any]] = []
     for item in highlights[:5]:
         title = item.get("title", "KBL 경기 하이라이트")
         raw_url = item.get("url") or "https://www.youtube.com/@onkbl/videos"
-        # Replace broken legacy /video/kbl SPA route (which redirects to 404 www.daum.net/video/v/kbl)
-        if "sports.daum.net/video/kbl" in raw_url:
-            url = daum_vclip_url
+        # Replace broken legacy /video/kbl SPA route or Daum vclip search with official TVING highlights
+        if "sports.daum.net/video/kbl" in raw_url or "search.daum.net/search?w=vclip" in raw_url:
+            url = tving_vclip_url
         else:
             url = raw_url
-        arena = item.get("arena") or "📺 SPOTV / KBL TV 공식 영상"
+        arena = item.get("arena") or "📺 TVING / KBL TV 공식 영상"
         items.append({
             "title": title,
             "description": f"▶️ {arena}",
@@ -1644,7 +1647,7 @@ def build_highlights_response(
     if not items:
         items.append({
             "title": "등록된 주요장면 영상이 없습니다.",
-            "description": "KBL TV 및 Daum 스포츠 공식 영상관에서 시청하실 수 있습니다.",
+            "description": "KBL TV 및 TVING SPORTS 공식 유튜브에서 시청하실 수 있습니다.",
             "imageUrl": default_img,
             "link": {"web": "https://www.youtube.com/@onkbl/videos"},
         })
@@ -1654,7 +1657,7 @@ def build_highlights_response(
         items=items,
         buttons=[
             _link_btn("📺 KBL TV 유튜브", "https://www.youtube.com/@onkbl/videos"),
-            _link_btn("🎬 다음 KBL 영상관", daum_vclip_url),
+            _link_btn("🎬 TVING 하이라이트", tving_vclip_url),
         ],
     )
     return KakaoSkillResponse(
