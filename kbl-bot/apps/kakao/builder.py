@@ -771,6 +771,68 @@ def build_lineup_response(
     )
 
 
+_GAME_MVP_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _fetch_real_game_mvp_sync(
+    game_id: str,
+    winner: str,
+    home_team: str,
+    timeout: float = 1.8,
+) -> dict[str, Any] | None:
+    """
+    Fetch actual single-game MVP stats (integer pts, reb, ast) for the winning team
+    from Daum Hermes boxscore API (`homePerson` / `homePersonStat`).
+    """
+    gid = str(game_id or "").strip()
+    if not gid.isdigit() or len(gid) < 6:
+        return None
+    cache_key = f"{gid}:{winner}"
+    if cache_key in _GAME_MVP_CACHE:
+        return _GAME_MVP_CACHE[cache_key]
+
+    try:
+        import httpx
+        resp = httpx.get(
+            "https://sports.daum.net/api/hermes/game/get.json",
+            params={"gameId": gid, "detail": "liveData"},
+            headers={"Referer": "https://sports.daum.net/", "User-Agent": "Mozilla/5.0"},
+            timeout=timeout,
+            verify=False,
+        )
+        if resp.status_code == 200:
+            d = resp.json() or {}
+            h_sc = int(d.get("homeScore") or 0)
+            a_sc = int(d.get("awayScore") or 0)
+            if h_sc > 0 or a_sc > 0:
+                side = "home" if h_sc >= a_sc else "away"
+            else:
+                side = "home" if winner == home_team else "away"
+            persons = {p.get("personId"): p for p in (d.get(f"{side}Person") or [])}
+            stats = d.get(f"{side}PersonStat") or []
+            best_mvp: dict[str, Any] | None = None
+            best_score = -1.0
+            for st in stats:
+                pid = st.get("personId")
+                p_info = persons.get(pid) or {}
+                name = str(p_info.get("nameKo") or p_info.get("name") or "").strip()
+                if not name:
+                    continue
+                pts = int(st.get("pts") or 0)
+                reb = int(st.get("reb") or 0)
+                ast = int(st.get("ast") or 0)
+                impact = pts + (reb * 0.6) + (ast * 0.8)
+                if impact > best_score:
+                    best_score = impact
+                    best_mvp = {"name": name, "pts": pts, "reb": reb, "ast": ast}
+            if best_mvp and best_mvp["pts"] > 0:
+                _GAME_MVP_CACHE[cache_key] = best_mvp
+                return best_mvp
+    except Exception:
+        pass
+    return None
+
+
 def _build_witty_kbl_commentary(
     winner: str,
     loser: str,
@@ -788,8 +850,15 @@ def _build_witty_kbl_commentary(
     l_lineup = get_team_lineup(loser) or {}
     w_coach = w_lineup.get("head_coach", f"{winner} 벤치")
     l_coach = l_lineup.get("head_coach", f"{loser} 벤치")
-    loser_stars = [p for p in KBL_PLAYERS if p.get("team") == loser]
+    loser_stars = sorted(
+        [p for p in KBL_PLAYERS if p.get("team") == loser],
+        key=lambda p: float(p.get("pts") or 0),
+        reverse=True,
+    )
     l_star = loser_stars[0]["name"] if loser_stars else f"{loser} 주전진"
+    m_pts = int(round(float(mvp.get("pts") or 0)))
+    m_reb = int(round(float(mvp.get("reb") or 0)))
+    m_ast = int(round(float(mvp.get("ast") or 0)))
 
     if diff <= 4:
         turning_short = f"4Q 클러치 {diff}점차 극장승"
@@ -802,7 +871,7 @@ def _build_witty_kbl_commentary(
         else:
             full_msg = (
                 f"🔥 [{winner} 시점 촌철살인 한줄평]\n"
-                f"\"이게 바로 KBL 클러치 농구! 4쿼터 종료 직전 숨 막히는 승부처에서 {w_coach} 감독의 작전타임 승부수와 에이스 {mvp['name']}({mvp['pts']}점 {mvp['ast']}어시)의 강심장 클러치 득점이 터지며 {loser} 상대로 짜릿한 {diff}점 차 극장승을 완성했습니다!\""
+                f"\"이게 바로 KBL 클러치 농구! 4쿼터 종료 직전 숨 막히는 승부처에서 {w_coach} 감독의 작전타임 승부수와 에이스 {mvp['name']}({m_pts}점 {m_ast}어시)의 강심장 클러치 득점이 터지며 {loser} 상대로 짜릿한 {diff}점 차 극장승을 완성했습니다!\""
             )
     elif diff <= 10:
         turning_short = f"후반 승부처 제압 ({diff}점차)"
@@ -815,7 +884,7 @@ def _build_witty_kbl_commentary(
         else:
             full_msg = (
                 f"⚡ [{winner} 시점 촌철살인 한줄평]\n"
-                f"\"3·4쿼터 약속의 땅을 지배한 {winner}! {w_coach} 감독의 탄탄한 로테이션과 {mvp['name']}({mvp['pts']}점 {mvp['reb']}리바 {mvp['ast']}어시)의 내외곽 폭격으로 {loser}의 추격 의지를 꺾고 {diff}점 차 기분 좋은 승리를 챙겼습니다!\""
+                f"\"3·4쿼터 약속의 땅을 지배한 {winner}! {w_coach} 감독의 탄탄한 로테이션과 {mvp['name']}({m_pts}점 {m_reb}리바 {m_ast}어시)의 내외곽 폭격으로 {loser}의 추격 의지를 꺾고 {diff}점 차 기분 좋은 승리를 챙겼습니다!\""
             )
     else:
         turning_short = f"공수 압도 {diff}점차 대승"
@@ -828,7 +897,7 @@ def _build_witty_kbl_commentary(
         else:
             full_msg = (
                 f"🚀 [{winner} 시점 촌철살인 한줄평]\n"
-                f"\"코트를 폭격한 {winner}의 무자비한 화력쇼! {w_coach} 감독표 에너지 농구와 {mvp['name']}({mvp['pts']}점 {mvp['reb']}리바)의 원맨쇼가 폭발하며 일찌감치 가비지 타임을 선언, {loser}를 {diff}점 차로 완벽히 제압했습니다!\""
+                f"\"코트를 폭격한 {winner}의 무자비한 화력쇼! {w_coach} 감독표 에너지 농구와 {mvp['name']}({m_pts}점 {m_reb}리바)의 원맨쇼가 폭발하며 일찌감치 가비지 타임을 선언, {loser}를 {diff}점 차로 완벽히 제압했습니다!\""
             )
 
     return turning_short[:30], summary_30[:30], full_msg
@@ -885,12 +954,16 @@ def build_game_summary_response(
         starter_names = ", ".join(s["name"] for s in starters[:5]) if starters else "주전 베스트 5"
         foreigns = ", ".join(t_lineup.get("foreign_players", []))
         asian_q = t_lineup.get("asian_quota", "")
-        team_stars = [p for p in KBL_PLAYERS if p.get("team") == target_team]
+        team_stars = sorted(
+            [p for p in KBL_PLAYERS if p.get("team") == target_team],
+            key=lambda p: float(p.get("pts") or 0),
+            reverse=True,
+        )
         ace = team_stars[0] if team_stars else {"name": f"{target_team} 에이스", "pts": 18.5, "reb": 5.2, "ast": 4.8}
 
         one_liner = (
             f"🔥 [{target_team} 촌철살인 전력 한줄평]\n"
-            f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}({ace['pts']}점 {ace['ast']}어시)과 "
+            f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}(평균 {ace['pts']}점 {ace['ast']}어시)과 "
             f"외국인 원투펀치({foreigns}), 아시아쿼터({asian_q})의 공수 시너지가 터지면 어느 팀도 막기 힘든 다크호스입니다!\""
         )
         item_card_output = _item_card(
@@ -901,7 +974,7 @@ def build_game_summary_response(
                 "imageUrl": get_team_logo(target_team),
             },
             item_list=[
-                {"title": "핵심MVP", "description": f"{ace['name']} ({ace['pts']}점 {ace['ast']}어시)"},
+                {"title": "핵심MVP", "description": f"{ace['name']} (평균 {ace['pts']}점 {ace['ast']}어시)"},
                 {"title": "베스트5", "description": starter_names[:30]},
                 {"title": "외인/AQ", "description": f"{foreigns} / {asian_q}"[:30]},
             ],
@@ -967,9 +1040,23 @@ def build_game_summary_response(
     loser = away if winner == home else home
     diff = abs(hs - as_)
 
-    winner_stars = [p for p in KBL_PLAYERS if p.get("team") == winner]
-    mvp = winner_stars[0] if winner_stars else {"name": f"{winner} 수훈선수", "pts": 24.0, "reb": 9.0, "ast": 5.0}
     gid = target.get("game_id", "")
+    real_mvp = _fetch_real_game_mvp_sync(gid, winner, home)
+    if real_mvp:
+        mvp = real_mvp
+    else:
+        winner_stars = sorted(
+            [p for p in KBL_PLAYERS if p.get("team") == winner],
+            key=lambda p: float(p.get("pts") or 0),
+            reverse=True,
+        )
+        base_mvp = winner_stars[0] if winner_stars else {"name": f"{winner} 수훈선수", "pts": 24, "reb": 9, "ast": 5}
+        mvp = {
+            "name": base_mvp["name"],
+            "pts": int(round(float(base_mvp.get("pts") or 20))),
+            "reb": int(round(float(base_mvp.get("reb") or 6))),
+            "ast": int(round(float(base_mvp.get("ast") or 4))),
+        }
     vod_url = (
         f"https://sports.daum.net/match/{gid}"
         if gid
