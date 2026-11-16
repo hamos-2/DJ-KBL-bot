@@ -3,6 +3,7 @@
 import html
 import re
 import urllib.parse
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from core.season import get_current_season
@@ -755,11 +756,22 @@ def parse_daum_news_html(
 _HIGHLIGHT_VIDEO_CACHE: dict[str, tuple[str, str | None]] = {}
 
 
+def _extract_youtube_videos(html_text: str) -> list[tuple[str, str]]:
+    """Extract (video_id, title) pairs from YouTube search HTML quickly without regex backtracking."""
+    out: list[tuple[str, str]] = []
+    for chunk in html_text.split('"videoRenderer":{"videoId":"')[1:15]:
+        vid = chunk[:11]
+        m = re.search(r'"title":\{"runs":\[\{"text":"([^"]+)"\}\]', chunk[:1200])
+        if m:
+            out.append((vid, m.group(1)))
+    return out
+
+
 def resolve_kbl_highlight_video_url(
     home_team: str,
     away_team: str,
     start_time: str | None = None,
-    timeout: float = 2.0,
+    timeout: float = 4.5,
 ) -> tuple[str, str | None]:
     """
     Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
@@ -803,10 +815,7 @@ def resolve_kbl_highlight_video_url(
         ) as client:
             resp = client.get(f"https://www.youtube.com/results?search_query={q1}")
             if resp.status_code == 200:
-                matches = re.findall(
-                    r'"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]\}' ,
-                    resp.text,
-                )
+                matches = _extract_youtube_videos(resp.text)
                 # 1. Exact date + 2026-27 KCC 프로농구 official TVING highlight
                 for vid, tit in matches:
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
@@ -815,18 +824,15 @@ def resolve_kbl_highlight_video_url(
                             _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
                             return res
 
-                # 2. If exact date TVING highlight not uploaded yet, check same-day club highlight (yymmdd)
+                # 2. If exact date TVING highlight not uploaded yet, check same-day club highlight (yymmdd first)
                 if yymmdd:
-                    q2 = urllib.parse.quote(f"{h} {a} {yymmdd}")
-                    resp2 = client.get(f"https://www.youtube.com/results?search_query={q2}&sp=CAI%253D")
+                    q2 = urllib.parse.quote(f"{yymmdd} {h} {a}")
+                    resp2 = client.get(f"https://www.youtube.com/results?search_query={q2}")
                     if resp2.status_code == 200:
-                        matches2 = re.findall(
-                            r'"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"([^"]+)"\}\]\}' ,
-                            resp2.text,
-                        )
+                        matches2 = _extract_youtube_videos(resp2.text)
                         for vid, tit in matches2:
                             if yymmdd in tit and h in tit and a in tit and not any(
-                                bad in tit for bad in ("분석", "프로토", "전력비교", "예측")
+                                bad in tit for bad in ("분석", "프로토", "전력비교", "예측", "수익", "급등")
                             ):
                                 res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
                                 _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
@@ -835,6 +841,13 @@ def resolve_kbl_highlight_video_url(
                 # 3. Most recent 2026-27 head-to-head TVING highlight between these two clubs
                 for vid, tit in matches:
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
+                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                        _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                        return res
+
+                # 4. Most recent 2026-27 TVING official highlight featuring either team
+                for vid, tit in matches:
+                    if "2026-27" in tit and "하이라이트" in tit and (h in tit or a in tit):
                         res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
                         _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
                         return res
