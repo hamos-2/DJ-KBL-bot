@@ -1762,6 +1762,8 @@ def build_player_rankings_response(
     }
     label, unit = cat_labels.get(category, ("득점", "점"))
 
+    from services.content.lineup_board import get_player_photo_url
+
     items: list[dict[str, Any]] = []
     for idx, p in enumerate(rankings[:5], start=1):
         rank = p.get("rank", idx)
@@ -1771,15 +1773,15 @@ def build_player_rankings_response(
         items.append({
             "title": f"{rank}위 {name} ({team})",
             "description": f"시즌 평균 {val}{unit}",
-            "imageUrl": get_team_logo(team),
-            "link": {"web": "https://sports.daum.net/record/kbl"},
+            "imageUrl": get_player_photo_url(name) or get_team_logo(team),
+            "link": {"web": "https://sports.daum.net/record/kbl/person"},
         })
 
     if not items:
         items.append({
             "title": "선수 순위를 집계 중입니다.",
             "description": "KBL 공식 기록실에서 확인하세요.",
-            "imageUrl": DEFAULT_SPORTS_LOGO,
+            "imageUrl": get_team_logo("SK"),
         })
 
     next_cat_map = {
@@ -1797,7 +1799,7 @@ def build_player_rankings_response(
         items=items,
         buttons=[
             _msg_btn(f"🏀 {next_label} TOP 5", next_msg),
-            _link_btn("📊 선수 기록 전체보기", "https://sports.daum.net/record/kbl"),
+            _link_btn("📊 선수 기록 전체보기", "https://sports.daum.net/record/kbl/person"),
         ],
     )
 
@@ -1908,7 +1910,7 @@ def build_team_players_response(
             "title": f"{star}{p['name']} ({p['pos']} #{p['no']})",
             "description": f"평균 {p['pts']}점 | {p['reb']}리바 | {p['ast']}어시",
             "imageUrl": get_player_photo_url(p["name"]) or get_team_logo(team),
-            "link": {"web": "https://sports.daum.net/record/kbl"},
+            "link": {"web": "https://sports.daum.net/record/kbl/person"},
         })
     if not items:
         items.append({
@@ -2076,7 +2078,7 @@ def build_favorite_players_response(
                     "title": f"⭐ {p_info['name']} ({p_team} #{p_info['no']})",
                     "description": f"시즌 평균: {p_info['pts']}점 | {p_info['reb']}리바 | {p_info['ast']}어시",
                     "imageUrl": p_photo or get_team_logo(p_team),
-                    "link": {"web": "https://sports.daum.net/record/kbl"},
+                    "link": {"web": "https://sports.daum.net/record/kbl/person"},
                 })
             else:
                 # Fallback lookup in TEAM_LINEUPS if not in KBL_PLAYERS
