@@ -1,5 +1,6 @@
 """Kakao OpenBuilder Skill endpoint router — Full Pro Basketball Bot (10 core features)."""
 
+import asyncio
 import hmac
 import os
 import re
@@ -1135,12 +1136,10 @@ async def _dispatch_command(
         or ("실시간" in u_compact and any(k in u_compact for k in ("점수", "스코어", "새로고침", "중계")))
     ):
         today_g = await game_service.get_today_games(db)
-        if any(k in u_compact for k in ("새로고침", "실시간점수", "박스스코어")):
-            live_g = next((g for g in today_g if g.get("status") == "LIVE"), None)
-            fav_g = next((g for g in today_g if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))), None)
-            target = live_g or fav_g
-            if target and target.get("status") in ("LIVE", "FINAL"):
-                return build_live_score_response(target)
+        if any(k in u_compact for k in ("새로고침", "실시간점수", "박스스코어", "실시간스코어")):
+            targets = await _collect_live_score_targets(today_g, fav_team, game_service)
+            if targets:
+                return build_live_score_response(targets, favorite_team=fav_team)
         return build_today_games_response(today_g, favorite_team=fav_team)
 
     # 12. Team / Matchup Search (#KT vs LG, SK vs KCC, #현대모비스, etc.)
@@ -1475,6 +1474,41 @@ async def match_search(
         return _json_200(build_error_response())
 
 
+async def _collect_live_score_targets(
+    today_games: list[dict[str, Any]],
+    fav_team: str | None,
+    game_service: GameService,
+) -> list[dict[str, Any]]:
+    """
+    Collect and enrich LIVE games with fresh Redis 5s snapshots.
+    If no LIVE games exist, fall back to favorite team's FINAL game today.
+    """
+    live_games = [g for g in today_games if g.get("status") == "LIVE"]
+    if live_games:
+        async def _enrich(g: dict[str, Any]) -> dict[str, Any]:
+            gid = str(g.get("game_id") or "")
+            if not gid:
+                return g
+            try:
+                snap = await game_service.get_live_snapshot(gid)
+                return snap if isinstance(snap, dict) else g
+            except Exception:
+                return g
+
+        return list(await asyncio.gather(*(_enrich(g) for g in live_games)))
+
+    fav_g = next(
+        (
+            g
+            for g in today_games
+            if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))
+            and g.get("status") in ("LIVE", "FINAL")
+        ),
+        None,
+    )
+    return [fav_g] if fav_g else []
+
+
 @router.post("/live-score")
 async def live_score(
     payload: KakaoSkillPayload,
@@ -1501,11 +1535,15 @@ async def live_score(
         target_id = str(raw_id) if raw_id else None
         if not target_id or target_id == "MOCK-LIVE-001":
             today_g = await game_service.get_today_games(db)
-            live_g = next((g for g in today_g if g.get("status") == "LIVE"), None)
-            fav_g = next((g for g in today_g if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))), None)
-            target = live_g or fav_g or (today_g[0] if today_g else None)
-            if target:
-                return _json_200(build_live_score_response(target))
+            targets = await _collect_live_score_targets(today_g, fav_team, game_service)
+            if targets:
+                return _json_200(build_live_score_response(targets, favorite_team=fav_team))
+            if today_g:
+                fav_sched = next(
+                    (g for g in today_g if fav_team and fav_team in (g.get("home_team"), g.get("away_team"))),
+                    today_g[0],
+                )
+                return _json_200(build_live_score_response(fav_sched, favorite_team=fav_team))
             return _json_200(build_today_games_response([], favorite_team=fav_team))
 
         snapshot = await game_service.get_live_snapshot(target_id)

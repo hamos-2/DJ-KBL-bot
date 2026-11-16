@@ -497,3 +497,97 @@ class TestKakaoSkill20ProtocolAndRouting:
         card = data["template"]["outputs"][0]["textCard"]
         assert "ℹ️ KBL 프로농구 안내" in card["title"]
         assert "일시적으로 데이터를 불러올 수 없습니다" in card["description"]
+
+
+class TestWeekendMultiLiveCarousel:
+    """Verifies weekend concurrent LIVE games sorting (fav -> clutch -> other) and itemCard carousel."""
+
+    def test_multi_live_carousel_priority_and_3q_button_switch(self) -> None:
+        games = [
+            {
+                "game_id": "G_NORM",
+                "home_team": "삼성",
+                "away_team": "소노",
+                "home_score": 40,
+                "away_score": 30,
+                "period": 2,
+                "game_clock": "05:00",
+                "status": "LIVE",
+                "start_time": "2026-11-14T05:00:00Z",
+            },
+            {
+                "game_id": "G_CLUTCH",
+                "home_team": "LG",
+                "away_team": "DB",
+                "home_score": 78,
+                "away_score": 77,
+                "period": 4,
+                "game_clock": "01:12",
+                "status": "LIVE",
+                "start_time": "2026-11-14T05:00:00Z",
+            },
+            {
+                "game_id": "G_FAV",
+                "home_team": "KT",
+                "away_team": "SK",
+                "home_score": 60,
+                "away_score": 52,
+                "period": 3,
+                "game_clock": "04:20",
+                "status": "LIVE",
+                "start_time": "2026-11-14T05:00:00Z",
+            },
+        ]
+        resp = build_live_score_response(games, favorite_team="SK")
+        out = resp.template.outputs[0]
+        assert "carousel" in out
+        assert out["carousel"]["type"] == "itemCard"
+        items = out["carousel"]["items"]
+        assert len(items) == 3
+
+        # Order: 1) favorite team (KT vs SK), 2) clutch (LG vs DB), 3) normal (삼성 vs 소노)
+        assert "KT" in items[0]["imageTitle"]["title"]
+        assert "LG" in items[1]["imageTitle"]["title"]
+        assert "삼성" in items[2]["imageTitle"]["title"]
+
+        # 3Q+ games replace prediction button with Lineup button; 2Q keeps prediction button
+        kt_labels = [b["label"] for b in items[0]["buttons"]]
+        assert any("라인업" in lbl for lbl in kt_labels)
+        assert all(len(lbl) <= 14 for lbl in kt_labels)
+
+        samsung_labels = [b["label"] for b in items[2]["buttons"]]
+        assert any("승부예측" in lbl for lbl in samsung_labels)
+
+    def test_weekend_endpoint_enriches_and_returns_carousel(self) -> None:
+        client = TestClient(app, raise_server_exceptions=False)
+        mock_gs = MagicMock(spec=GameService)
+        mock_us = MagicMock(spec=UserService)
+        mock_user = MagicMock()
+        mock_user.favorite_team = "현대모비스"
+        mock_us.get_or_create = AsyncMock(return_value=(mock_user, False))
+
+        today_games = [
+            {"game_id": "80109260", "home_team": "SK", "away_team": "DB", "status": "LIVE", "home_score": 50, "away_score": 48, "period": 3},
+            {"game_id": "80109261", "home_team": "현대모비스", "away_team": "KCC", "status": "LIVE", "home_score": 30, "away_score": 28, "period": 2},
+            {"game_id": "80109262", "home_team": "LG", "away_team": "KT", "status": "FINAL", "home_score": 88, "away_score": 80, "period": 4},
+        ]
+        mock_gs.get_today_games = AsyncMock(return_value=today_games)
+        mock_gs.get_live_snapshot = AsyncMock(
+            side_effect=lambda gid: next(g for g in today_games if g["game_id"] == gid)
+        )
+        set_services(mock_gs, mock_us, MagicMock())
+
+        payload = {
+            "userRequest": {"user": {"id": "weekend_user"}, "utterance": "실시간 점수"},
+            "action": {"name": "today_games", "params": {}},
+        }
+        resp = client.post("/integrations/kakao/skills/today-games", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        out = data["template"]["outputs"][0]
+        assert "carousel" in out
+        items = out["carousel"]["items"]
+        # Only the 2 LIVE games shown, with favorite team (현대모비스) first
+        assert len(items) == 2
+        assert "현대모비스" in items[0]["imageTitle"]["title"]
+        assert "SK" in items[1]["imageTitle"]["title"]

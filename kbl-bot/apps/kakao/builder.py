@@ -2669,12 +2669,36 @@ def build_matchup_search_response(
     )
 
 
-def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
-    """
-    Build a Skill response for a single live game score (with quarter scorebox).
-    Supports real-time quarter breakdown, Overtime (OT), and fresh Daum relay links.
-    Returns pure itemCard with verified official logos and action buttons.
-    """
+def is_clutch_snapshot(snapshot: dict[str, Any]) -> bool:
+    """Return True if a LIVE game is in a clutch situation (4Q <= 2:00 & diff <= 5, or OT)."""
+    if snapshot.get("status") != "LIVE":
+        return False
+    h_score = int(snapshot.get("home_score") or 0)
+    a_score = int(snapshot.get("away_score") or 0)
+    diff = abs(h_score - a_score)
+    if diff > 5:
+        return False
+    period = snapshot.get("period") or "?"
+    try:
+        p_num = int(period) if str(period).isdigit() else 4
+    except Exception:
+        p_num = 4
+    if p_num < 4:
+        return False
+    if p_num >= 5:
+        return True
+    clock = snapshot.get("game_clock") or ""
+    if clock:
+        m_clk = re.match(r"^(\d+):(\d+)$", str(clock).strip())
+        if m_clk:
+            secs = int(m_clk.group(1)) * 60 + int(m_clk.group(2))
+            return secs <= 120
+        return ("분" in str(clock)) or ("초" in str(clock))
+    return True
+
+
+def _build_live_score_item_card(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Build a single itemCard payload dict for a live/final/scheduled game snapshot."""
     home = snapshot.get("home_team", "?")
     away = snapshot.get("away_team", "?")
     h_score = int(snapshot.get("home_score") or 0)
@@ -2738,22 +2762,8 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     else:
         period_str = f"{period}쿼터"
 
-    # Clutch Situation Detection (4Q under 2 mins & diff <= 5 pts, or OT diff <= 5)
     diff = abs(h_score - a_score)
-    is_clutch = False
-    if status == "LIVE" and p_num >= 4 and diff <= 5:
-        if p_num >= 5:
-            is_clutch = True
-        elif clock:
-            m_clk = re.match(r"^(\d+):(\d+)$", clock.strip())
-            if m_clk:
-                secs = int(m_clk.group(1)) * 60 + int(m_clk.group(2))
-                if secs <= 120:
-                    is_clutch = True
-            elif "분" in clock or "초" in clock:
-                is_clutch = True
-        else:
-            is_clutch = True
+    is_clutch = is_clutch_snapshot(snapshot)
 
     stale_note = " ⚠️(지연)" if stale else ""
     if status == "FINAL":
@@ -2775,11 +2785,19 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
         img_title = f"{home} vs {away}"
         img_desc = f"📍 {_short_arena(snapshot.get('arena')) or 'KBL 경기장'} | 경기 시작 전"
 
+    # Prediction locks at 3Q start; switch 3rd button to Lineup after 3Q starts
+    if status == "LIVE" and str(period).isdigit() and int(period) >= 3:
+        third_btn = _msg_btn(f"📋 {home[:4]} 라인업", f"{home} 라인업")
+    elif status == "FINAL":
+        third_btn = _msg_btn("📊 경기 요약", "경기 요약")
+    else:
+        third_btn = _msg_btn("🗳️ 오늘 승부예측", "승부예측")
+
     if status == "LIVE" and is_clutch:
         live_buttons = [
             _link_btn("📺 다음 톡중계 보기", daum_url),
-            _msg_btn("🔄 10초 점수 새로고침", "실시간 점수"),
-            _msg_btn("🗳️ 클러치 승부예측", "승부예측"),
+            _msg_btn("🔄 10초 새로고침", "실시간 점수"),
+            third_btn,
         ]
         summary_block = {
             "title": "🔥 승부처",
@@ -2788,13 +2806,55 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
     else:
         live_buttons = [
             _link_btn("📺 다음 톡중계 보기", daum_url),
-            _msg_btn("🔄 실시간 점수 새로고침", "실시간 점수"),
-            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
+            _msg_btn("🔄 점수 새로고침", "실시간 점수"),
+            third_btn,
         ]
         summary_block = {
             "title": "최종점수" if status == "FINAL" else "현재점수",
             "description": f"{home[:3]} {h_score} : {a_score} {away[:3]}",
         }
+
+    return _item_card(
+        head_title=head_title,
+        image_title={
+            "title": img_title,
+            "description": img_desc,
+            "imageUrl": get_team_logo(home),
+        },
+        item_list=item_list,
+        summary=summary_block,
+        buttons=live_buttons,
+    )
+
+
+def build_live_score_response(
+    snapshot: dict[str, Any] | list[dict[str, Any]],
+    favorite_team: str | None = None,
+) -> KakaoSkillResponse:
+    """
+    Build a Skill response for live game score(s) with quarter scorebox.
+    - Single snapshot (or 1-game list): returns single itemCard (backward-compatible).
+    - Multiple LIVE snapshots: sorts by (favorite_team -> clutch -> start_time)
+      and returns an itemCard carousel so users can swipe all concurrent LIVE games.
+    """
+    if isinstance(snapshot, list):
+        snaps = [s for s in snapshot if isinstance(s, dict)]
+        if not snaps:
+            return build_today_games_response([], favorite_team=favorite_team)
+    else:
+        snaps = [snapshot]
+
+    sorted_snaps = sorted(
+        snaps,
+        key=lambda g: (
+            0 if favorite_team and favorite_team in (g.get("home_team"), g.get("away_team")) else 1,
+            0 if is_clutch_snapshot(g) else 1,
+            str(g.get("start_time") or ""),
+        ),
+    )
+
+    primary = sorted_snaps[0]
+    status = primary.get("status", "")
 
     if status == "LIVE":
         contextual_qrs = [
@@ -2824,20 +2884,20 @@ def build_live_score_response(snapshot: dict[str, Any]) -> KakaoSkillResponse:
             QuickReply(label="🏠 홈으로", messageText="처음으로"),
         ]
 
-    item_card_output = _item_card(
-        head_title=head_title,
-        image_title={
-            "title": img_title,
-            "description": img_desc,
-            "imageUrl": get_team_logo(home),
-        },
-        item_list=item_list,
-        summary=summary_block,
-        buttons=live_buttons,
-    )
+    if len(sorted_snaps) == 1:
+        output_block = _build_live_score_item_card(primary)
+    else:
+        items = [_build_live_score_item_card(g)["itemCard"] for g in sorted_snaps[:10]]
+        output_block = {
+            "carousel": {
+                "type": "itemCard",
+                "items": items,
+            }
+        }
+
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[item_card_output],
+            outputs=[output_block],
             quickReplies=contextual_qrs,
         )
     )
