@@ -802,10 +802,9 @@ def _fetch_real_game_mvp_sync(
         )
         if resp.status_code == 200:
             d = resp.json() or {}
-            h_sc = int(d.get("homeScore") or 0)
-            a_sc = int(d.get("awayScore") or 0)
-            if h_sc > 0 or a_sc > 0:
-                side = "home" if h_sc >= a_sc else "away"
+            home_wlt = (d.get("home") or {}).get("wlt")
+            if home_wlt in ("W", "L"):
+                side = "home" if home_wlt == "W" else "away"
             else:
                 side = "home" if winner == home_team else "away"
             persons = {p.get("personId"): p for p in (d.get(f"{side}Person") or [])}
