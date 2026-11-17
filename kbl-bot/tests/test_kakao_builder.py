@@ -803,5 +803,100 @@ class TestProBasketballBotFeatures:
             assert png.startswith(b"\x89PNG\r\n\x1a\n")
             assert len(png) > 3000
 
+    async def test_team_best5_change_updates_ui_and_cache_busts(self) -> None:
+        """Changing a club's Best 5 starters must dynamically update cards, buttons, PNG bytes, and cache-bust URLs."""
+        import copy
+        from apps.kakao.builder import (
+            _u16_len,
+            build_favorite_players_response,
+            build_lineup_response,
+            build_team_players_response,
+        )
+        from apps.kakao.router import get_team_starters_banner
+        from services.content import kbl_data
+
+        sk_players = [p for p in kbl_data.KBL_PLAYERS if p.get("team") == "SK"]
+        orig_starters = copy.deepcopy(kbl_data.TEAM_LINEUPS["SK"]["starters"])
+        try:
+            # 1. Baseline snapshot before Best 5 change
+            before_team = build_team_players_response("SK", sk_players, fav_players=[])
+            before_c1, before_c2 = before_team.template.outputs[1]["carousel"]["items"]
+            before_u1 = before_c1["thumbnail"]["imageUrl"]
+            before_u2 = before_c2["thumbnail"]["imageUrl"]
+            before_fav = build_favorite_players_response(
+                [], [], favorite_team="SK", notice=None, base_url="https://example.com"
+            )
+            before_fav_u1 = before_fav.template.outputs[1]["carousel"]["items"][0]["thumbnail"]["imageUrl"]
+            before_lineup = build_lineup_response(
+                [],
+                favorite_team="SK",
+                target_team="SK",
+                base_url="https://example.com",
+            )
+            before_lineup_url = before_lineup.template.outputs[0]["carousel"]["items"][0]["thumbnail"]["imageUrl"]
+            before_png_1 = (await get_team_starters_banner("SK", 1)).body
+            before_png_2 = (await get_team_starters_banner("SK", 2)).body
+
+            # 2. Mutate SK Best 5 (simulating trade / injury replacement / realtime sync)
+            kbl_data.TEAM_LINEUPS["SK"]["starters"] = [
+                {"name": "장문호", "pos": "F", "no": "22"},
+                {"name": "최부경", "pos": "F", "no": "77"},
+                {"name": "김형빈", "pos": "F", "no": "21"},
+                {"name": "자밀 워니", "pos": "C", "no": "34"},
+                {"name": "신규용병테스트", "pos": "C", "no": "99"},
+            ]
+
+            after_team = build_team_players_response("SK", sk_players, fav_players=["장문호"])
+            after_c1, after_c2 = after_team.template.outputs[1]["carousel"]["items"]
+
+            # Descriptions & toggle buttons must immediately show the new Best 5 starters
+            assert "장문호" in after_c1["description"]
+            assert "최부경" in after_c1["description"]
+            assert "신규용병테스트" in after_c2["description"]
+            assert after_c1["buttons"][0]["label"] == "➖ 장문호 해제"
+            assert after_c2["buttons"][1]["label"] == "➕ 신규용병테스트 등록"
+            for card in (after_c1, after_c2):
+                for btn in card["buttons"]:
+                    assert _u16_len(btn["label"]) <= 14
+
+            # URLs must automatically cache-bust via content hash (?v=s_...)
+            assert after_c1["thumbnail"]["imageUrl"] != before_u1
+            assert after_c2["thumbnail"]["imageUrl"] != before_u2
+            assert "?v=s_" in after_c1["thumbnail"]["imageUrl"]
+
+            # Favorite players Best 5 card & Korean team URL encoding must also reflect the change
+            after_fav = build_favorite_players_response(
+                [], [], favorite_team="SK", notice=None, base_url="https://example.com"
+            )
+            after_fav_card1 = after_fav.template.outputs[1]["carousel"]["items"][0]
+            assert after_fav_card1["buttons"][0]["label"] == "➕ 장문호 등록"
+            assert after_fav_card1["thumbnail"]["imageUrl"] != before_fav_u1
+            assert "?v=s_" in after_fav_card1["thumbnail"]["imageUrl"]
+
+            # Lineup card & image hash must also update dynamically
+            after_lineup = build_lineup_response(
+                [],
+                favorite_team="SK",
+                target_team="SK",
+                base_url="https://example.com",
+            )
+            after_lineup_card = after_lineup.template.outputs[0]["carousel"]["items"][0]
+            assert "장문호" in after_lineup_card["description"]
+            assert "/lineup-image/team/" in after_lineup_card["thumbnail"]["imageUrl"]
+            assert after_lineup_card["thumbnail"]["imageUrl"] != before_lineup_url
+
+            # FastAPI banner route returns newly generated valid PNGs (including len == 4 edge case)
+            after_png_1 = (await get_team_starters_banner("SK", 1)).body
+            after_png_2 = (await get_team_starters_banner("SK", 2)).body
+            assert after_png_1.startswith(b"\x89PNG\r\n\x1a\n") and after_png_1 != before_png_1
+            assert after_png_2.startswith(b"\x89PNG\r\n\x1a\n") and after_png_2 != before_png_2
+
+            # 4-starter edge case must still serve (2/2) cleanly for part=2
+            kbl_data.TEAM_LINEUPS["SK"]["starters"] = kbl_data.TEAM_LINEUPS["SK"]["starters"][:4]
+            four_png_2 = (await get_team_starters_banner("SK", 2)).body
+            assert four_png_2.startswith(b"\x89PNG\r\n\x1a\n") and four_png_2 != after_png_1
+        finally:
+            kbl_data.TEAM_LINEUPS["SK"]["starters"] = orig_starters
+
 
 

@@ -1,5 +1,6 @@
 """Factory functions for building Kakao Skill response payloads (Pro Basketball Bot MVP)."""
 
+import hashlib
 import os
 import re
 import urllib.parse
@@ -1970,6 +1971,18 @@ def build_single_player_response(
     )
 
 
+def _team_starters_banner_url(
+    base_url: str,
+    team: str,
+    part: int,
+    starter_names: list[str],
+) -> str:
+    """Build URL-encoded 2:1 Best 5 banner URL with content-hash query param for automatic cache-busting."""
+    q_team = urllib.parse.quote(str(team))
+    sig = hashlib.md5("|".join(starter_names).encode("utf-8")).hexdigest()[:8]
+    return f"{base_url.rstrip('/')}/integrations/kakao/skills/banner/team/{q_team}/{part}.png?v=s_{sig}"
+
+
 def build_team_players_response(
     team: str,
     players: list[dict[str, Any]],
@@ -2034,9 +2047,8 @@ def build_team_players_response(
     t_bench = ", ".join(t_info.get("key_bench", [])[:4])
 
     base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
-    q_team = urllib.parse.quote(str(team))
-    banner_1_url = f"{base_url}/integrations/kakao/skills/banner/team/{q_team}/1.png?v=nanum20261117_800x400"
-    banner_2_url = f"{base_url}/integrations/kakao/skills/banner/team/{q_team}/2.png?v=nanum20261117_800x400"
+    banner_1_url = _team_starters_banner_url(base_url, team, 1, starter_names)
+    banner_2_url = _team_starters_banner_url(base_url, team, 2, starter_names)
 
     card1 = _basic_card(
         title=f"⭐ [{team}] Best 5 등록 (1/2)",
@@ -2052,21 +2064,24 @@ def build_team_players_response(
         height=400,
         buttons=[_p_toggle_btn(name) for name in starter_names[:3]],
     )
-    b2 = [_p_toggle_btn(name) for name in starter_names[3:5]]
-    b2.append(_msg_btn("🏀 다른 구단 찾기", "구단별 선수"))
-    card2 = _basic_card(
-        title=f"⭐ [{team}] Best 5 등록 (2/2)",
-        description=(
-            f"⭐️ {full} ({t_coach} 감독)\n"
-            f"• 주전 (4~5): {', '.join(starter_names[3:5])}\n"
-            f"• 식스맨/벤치: {t_bench}"
-        )[:300],
-        thumbnail_url=banner_2_url,
-        fixed_ratio=False,
-        width=800,
-        height=400,
-        buttons=b2,
-    )
+    carousel_cards = [card1]
+    if len(starter_names) >= 4:
+        b2 = [_p_toggle_btn(name) for name in starter_names[3:5]]
+        b2.append(_msg_btn("🏀 다른 구단 찾기", "구단별 선수"))
+        card2 = _basic_card(
+            title=f"⭐ [{team}] Best 5 등록 (2/2)",
+            description=(
+                f"⭐️ {full} ({t_coach} 감독)\n"
+                f"• 주전 (4~5): {', '.join(starter_names[3:5])}\n"
+                f"• 식스맨/벤치: {t_bench}"
+            )[:300],
+            thumbnail_url=banner_2_url,
+            fixed_ratio=False,
+            width=800,
+            height=400,
+            buttons=b2,
+        )
+        carousel_cards.append(card2)
 
     team_quick_replies = [
         QuickReply(label="🏀 다른 구단 찾기", messageText="구단별 선수"),
@@ -2079,7 +2094,7 @@ def build_team_players_response(
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[list_card, {"carousel": {"type": "basicCard", "items": [card1, card2]}}],
+            outputs=[list_card, {"carousel": {"type": "basicCard", "items": carousel_cards}}],
             quickReplies=team_quick_replies,
         )
     )
@@ -2222,7 +2237,7 @@ def build_favorite_players_response(
         starter_names = [s["name"] for s in starters_info] if starters_info else [p["name"] for p in KBL_PLAYERS if p.get("team") == favorite_team][:5]
         full_t = TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
         if len(starter_names) >= 3:
-            thumb_t1 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/1.png?v=nanum20261117_800x400"
+            thumb_t1 = _team_starters_banner_url(b_url, favorite_team, 1, starter_names)
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (1/2)",
@@ -2236,7 +2251,7 @@ def build_favorite_players_response(
         if len(starter_names) >= 4:
             b2 = [_player_toggle_btn(p_name) for p_name in starter_names[3:5]]
             b2.append(_msg_btn(f"🏀 {favorite_team} 선수단", f"{favorite_team} 선수"))
-            thumb_t2 = f"{b_url}/integrations/kakao/skills/banner/team/{favorite_team}/2.png?v=nanum20261117_800x400"
+            thumb_t2 = _team_starters_banner_url(b_url, favorite_team, 2, starter_names)
             carousel_items.append(
                 _basic_card(
                     title=f"❤️ [{favorite_team}] 응원팀 선수 Best 5 (2/2)",

@@ -1334,7 +1334,7 @@ async def get_team_starters_banner(team: str, part: int = 1) -> Response:
         else [p["name"] for p in KBL_PLAYERS if p.get("team") == norm_team][:5]
     )
 
-    if part == 2 and len(starter_names) >= 5:
+    if part == 2 and len(starter_names) >= 4:
         target_names = starter_names[3:5]
         part_label = "(2/2)"
     else:
@@ -1347,7 +1347,7 @@ async def get_team_starters_banner(team: str, part: int = 1) -> Response:
     return Response(
         content=png_bytes,
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 
