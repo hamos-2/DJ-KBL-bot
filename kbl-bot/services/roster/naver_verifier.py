@@ -132,6 +132,8 @@ def fetch_naver_season_players_sync(
     url = _NAVER_PLAYERS_API.format(season_code=season_code)
     players: list[dict[str, Any]] = []
     try:
+        # Note: verify=False is intentionally retained for api-gw.sports.naver.com because
+        # verified TLS/certifi handshakes on OCI VPS trigger WAF ReadTimeout on this host.
         with httpx.Client(headers=_NAVER_HEADERS, timeout=timeout, verify=False) as client:
             for page in range(1, 8):
                 resp = client.get(

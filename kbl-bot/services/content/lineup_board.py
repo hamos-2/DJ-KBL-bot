@@ -15,6 +15,7 @@ from services.content.kbl_data import (
     DEFAULT_SPORTS_LOGO,
     TEAM_INFO,
     TEAM_LINEUPS,
+    _get_tls_verify,
     get_team_lineup,
     get_team_logo,
 )
@@ -359,7 +360,7 @@ def fetch_daum_match_lineup_sync(
                     "User-Agent": "Mozilla/5.0",
                     "Referer": f"https://sports.daum.net/match/{gid}?tab=lineup",
                 },
-                verify=False,
+                verify=_get_tls_verify(),
                 timeout=timeout,
             )
             if resp.status_code == 200:
@@ -462,7 +463,7 @@ def _download_image_cached(url: str | None) -> Image.Image | None:
             resp = httpx.get(
                 norm_url,
                 headers={"User-Agent": "Mozilla/5.0"},
-                verify=False,
+                verify=_get_tls_verify(),
                 timeout=4.5,
             )
             if resp.status_code == 200 and len(resp.content) > 100:
@@ -795,12 +796,31 @@ def prewarm_match_lineup(
     return (h_team, a_team, h_starters, a_starters, is_off)
 
 
+def _prune_old_cache_files(max_age_seconds: int = 48 * 3600) -> int:
+    """Remove cached PNG files older than *max_age_seconds* to keep disk usage bounded."""
+    import time
+
+    removed = 0
+    cutoff = time.time() - max_age_seconds
+    for folder in (_AVATAR_DIR, _BOARD_DIR, _BANNER_DIR):
+        try:
+            for p in folder.iterdir():
+                if p.is_file() and p.stat().st_mtime < cutoff:
+                    p.unlink(missing_ok=True)
+                    removed += 1
+        except Exception:
+            pass
+    return removed
+
+
 def prewarm_daily_lineups(games: list[dict[str, Any]]) -> int:
     """
     Pre-warm lineups and board images for all given games (typically today's games).
-    Returns count of games successfully pre-warmed.
+    Also prunes stale disk cache PNGs (>48h). Returns count of games successfully pre-warmed.
     """
     from concurrent.futures import ThreadPoolExecutor
+
+    _prune_old_cache_files()
 
     count = 0
     games_to_prewarm: list[tuple[str, str, str]] = []

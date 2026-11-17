@@ -464,7 +464,8 @@ async def _dispatch_command(
                 today_games = await game_service.get_recent_results(db, limit=4)
             except Exception:
                 pass
-        return build_lineup_response(
+        return await asyncio.to_thread(
+            build_lineup_response,
             today_games,
             favorite_team=fav_team,
             target_team=target_lineup_team,
@@ -490,7 +491,8 @@ async def _dispatch_command(
                 recent_games = await game_service.get_recent_results(db, limit=6)
         if not recent_games:
             recent_games = await game_service.get_recent_results(db, limit=8)
-        return build_game_summary_response(
+        return await asyncio.to_thread(
+            build_game_summary_response,
             recent_games,
             favorite_team=fav_team,
             target_team=target_summary_team,
@@ -1186,10 +1188,13 @@ async def get_game_lineup_board_image(
     if norm_away not in TEAM_LINEUPS:
         norm_away = "DB"
 
-    h_team, a_team, h_starters, a_starters, _ = fetch_daum_match_lineup_sync(
-        game_id, fallback_home=norm_home, fallback_away=norm_away
-    )
-    png_bytes = render_lineup_board_png(h_team, a_team, h_starters, a_starters)
+    def _render_game_board() -> bytes:
+        h_team, a_team, h_starters, a_starters, _ = fetch_daum_match_lineup_sync(
+            game_id, fallback_home=norm_home, fallback_away=norm_away
+        )
+        return render_lineup_board_png(h_team, a_team, h_starters, a_starters)
+
+    png_bytes = await asyncio.to_thread(_render_game_board)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1217,22 +1222,25 @@ async def get_single_team_lineup_board_image(
     if norm_team not in TEAM_LINEUPS:
         norm_team = "SK"
 
-    t_info = get_team_lineup(norm_team) or {}
-    coach = str(t_info.get("head_coach") or "")
-    starters = get_baseline_starters_with_photos(norm_team)
+    def _render_team_board() -> bytes:
+        t_info = get_team_lineup(norm_team) or {}
+        coach = str(t_info.get("head_coach") or "")
+        starters = get_baseline_starters_with_photos(norm_team)
 
-    gid = str(game_id or "").strip()
-    if gid.isdigit() and len(gid) >= 6:
-        h_team, a_team, h_live, a_live, is_off = fetch_daum_match_lineup_sync(
-            gid, fallback_home=norm_team, fallback_away="SK"
-        )
-        if is_off:
-            if norm_team == h_team and h_live:
-                starters = h_live
-            elif norm_team == a_team and a_live:
-                starters = a_live
+        gid = str(game_id or "").strip()
+        if gid.isdigit() and len(gid) >= 6:
+            h_team, a_team, h_live, a_live, is_off = fetch_daum_match_lineup_sync(
+                gid, fallback_home=norm_team, fallback_away="SK"
+            )
+            if is_off:
+                if norm_team == h_team and h_live:
+                    starters = h_live
+                elif norm_team == a_team and a_live:
+                    starters = a_live
 
-    png_bytes = render_single_team_lineup_board_png(norm_team, starters, coach=coach)
+        return render_single_team_lineup_board_png(norm_team, starters, coach=coach)
+
+    png_bytes = await asyncio.to_thread(_render_team_board)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1258,9 +1266,12 @@ async def get_matchup_lineup_board_image(
     if norm_away not in TEAM_LINEUPS:
         norm_away = "DB"
 
-    h_starters = get_baseline_starters_with_photos(norm_home)
-    a_starters = get_baseline_starters_with_photos(norm_away)
-    png_bytes = render_lineup_board_png(norm_home, norm_away, h_starters, a_starters)
+    def _render_matchup_board() -> bytes:
+        h_starters = get_baseline_starters_with_photos(norm_home)
+        a_starters = get_baseline_starters_with_photos(norm_away)
+        return render_lineup_board_png(norm_home, norm_away, h_starters, a_starters)
+
+    png_bytes = await asyncio.to_thread(_render_matchup_board)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1277,7 +1288,7 @@ async def prewarm_lineups_endpoint(
 
     game_svc = _get_game_service()
     today_games = await game_svc.get_today_games(db)
-    count = prewarm_daily_lineups(today_games)
+    count = await asyncio.to_thread(prewarm_daily_lineups, today_games)
     return {"status": "ok", "prewarmed_games": count}
 
 
@@ -1292,12 +1303,12 @@ async def get_player_category_banner(category_key: str) -> Response:
     ck = category_key.lower().strip()
     if ck == "guards":
         players = [("김선형", "KT"), ("허훈", "KT"), ("이정현", "소노")]
-        png_bytes = render_player_category_banner_png("KBL 대표 인기 가드", players)
+        png_bytes = await asyncio.to_thread(render_player_category_banner_png, "KBL 대표 인기 가드", players)
     elif ck in ("bigs", "shooters"):
         players = [("자밀 워니", "SK"), ("아셈 마레이", "LG"), ("유기상", "LG")]
-        png_bytes = render_player_category_banner_png("KBL 대표 인기 빅맨 & 슈터", players)
+        png_bytes = await asyncio.to_thread(render_player_category_banner_png, "KBL 대표 인기 빅맨 & 슈터", players)
     else:
-        png_bytes = render_all_teams_banner_png()
+        png_bytes = await asyncio.to_thread(render_all_teams_banner_png)
 
     return Response(
         content=png_bytes,
@@ -1330,7 +1341,9 @@ async def get_team_starters_banner(team: str, part: int = 1) -> Response:
         target_names = starter_names[:3]
         part_label = "(1/2)"
 
-    png_bytes = render_team_starters_banner_png(norm_team, target_names, part_label=part_label)
+    png_bytes = await asyncio.to_thread(
+        render_team_starters_banner_png, norm_team, target_names, part_label=part_label
+    )
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1344,7 +1357,7 @@ async def get_team_home_banner(team: str) -> Response:
     from services.content.lineup_board import render_team_home_banner_png
 
     norm_team = normalize_team_name(team) if team else "SK"
-    png_bytes = render_team_home_banner_png(norm_team)
+    png_bytes = await asyncio.to_thread(render_team_home_banner_png, norm_team)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1358,7 +1371,7 @@ async def get_news_home_banner(team: str) -> Response:
     from services.content.lineup_board import render_news_home_banner_png
 
     norm_team = normalize_team_name(team) if (team and team != "all") else None
-    png_bytes = render_news_home_banner_png(norm_team)
+    png_bytes = await asyncio.to_thread(render_news_home_banner_png, norm_team)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1371,7 +1384,7 @@ async def get_region_onboarding_banner(region_key: str) -> Response:
     """Render compact 2:1 (800x400) banner for onboarding region cards."""
     from services.content.lineup_board import render_onboarding_region_banner_png
 
-    png_bytes = render_onboarding_region_banner_png(region_key)
+    png_bytes = await asyncio.to_thread(render_onboarding_region_banner_png, region_key)
     return Response(
         content=png_bytes,
         media_type="image/png",
@@ -1391,8 +1404,13 @@ async def get_notification_settings_banner(
     from services.content.lineup_board import render_notification_settings_banner_png
 
     norm_team = normalize_team_name(team) if team else "SK"
-    png_bytes = render_notification_settings_banner_png(
-        mode=mode, s1=s1, s2=s2, s3=s3, team=norm_team
+    png_bytes = await asyncio.to_thread(
+        render_notification_settings_banner_png,
+        mode=mode,
+        s1=s1,
+        s2=s2,
+        s3=s3,
+        team=norm_team,
     )
     return Response(
         content=png_bytes,

@@ -815,6 +815,7 @@ def build_lineup_response(
 
 
 _GAME_MVP_CACHE: dict[str, dict[str, Any]] = {}
+_GAME_MVP_CACHE_MAX = 100
 
 
 def _fetch_real_game_mvp_sync(
@@ -836,12 +837,14 @@ def _fetch_real_game_mvp_sync(
 
     try:
         import httpx
+        from services.content.kbl_data import _get_tls_verify
+
         resp = httpx.get(
             "https://sports.daum.net/api/hermes/game/get.json",
             params={"gameId": gid, "detail": "liveData"},
             headers={"Referer": "https://sports.daum.net/", "User-Agent": "Mozilla/5.0"},
             timeout=timeout,
-            verify=False,
+            verify=_get_tls_verify(),
         )
         if resp.status_code == 200:
             d = resp.json() or {}
@@ -868,6 +871,8 @@ def _fetch_real_game_mvp_sync(
                     best_score = impact
                     best_mvp = {"name": name, "pts": pts, "reb": reb, "ast": ast}
             if best_mvp and best_mvp["pts"] > 0:
+                if len(_GAME_MVP_CACHE) >= _GAME_MVP_CACHE_MAX:
+                    _GAME_MVP_CACHE.pop(next(iter(_GAME_MVP_CACHE)), None)
                 _GAME_MVP_CACHE[cache_key] = best_mvp
                 return best_mvp
     except Exception:

@@ -753,7 +753,29 @@ def parse_daum_news_html(
     return items[:10]
 
 
-_HIGHLIGHT_VIDEO_CACHE: dict[str, tuple[str, str | None]] = {}
+_HIGHLIGHT_VIDEO_CACHE: dict[str, tuple[float, tuple[str, str | None]]] = {}
+_HIGHLIGHT_CACHE_MAX = 100
+_HIGHLIGHT_HIT_TTL_SEC = 21600.0   # 6 hours for verified direct YouTube watch URLs
+_HIGHLIGHT_MISS_TTL_SEC = 600.0    # 10 minutes for fallback search URLs
+
+
+def _get_tls_verify() -> str | bool:
+    """Return certifi CA bundle path when available, falling back to default verification."""
+    try:
+        import certifi
+        return certifi.where()
+    except Exception:
+        return True
+
+
+def _set_highlight_cache(
+    cache_key: str, res: tuple[str, str | None], ttl_sec: float = _HIGHLIGHT_HIT_TTL_SEC
+) -> None:
+    import time
+    if len(_HIGHLIGHT_VIDEO_CACHE) >= _HIGHLIGHT_CACHE_MAX:
+        first_k = next(iter(_HIGHLIGHT_VIDEO_CACHE))
+        _HIGHLIGHT_VIDEO_CACHE.pop(first_k, None)
+    _HIGHLIGHT_VIDEO_CACHE[cache_key] = (time.monotonic() + ttl_sec, res)
 
 
 def _extract_youtube_videos(html_text: str) -> list[tuple[str, str]]:
@@ -771,13 +793,15 @@ def resolve_kbl_highlight_video_url(
     home_team: str,
     away_team: str,
     start_time: str | None = None,
-    timeout: float = 4.5,
+    timeout: float = 1.8,
 ) -> tuple[str, str | None]:
     """
     Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
     and thumbnail (`https://i.ytimg.com/vi/.../hqdefault.jpg`) for a 2026-27 KBL matchup.
     Falls back to a season-filtered 2026-27 KCC 프로농구 YouTube search URL if not uploaded yet.
     """
+    import time
+
     h = str(home_team or "").strip()
     a = str(away_team or "").strip()
     mm_dd = ""
@@ -793,8 +817,12 @@ def resolve_kbl_highlight_video_url(
             pass
 
     cache_key = f"{h}:{a}:{yymmdd or mm_dd}"
-    if cache_key in _HIGHLIGHT_VIDEO_CACHE:
-        return _HIGHLIGHT_VIDEO_CACHE[cache_key]
+    cached = _HIGHLIGHT_VIDEO_CACHE.get(cache_key)
+    if cached is not None:
+        exp_ts, val = cached
+        if time.monotonic() < exp_ts:
+            return val
+        _HIGHLIGHT_VIDEO_CACHE.pop(cache_key, None)
 
     fallback_q = urllib.parse.quote(f"2026-27 KCC 프로농구 {h} vs {a} 하이라이트")
     fallback_url = f"https://www.youtube.com/results?search_query={fallback_q}"
@@ -811,7 +839,7 @@ def resolve_kbl_highlight_video_url(
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=timeout,
             follow_redirects=True,
-            verify=False,
+            verify=_get_tls_verify(),
         ) as client:
             resp = client.get(f"https://www.youtube.com/results?search_query={q1}")
             if resp.status_code == 200:
@@ -821,7 +849,7 @@ def resolve_kbl_highlight_video_url(
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
                         if not mm_dd or (f" {mm_dd} " in tit or f"]{mm_dd}" in tit or f"] {mm_dd}" in tit):
                             res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
-                            _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                            _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
                             return res
 
                 # 2. If exact date TVING highlight not uploaded yet, check same-day club highlight (yymmdd first)
@@ -835,25 +863,26 @@ def resolve_kbl_highlight_video_url(
                                 bad in tit for bad in ("분석", "프로토", "전력비교", "예측", "수익", "급등")
                             ):
                                 res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
-                                _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                                _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
                                 return res
 
                 # 3. Most recent 2026-27 head-to-head TVING highlight between these two clubs
                 for vid, tit in matches:
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
                         res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
-                        _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                        _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
                         return res
 
                 # 4. Most recent 2026-27 TVING official highlight featuring either team
                 for vid, tit in matches:
                     if "2026-27" in tit and "하이라이트" in tit and (h in tit or a in tit):
                         res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
-                        _HIGHLIGHT_VIDEO_CACHE[cache_key] = res
+                        _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
                         return res
     except Exception:
         pass
 
+    _set_highlight_cache(cache_key, (fallback_url, None), _HIGHLIGHT_MISS_TTL_SEC)
     return fallback_url, None
 
 
@@ -865,8 +894,10 @@ def build_highlights_from_games(
     """
     Build high-reliability KBL highlight video links from official channels.
     Resolves direct YouTube watch URLs (`https://www.youtube.com/watch?v=...`)
-    from TVING SPORTS / club channels for 2026-27 KCC 프로농구 games.
+    from TVING SPORTS / club channels for 2026-27 KCC 프로농구 games concurrently.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
     items: list[dict[str, Any]] = []
 
     # Prioritize games involving the favorite team
@@ -876,33 +907,44 @@ def build_highlights_from_games(
         o_games = [g for g in recent_games if team not in (g.get("home_team"), g.get("away_team"))]
         candidate_games = t_games + o_games
 
-    for g in candidate_games[:4]:
-        status = g.get("status")
-        if status in ("FINAL", "LIVE"):
-            h = g.get("home_team", "?")
-            a = g.get("away_team", "?")
-            hs = g.get("home_score", 0)
-            as_ = g.get("away_score", 0)
-
-            if team and team in (h, a):
-                opp = a if h == team else h
-                tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
-                title = f"[{tag}] {team} vs {opp} 명장면 영상 ({h} {hs}:{as_} {a})"
-            else:
-                tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
-                title = f"[{tag}] {h} {hs} : {as_} {a} 하이라이트"
-
-            video_url, yt_thumb = resolve_kbl_highlight_video_url(h, a, g.get("start_time"))
-            source_label = "📺 TVING / KBL 공식 하이라이트"
-
-            items.append(
-                {
-                    "title": title,
-                    "url": video_url,
-                    "arena": source_label,
-                    "imageUrl": yt_thumb or get_team_logo(h if h in KBL_TEAMS else a),
-                }
+    target_games = [g for g in candidate_games[:4] if g.get("status") in ("FINAL", "LIVE")]
+    resolved_videos: list[tuple[str, str | None]] = []
+    if target_games:
+        with ThreadPoolExecutor(max_workers=min(len(target_games), 4)) as pool:
+            resolved_videos = list(
+                pool.map(
+                    lambda g: resolve_kbl_highlight_video_url(
+                        g.get("home_team", "?"),
+                        g.get("away_team", "?"),
+                        g.get("start_time"),
+                    ),
+                    target_games,
+                )
             )
+
+    for g, (video_url, yt_thumb) in zip(target_games, resolved_videos):
+        status = g.get("status")
+        h = g.get("home_team", "?")
+        a = g.get("away_team", "?")
+        hs = g.get("home_score", 0)
+        as_ = g.get("away_score", 0)
+
+        if team and team in (h, a):
+            opp = a if h == team else h
+            tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
+            title = f"[{tag}] {team} vs {opp} 명장면 영상 ({h} {hs}:{as_} {a})"
+        else:
+            tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
+            title = f"[{tag}] {h} {hs} : {as_} {a} 하이라이트"
+
+        items.append(
+            {
+                "title": title,
+                "url": video_url,
+                "arena": "📺 TVING / KBL 공식 하이라이트",
+                "imageUrl": yt_thumb or get_team_logo(h if h in KBL_TEAMS else a),
+            }
+        )
 
     if team:
         full = TEAM_INFO.get(team, {}).get("full_name", f"{team} 농구단")

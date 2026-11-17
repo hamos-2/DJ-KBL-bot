@@ -137,6 +137,7 @@ class GameService:
             provider: Active SportsDataProvider adapter (used ONLY by background worker sync).
         """
         self._provider = provider
+        self._bg_tasks: set[asyncio.Task[Any]] = set()
 
     # ------------------------------------------------------------------
     # Read Path (Kakao Skill endpoints — Redis & DB ONLY)
@@ -217,7 +218,9 @@ class GameService:
                 raise GameNotFoundError(game_id)
 
         if snapshot.get("stale"):
-            asyncio.create_task(self._background_refresh_snapshot(game_id))
+            task = asyncio.create_task(self._background_refresh_snapshot(game_id))
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
 
         return snapshot
 
@@ -550,7 +553,7 @@ class GameService:
             pass
 
         recent = await self.get_recent_results(db, team=team, limit=6)
-        items = build_highlights_from_games(recent, team=team)
+        items = await asyncio.to_thread(build_highlights_from_games, recent, team=team)
 
         if items:
             try:

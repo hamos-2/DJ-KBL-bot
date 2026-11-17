@@ -74,6 +74,7 @@ class IngestionWorker:
         self._persist_db = persist_db
         self._running = False
         self._task: asyncio.Task[None] | None = None
+        self._bg_tasks: set[asyncio.Task[Any]] = set()
         # Track last known status per game to detect transitions
         self._last_status: dict[str, str] = {}
         # Track last monotonic poll timestamp per game to honour scheduled_interval
@@ -205,7 +206,9 @@ class IngestionWorker:
                 from services.content.lineup_board import prewarm_daily_lineups
                 today_games = [g for g in games if str(g.get("game_date")) == str(today)]
                 if today_games:
-                    asyncio.create_task(asyncio.to_thread(prewarm_daily_lineups, today_games))
+                    t_prewarm = asyncio.create_task(asyncio.to_thread(prewarm_daily_lineups, today_games))
+                    self._bg_tasks.add(t_prewarm)
+                    t_prewarm.add_done_callback(self._bg_tasks.discard)
             except Exception as p_err:
                 logger.warning("Failed to schedule daily lineups pre-warming", error=str(p_err))
 

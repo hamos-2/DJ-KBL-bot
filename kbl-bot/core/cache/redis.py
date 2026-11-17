@@ -670,10 +670,6 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
     for idx, item in enumerate(sorted_board, start=1):
         item["rank"] = idx
 
-    try:
-        await client.set(_PREDICTION_LEADERBOARD_KEY, json.dumps(sorted_board, ensure_ascii=False), ex=3600)
-    except Exception:
-        pass
     return sorted_board
 
 

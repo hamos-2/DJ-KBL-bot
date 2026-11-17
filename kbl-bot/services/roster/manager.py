@@ -715,21 +715,21 @@ class RosterManager:
         self._transactions.append(entry)
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(append_roster_transaction_log(entry))
-            loop.create_task(self.save_to_cache())
+            for coro in (append_roster_transaction_log(entry), self.save_to_cache()):
+                t = loop.create_task(coro)
+                _ROSTER_BG_TASKS.add(t)
+                t.add_done_callback(_ROSTER_BG_TASKS.discard)
         except RuntimeError:
             pass
 
     def _sync_back_to_kbl_data(self) -> None:
         """
         Synchronize dynamic working state back to module-level ``kbl_data.KBL_PLAYERS``
-        and ``kbl_data.TEAM_LINEUPS`` so all existing builder imports reflect it immediately.
+        and ``kbl_data.TEAM_LINEUPS`` atomically so readers never observe an empty container.
         """
-        kbl_data.KBL_PLAYERS.clear()
-        kbl_data.KBL_PLAYERS.extend(self._players)
-
-        kbl_data.TEAM_LINEUPS.clear()
-        kbl_data.TEAM_LINEUPS.update(self._lineups)
+        kbl_data.KBL_PLAYERS[:] = list(self._players)
+        for team_key, lineup_val in self._lineups.items():
+            kbl_data.TEAM_LINEUPS[team_key] = lineup_val
 
     @staticmethod
     def _normalize_team(team: str) -> str:
@@ -738,8 +738,9 @@ class RosterManager:
         return normalize_team_name(team)
 
 
-# Singleton instance
+# Singleton instance & strong background task tracking
 _roster_manager: RosterManager | None = None
+_ROSTER_BG_TASKS: set[Any] = set()
 
 
 def get_roster_manager() -> RosterManager:
