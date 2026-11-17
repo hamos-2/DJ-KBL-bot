@@ -1419,6 +1419,103 @@ async def get_notification_settings_banner(
     )
 
 
+@router.get("/banner/player/{name}.png")
+async def get_single_player_banner(
+    name: str,
+    team: str = "SK",
+    pos: str = "F",
+    no: str = "",
+    pts: float = 0.0,
+    reb: float = 0.0,
+    ast: float = 0.0,
+) -> Response:
+    """Render 2:1 (800x400) uncropped player profile banner for single player detail card."""
+    from services.content.lineup_board import render_single_player_banner_png
+
+    norm_team = normalize_team_name(team) or team
+    png_bytes = await asyncio.to_thread(
+        render_single_player_banner_png,
+        name=name,
+        team=norm_team,
+        pos=pos,
+        no=no,
+        pts=pts,
+        reb=reb,
+        ast=ast,
+    )
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/banner/points/{team}.png")
+async def get_user_points_banner(
+    team: str = "all",
+    pts: int = 0,
+    nick: str = "",
+) -> Response:
+    """Render 2:1 (800x400) prediction points & fan tier banner."""
+    from services.content.lineup_board import render_user_points_banner_png
+
+    norm_team = None if team in ("all", "", "none") else (normalize_team_name(team) or team)
+    png_bytes = await asyncio.to_thread(
+        render_user_points_banner_png,
+        team=norm_team,
+        points=pts,
+        nickname=nick,
+    )
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
+
+
+@router.get("/banner/menu/{menu_type}/{region_key}.png")
+async def get_region_menu_banner(menu_type: str, region_key: str) -> Response:
+    """Render 2:1 (800x400) multi-club banner for regional news/players carousels."""
+    from services.content.lineup_board import render_region_menu_banner_png
+
+    png_bytes = await asyncio.to_thread(
+        render_region_menu_banner_png,
+        menu_type=menu_type,
+        region_key=region_key,
+    )
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/banner/recap/{home}/{away}.png")
+async def get_game_recap_banner(
+    home: str,
+    away: str,
+    hs: int = 0,
+    as_: int = 0,
+) -> Response:
+    """Render compact 2:1 (800x400) scoreboard recap banner for game summary card."""
+    from services.content.lineup_board import render_game_recap_banner_png
+
+    norm_home = normalize_team_name(home) or home
+    norm_away = normalize_team_name(away) or away
+    png_bytes = await asyncio.to_thread(
+        render_game_recap_banner_png,
+        home=norm_home,
+        away=norm_away,
+        home_score=hs,
+        away_score=as_,
+    )
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
 @router.post("/today-games")
 async def today_games(
     payload: KakaoSkillPayload,

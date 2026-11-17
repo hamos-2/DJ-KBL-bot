@@ -2,6 +2,7 @@
 
 import os
 import re
+import urllib.parse
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -177,12 +178,15 @@ def _item_card(
     summary: dict[str, str] | None = None,
     buttons: list[dict[str, str]] | None = None,
     thumbnail_url: str | None = None,
+    include_thumbnail: bool = True,
+    thumbnail_width: int = 300,
+    thumbnail_height: int = 300,
 ) -> dict[str, Any]:
     """Build native Kakao itemCard component (table key-values, title <= 6 chars)."""
     card: dict[str, Any] = {}
     thumb = thumbnail_url or (image_title.get("imageUrl") if image_title else None)
-    if thumb:
-        card["thumbnail"] = {"imageUrl": thumb, "width": 300, "height": 300}
+    if include_thumbnail and thumb:
+        card["thumbnail"] = {"imageUrl": thumb, "width": thumbnail_width, "height": thumbnail_height}
     if head_title:
         card["head"] = {"title": head_title[:15]}
     if image_title:
@@ -1013,6 +1017,9 @@ def build_game_summary_response(
             f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}(평균 {ace['pts']}점 {ace['ast']}어시)과 "
             f"외국인 원투펀치({foreigns}), 아시아쿼터({asian_q})의 공수 시너지가 터지면 어느 팀도 막기 힘든 다크호스입니다!\""
         )
+        base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+        q_target = urllib.parse.quote(target_team)
+        team_banner_url = f"{base_url}/integrations/kakao/skills/banner/home/team/{q_target}.png?v=nanum20261117_v3"
         item_card_output = _item_card(
             head_title=f"📋 {target_team} 경기 요약",
             image_title={
@@ -1031,12 +1038,16 @@ def build_game_summary_response(
                 _msg_btn(f"📋 {target_team} 라인업", f"{target_team} 라인업"),
                 _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
             ],
+            include_thumbnail=False,
         )
         commentary_card = {
             "basicCard": _basic_card(
                 title=f"💬 {target_team} 촌철살인 한줄평",
                 description=one_liner,
-                thumbnail_url=get_team_logo(target_team),
+                thumbnail_url=team_banner_url,
+                fixed_ratio=False,
+                width=800,
+                height=400,
                 buttons=[
                     _share_btn("📤 한줄평 공유하기"),
                     _msg_btn(f"🏀 {target_team} 선수단", f"{target_team} 선수"),
@@ -1118,6 +1129,13 @@ def build_game_summary_response(
 
     head_label = f"📋 {target_team} 경기 요약" if target_team else "📋 경기 요약"
     badge_team = target_team if (target_team and target_team in (home, away)) else winner
+    base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    q_home = urllib.parse.quote(home)
+    q_away = urllib.parse.quote(away)
+    recap_banner_url = (
+        f"{base_url}/integrations/kakao/skills/banner/recap/{q_home}/{q_away}.png"
+        f"?hs={hs}&as_={as_}&v=recap_v1"
+    )
 
     item_card_output = _item_card(
         head_title=head_label,
@@ -1137,6 +1155,7 @@ def build_game_summary_response(
             _link_btn("▶️ 공식 하이라이트 영상", vod_url),
             _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
         ],
+        include_thumbnail=False,
     )
 
     commentary_card_output = {
@@ -1147,7 +1166,10 @@ def build_game_summary_response(
                 f"⭐ 수훈선수: {mvp['name']} ({mvp['pts']}점·{mvp['reb']}리바·{mvp['ast']}어시)\n\n"
                 f"{full_commentary}"
             ),
-            thumbnail_url=get_team_logo(badge_team),
+            thumbnail_url=recap_banner_url,
+            fixed_ratio=False,
+            width=800,
+            height=400,
             buttons=[
                 _share_btn("📤 한줄평 공유하기"),
                 _link_btn("▶️ 하이라이트 영상", vod_url),
@@ -1577,54 +1599,61 @@ def build_news_response(
     )
 
 
+def _build_region_menu_cards(
+    menu_type: str,
+    specs: list[tuple[str, str, str, list[tuple[str, str]]]],
+) -> list[dict[str, Any]]:
+    """Build 4 regional carousel cards with 2:1 multi-club banners (no cropped square logos)."""
+    base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    return [
+        _basic_card(
+            title=title,
+            description=desc,
+            thumbnail_url=f"{base_url}/integrations/kakao/skills/banner/menu/{menu_type}/{region_key}.png?v=menu_v1",
+            fixed_ratio=False,
+            width=800,
+            height=400,
+            buttons=[_msg_btn(lbl, msg) for lbl, msg in btn_specs],
+        )
+        for region_key, title, desc, btn_specs in specs
+    ]
+
+
 def build_team_news_menu_response(
     favorite_team: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build a 4-card carousel menu allowing 1-tap browsing of news for all 10 KBL clubs + KBL overall news.
     """
-    cards = [
-        _basic_card(
-            title="📰 수도권 구단 뉴스",
-            description="서울 SK, 수원 KT, 서울 삼성의 최신 구단 소식 및 선수단 인터뷰를 확인하세요.",
-            thumbnail_url=TEAM_LOGOS.get("SK", DEFAULT_SPORTS_LOGO),
-            buttons=[
-                _msg_btn("📰 서울 SK 뉴스", "SK 뉴스"),
-                _msg_btn("📰 수원 KT 뉴스", "KT 뉴스"),
-                _msg_btn("📰 서울 삼성 뉴스", "삼성 뉴스"),
-            ],
-        ),
-        _basic_card(
-            title="📰 경기·강원 구단 뉴스",
-            description="원주 DB, 안양 정관장, 고양 소노의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
-            thumbnail_url=TEAM_LOGOS.get("DB", DEFAULT_SPORTS_LOGO),
-            buttons=[
-                _msg_btn("📰 원주 DB 뉴스", "DB 뉴스"),
-                _msg_btn("📰 안양 정관장 뉴스", "정관장 뉴스"),
-                _msg_btn("📰 고양 소노 뉴스", "소노 뉴스"),
-            ],
-        ),
-        _basic_card(
-            title="📰 영남권 구단 뉴스",
-            description="창원 LG, 부산 KCC, 울산 현대모비스의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
-            thumbnail_url=TEAM_LOGOS.get("LG", DEFAULT_SPORTS_LOGO),
-            buttons=[
-                _msg_btn("📰 창원 LG 뉴스", "LG 뉴스"),
-                _msg_btn("📰 부산 KCC 뉴스", "KCC 뉴스"),
-                _msg_btn("📰 현대모비스 뉴스", "모비스 뉴스"),
-            ],
-        ),
-        _basic_card(
-            title="📰 대구 구단 & KBL 전체 뉴스",
-            description="대구 한국가스공사 페가수스 및 KBL 프로농구 리그 전체 주요 헤드라인을 확인하세요.",
-            thumbnail_url=TEAM_LOGOS.get("한국가스공사", DEFAULT_SPORTS_LOGO),
-            buttons=[
-                _msg_btn("📰 한국가스공사 뉴스", "가스공사 뉴스"),
-                _msg_btn("🏀 KBL 전체 뉴스", "전체 뉴스"),
-                _msg_btn("🏠 처음으로", "처음으로"),
-            ],
-        ),
-    ]
+    cards = _build_region_menu_cards(
+        "news",
+        [
+            (
+                "capital",
+                "📰 수도권 구단 뉴스",
+                "서울 SK, 수원 KT, 서울 삼성의 최신 구단 소식 및 선수단 인터뷰를 확인하세요.",
+                [("📰 서울 SK 뉴스", "SK 뉴스"), ("📰 수원 KT 뉴스", "KT 뉴스"), ("📰 서울 삼성 뉴스", "삼성 뉴스")],
+            ),
+            (
+                "gangwon_gyeonggi",
+                "📰 경기·강원 구단 뉴스",
+                "원주 DB, 안양 정관장, 고양 소노의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
+                [("📰 원주 DB 뉴스", "DB 뉴스"), ("📰 안양 정관장 뉴스", "정관장 뉴스"), ("📰 고양 소노 뉴스", "소노 뉴스")],
+            ),
+            (
+                "yeongnam",
+                "📰 영남권 구단 뉴스",
+                "창원 LG, 부산 KCC, 울산 현대모비스의 최신 구단 소식 및 경기 리뷰를 확인하세요.",
+                [("📰 창원 LG 뉴스", "LG 뉴스"), ("📰 부산 KCC 뉴스", "KCC 뉴스"), ("📰 현대모비스 뉴스", "모비스 뉴스")],
+            ),
+            (
+                "daegu",
+                "📰 대구 구단 & KBL 전체 뉴스",
+                "대구 한국가스공사 페가수스 및 KBL 프로농구 리그 전체 주요 헤드라인을 확인하세요.",
+                [("📰 한국가스공사 뉴스", "가스공사 뉴스"), ("🏀 KBL 전체 뉴스", "전체 뉴스"), ("🏠 처음으로", "처음으로")],
+            ),
+        ],
+    )
     menu_qrs = [
         QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
         QuickReply(label="📰 SK 뉴스", messageText="SK 뉴스"),
@@ -1904,6 +1933,15 @@ def build_single_player_response(
         lbl = full_lbl if _u16_len(full_lbl) <= 14 else f"➕ {name} 등록"
         toggle_btn = _msg_btn(lbl, f"#관심선수 {name}")
 
+    base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    q_name = urllib.parse.quote(str(name))
+    q_team = urllib.parse.quote(str(team))
+    q_pos = urllib.parse.quote(str(pos))
+    q_no = urllib.parse.quote(str(no))
+    player_banner_url = (
+        f"{base_url}/integrations/kakao/skills/banner/player/{q_name}.png"
+        f"?team={q_team}&pos={q_pos}&no={q_no}&pts={pts}&reb={reb}&ast={ast}&v=player_v1"
+    )
     card = {
         "basicCard": _basic_card(
             title=f"⭐ {name} ({team} #{no})",
@@ -1913,7 +1951,10 @@ def build_single_player_response(
                 f"• 시즌 평균: {pts}점 | {reb}리바 | {ast}어시\n"
                 f"• 세부 기록: 3점슛 {tpm}개 | 스틸 {stl}개"
             ),
-            thumbnail_url=get_player_photo_url(name) or get_team_logo(team),
+            thumbnail_url=player_banner_url,
+            fixed_ratio=False,
+            width=800,
+            height=400,
             buttons=[
                 toggle_btn,
                 _msg_btn("⭐ 관심선수 목록", "관심선수"),
@@ -1992,6 +2033,11 @@ def build_team_players_response(
     t_aq = t_info.get("asian_quota", "")
     t_bench = ", ".join(t_info.get("key_bench", [])[:4])
 
+    base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    q_team = urllib.parse.quote(str(team))
+    banner_1_url = f"{base_url}/integrations/kakao/skills/banner/team/{q_team}/1.png?v=nanum20261117_800x400"
+    banner_2_url = f"{base_url}/integrations/kakao/skills/banner/team/{q_team}/2.png?v=nanum20261117_800x400"
+
     card1 = _basic_card(
         title=f"⭐ [{team}] Best 5 등록 (1/2)",
         description=(
@@ -2000,7 +2046,10 @@ def build_team_players_response(
             f"• 외국인 용병: {t_foreign}\n"
             f"• 아시아쿼터: {t_aq}"
         )[:300],
-        thumbnail_url=get_team_logo(team),
+        thumbnail_url=banner_1_url,
+        fixed_ratio=False,
+        width=800,
+        height=400,
         buttons=[_p_toggle_btn(name) for name in starter_names[:3]],
     )
     b2 = [_p_toggle_btn(name) for name in starter_names[3:5]]
@@ -2012,7 +2061,10 @@ def build_team_players_response(
             f"• 주전 (4~5): {', '.join(starter_names[3:5])}\n"
             f"• 식스맨/벤치: {t_bench}"
         )[:300],
-        thumbnail_url=get_team_logo(team),
+        thumbnail_url=banner_2_url,
+        fixed_ratio=False,
+        width=800,
+        height=400,
         buttons=b2,
     )
 
@@ -2039,48 +2091,35 @@ def build_team_players_menu_response(
     """
     Build a 4-card carousel menu allowing 1-tap browsing of players for all 10 KBL clubs.
     """
-    cards = [
-        _basic_card(
-            title="🏀 수도권 구단 선수단",
-            description="서울 SK, 수원 KT, 서울 삼성의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
-            thumbnail_url=get_team_logo("SK"),
-            buttons=[
-                _msg_btn("🏀 서울 SK 선수", "SK 선수"),
-                _msg_btn("🏀 수원 KT 선수", "KT 선수"),
-                _msg_btn("🏀 서울 삼성 선수", "삼성 선수"),
-            ],
-        ),
-        _basic_card(
-            title="🏀 경기·강원 구단 선수단",
-            description="원주 DB, 안양 정관장, 고양 소노의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
-            thumbnail_url=get_team_logo("DB"),
-            buttons=[
-                _msg_btn("🏀 원주 DB 선수", "DB 선수"),
-                _msg_btn("🏀 안양 정관장 선수", "정관장 선수"),
-                _msg_btn("🏀 고양 소노 선수", "소노 선수"),
-            ],
-        ),
-        _basic_card(
-            title="🏀 영남권 구단 선수단",
-            description="창원 LG, 부산 KCC, 울산 현대모비스의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
-            thumbnail_url=get_team_logo("LG"),
-            buttons=[
-                _msg_btn("🏀 창원 LG 선수", "LG 선수"),
-                _msg_btn("🏀 부산 KCC 선수", "KCC 선수"),
-                _msg_btn("🏀 현대모비스 선수", "현대모비스 선수"),
-            ],
-        ),
-        _basic_card(
-            title="🏀 대구 구단 & 관심선수 관리",
-            description="대구 한국가스공사 페가수스 선수단 및 KBL 전체 득점·어시스트 순위를 확인하세요.",
-            thumbnail_url=get_team_logo("한국가스공사"),
-            buttons=[
-                _msg_btn("🏀 한국가스공사 선수", "한국가스공사 선수"),
-                _msg_btn("⭐ 내 관심선수 목록", "관심선수"),
-                _msg_btn("🏅 KBL 선수 순위", "선수순위"),
-            ],
-        ),
-    ]
+    cards = _build_region_menu_cards(
+        "players",
+        [
+            (
+                "capital",
+                "🏀 수도권 구단 선수단",
+                "서울 SK, 수원 KT, 서울 삼성의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+                [("🏀 서울 SK 선수", "SK 선수"), ("🏀 수원 KT 선수", "KT 선수"), ("🏀 서울 삼성 선수", "삼성 선수")],
+            ),
+            (
+                "gangwon_gyeonggi",
+                "🏀 경기·강원 구단 선수단",
+                "원주 DB, 안양 정관장, 고양 소노의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+                [("🏀 원주 DB 선수", "DB 선수"), ("🏀 안양 정관장 선수", "정관장 선수"), ("🏀 고양 소노 선수", "소노 선수")],
+            ),
+            (
+                "yeongnam",
+                "🏀 영남권 구단 선수단",
+                "창원 LG, 부산 KCC, 울산 현대모비스의 주요 선수 명단을 확인하고 관심선수로 등록하세요.",
+                [("🏀 창원 LG 선수", "LG 선수"), ("🏀 부산 KCC 선수", "KCC 선수"), ("🏀 현대모비스 선수", "현대모비스 선수")],
+            ),
+            (
+                "daegu",
+                "🏀 대구 구단 & 관심선수 관리",
+                "대구 한국가스공사 페가수스 선수단 및 KBL 전체 득점·어시스트 순위를 확인하세요.",
+                [("🏀 한국가스공사 선수", "한국가스공사 선수"), ("⭐ 내 관심선수 목록", "관심선수"), ("🏅 KBL 선수 순위", "선수순위")],
+            ),
+        ],
+    )
     quick_replies = [
         QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
         QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
@@ -2419,23 +2458,25 @@ def build_user_points_response(
     streak_str = f"\n• 연승 보너스 : 🔥 {streak}연승 질주 중! (3연승 +30P / 5연승 +100P)" if streak > 0 else ""
 
     desc = (
-        f"🏀 나의 승부예측 포인트 현황{fav_team_str}\n\n"
-        f"• 랭킹 닉네임 : {auto_nick}\n"
-        f"• 보유 포인트 : {user_points:,} P\n"
-        f"• 농구팬 등급 : {tier_name}\n"
-        f"• 승급 현황 : {next_msg}{streak_str}\n\n"
-        f"⚡ 포인트 적립 방법:\n"
-        f"• 매일 경기 승부예측 투표 시: +10P\n"
-        f"• 승리팀 적중 시 보너스: +50P\n"
-        f"• 3/5/10연승 추가 보너스: +30P / +100P / +300P\n\n"
-        f"※ 모은 포인트는 팬 랭킹 배틀 및 기프티콘 이벤트 응모에 활용됩니다."
+        f"• 랭킹 닉네임 : {auto_nick}{fav_team_str}\n"
+        f"• 농구팬 등급 : {tier_name} · {next_msg}{streak_str}\n"
+        f"• 적립: 참여 +10P | 적중 +50P | 3/5/10연승 추가"
     )
 
-    logo_url = get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO
+    base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
+    q_team = urllib.parse.quote(favorite_team or "all")
+    q_nick = urllib.parse.quote(auto_nick)
+    points_banner_url = (
+        f"{base_url}/integrations/kakao/skills/banner/points/{q_team}.png"
+        f"?pts={user_points}&nick={q_nick}&v=pts_v1"
+    )
     card = _basic_card(
         title=f"{badge} 내 승부예측 포인트: {user_points:,} P",
         description=desc[:380],
-        thumbnail_url=logo_url,
+        thumbnail_url=points_banner_url,
+        fixed_ratio=False,
+        width=800,
+        height=400,
         buttons=[
             _msg_btn("🏆 승부예측 랭킹", "승부예측 랭킹"),
             _msg_btn("🗳️ 오늘 경기 승부예측", "승부예측"),

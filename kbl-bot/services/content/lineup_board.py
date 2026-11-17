@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -1367,3 +1368,302 @@ def render_notification_settings_banner_png(
     except Exception:
         pass
     return png_bytes
+
+
+def _new_banner_canvas(
+    title: str,
+    width: int = 800,
+    height: int = 400,
+    header_h: int = 64,
+    title_size: int = 24,
+) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    """Create standard 2:1 banner canvas with outer frame and centered title bar."""
+    img = Image.new("RGBA", (width, height), (248, 249, 252, 255))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(222, 226, 234, 255), width=2)
+    draw.rectangle((0, 0, width, header_h), fill=(238, 242, 248, 255))
+    draw.line((0, header_h, width, header_h), fill=(222, 226, 234, 255), width=1)
+    draw.text(
+        (width // 2, header_h // 2),
+        title,
+        font=_load_font(title_size, bold=True),
+        fill=(22, 24, 29, 255),
+        anchor="mm",
+    )
+    return img, draw
+
+
+def _save_banner_png(img: Image.Image, banner_path: Path) -> bytes:
+    """Encode banner image as optimized RGB PNG and best-effort cache on disk."""
+    out_buf = io.BytesIO()
+    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+    png_bytes = out_buf.getvalue()
+    try:
+        banner_path.write_bytes(png_bytes)
+    except Exception:
+        pass
+    return png_bytes
+
+
+def render_single_player_banner_png(
+    name: str,
+    team: str = "SK",
+    pos: str = "F",
+    no: str = "",
+    pts: float = 0.0,
+    reb: float = 0.0,
+    ast: float = 0.0,
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """Render 2:1 (800x400) uncropped player profile banner with circular portrait and stats."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    t_clean = team.strip() if team else "SK"
+    sig_str = f"player_v1:{name}:{t_clean}:{pos}:{no}:{pts}:{reb}:{ast}"
+    sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:12]
+    banner_path = _BANNER_DIR / f"banner_player_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    p_url = get_player_photo_url(name)
+    t_url = get_team_logo(t_clean)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(_download_image_cached, [u for u in (p_url, t_url) if u]))
+
+    full_t = TEAM_INFO.get(t_clean, {}).get("full_name", f"{t_clean} 농구단")
+    num_str = f"#{no} " if no else ""
+    img, draw = _new_banner_canvas(f"{full_t}  |  {num_str}{name}", width, height, title_size=23)
+
+    # Left circular portrait (never cropped at top/face) + team crest badge
+    cx, cy = 165, 228
+    ring_r = 104
+    draw.ellipse(
+        (cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r),
+        fill=(255, 255, 255, 255),
+        outline=(210, 218, 232, 255),
+        width=4,
+    )
+    avatar = _make_circular_avatar(_download_image_cached(p_url), diameter=192)
+    img.paste(avatar, (cx - 96, cy - 96), avatar)
+
+    t_logo = _download_image_cached(t_url)
+    if t_logo:
+        draw.ellipse(
+            (cx + 46, cy + 44, cx + 106, cy + 104),
+            fill=(255, 255, 255, 255),
+            outline=(210, 218, 232, 255),
+            width=2,
+        )
+        t_res = t_logo.resize((46, 46), Image.Resampling.LANCZOS)
+        img.paste(t_res, (cx + 53, cy + 51), t_res if t_res.mode == "RGBA" else None)
+
+    # Right player headline & stat cards
+    draw.text((310, 128), name, font=_load_font(34, bold=True), fill=(17, 24, 39, 255), anchor="lm")
+    pos_label = f"포지션 {pos}" if pos else "KBL 선수"
+    name_w = min(240, max(110, len(name) * 34 + 18))
+    pill_x = 310 + name_w
+    draw.rounded_rectangle((pill_x, 108, pill_x + 114, 146), radius=18, fill=(37, 99, 235, 255))
+    draw.text((pill_x + 57, 127), pos_label, font=_load_font(17, bold=True), fill=(255, 255, 255, 255), anchor="mm")
+
+    draw.text((310, 174), f"{full_t}  •  2026-2027 시즌 평균 기록", font=_load_font(18, bold=False), fill=(100, 110, 128, 255), anchor="lm")
+
+    stats = [
+        ("득점", f"{pts:.1f}", (220, 38, 38, 255)),
+        ("리바운드", f"{reb:.1f}", (37, 99, 235, 255)),
+        ("어시스트", f"{ast:.1f}", (16, 185, 129, 255)),
+    ]
+    box_w, gap = 136, 16
+    for idx, (lbl, val, accent) in enumerate(stats):
+        bx = 310 + idx * (box_w + gap)
+        by = 216
+        draw.rounded_rectangle(
+            (bx, by, bx + box_w, by + 126),
+            radius=14,
+            fill=(255, 255, 255, 255),
+            outline=(218, 224, 234, 255),
+            width=2,
+        )
+        draw.text((bx + box_w // 2, by + 34), lbl, font=_load_font(17, bold=True), fill=(95, 104, 122, 255), anchor="mm")
+        draw.text((bx + box_w // 2, by + 84), val, font=_load_font(32, bold=True), fill=accent, anchor="mm")
+
+    return _save_banner_png(img, banner_path)
+
+
+def render_user_points_banner_png(
+    team: str | None = None,
+    points: int = 0,
+    nickname: str = "",
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """Render clean 2:1 (800x400) points & fan-tier banner without logo cropping or emoji tofu."""
+    t_clean = team.strip() if (team and team in TEAM_INFO) else ""
+    if points >= 1000:
+        tier_text = "KBL 레전드"
+    elif points >= 500:
+        tier_text = "올스타 VIP"
+    elif points >= 200:
+        tier_text = "베스트5 MVP"
+    elif points >= 50:
+        tier_text = "주전 식스맨"
+    else:
+        tier_text = "루키 농구팬"
+
+    sig_str = f"pts_v1:{t_clean}:{points}:{nickname}"
+    sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:12]
+    banner_path = _BANNER_DIR / f"banner_pts_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    full_t = TEAM_INFO.get(t_clean, {}).get("full_name", "KBL 프로농구")
+    img, draw = _new_banner_canvas(f"{full_t}  |  승부예측 포인트", width, height, title_size=23)
+
+    # Left circular team crest badge
+    cx, cy, r = 165, 228, 94
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=(214, 220, 232, 255), width=3)
+    logo = _download_image_cached(get_team_logo(t_clean) if t_clean else DEFAULT_SPORTS_LOGO)
+    if logo:
+        l_res = logo.resize((152, 152), Image.Resampling.LANCZOS)
+        img.paste(l_res, (cx - 76, cy - 76), l_res if l_res.mode == "RGBA" else None)
+
+    # Right score & fan tier cards
+    clean_nick = re.sub(r"[^\w\s가-힣#·-]", "", nickname or "").strip() or (f"{t_clean} 팬" if t_clean else "KBL 팬")
+    draw.text((295, 118), f"랭킹 닉네임  {clean_nick}", font=_load_font(20, bold=True), fill=(82, 92, 110, 255), anchor="lm")
+
+    draw.rounded_rectangle((295, 146, 750, 260), radius=16, fill=(255, 255, 255, 255), outline=(214, 220, 232, 255), width=2)
+    draw.text((330, 203), f"{points:,} P", font=_load_font(46, bold=True), fill=(37, 99, 235, 255), anchor="lm")
+
+    draw.rounded_rectangle((558, 178, 728, 228), radius=24, fill=(16, 185, 129, 255))
+    draw.text((643, 203), tier_text, font=_load_font(20, bold=True), fill=(255, 255, 255, 255), anchor="mm")
+
+    draw.text((295, 306), "참여 +10P   •   적중 +50P   •   3/5/10연승 추가 보너스", font=_load_font(18, bold=True), fill=(55, 65, 81, 255), anchor="lm")
+    draw.text((295, 342), "팬 랭킹 배틀 & 이벤트 응모 포인트 실시간 누적", font=_load_font(16, bold=False), fill=(110, 120, 138, 255), anchor="lm")
+
+    return _save_banner_png(img, banner_path)
+
+
+def render_region_menu_banner_png(
+    menu_type: str,
+    region_key: str,
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """Render 2:1 (800x400) multi-club banner for '다른팀 뉴스' and '구단별 선수' carousels."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    m_type = "players" if menu_type == "players" else "news"
+    rk = region_key.lower().strip()
+    banner_path = _BANNER_DIR / f"banner_menu_{m_type}_{rk}_v1.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    if m_type == "news":
+        region_map: dict[str, tuple[str, list[str], str]] = {
+            "capital": ("수도권 구단 뉴스 (SK • KT • 삼성)", ["SK", "KT", "삼성"], "구단 뉴스 보기"),
+            "gangwon_gyeonggi": ("경기·강원 구단 뉴스 (DB • 정관장 • 소노)", ["DB", "정관장", "소노"], "구단 뉴스 보기"),
+            "yeongnam": ("영남권 구단 뉴스 (LG • KCC • 현대모비스)", ["LG", "KCC", "현대모비스"], "구단 뉴스 보기"),
+            "daegu": ("대구 구단 & KBL 전체 뉴스", ["한국가스공사"], "구단 · 전체 뉴스"),
+        }
+    else:
+        region_map = {
+            "capital": ("수도권 구단 선수단 (SK • KT • 삼성)", ["SK", "KT", "삼성"], "선수단 보기"),
+            "gangwon_gyeonggi": ("경기·강원 구단 선수단 (DB • 정관장 • 소노)", ["DB", "정관장", "소노"], "선수단 보기"),
+            "yeongnam": ("영남권 구단 선수단 (LG • KCC • 현대모비스)", ["LG", "KCC", "현대모비스"], "선수단 보기"),
+            "daegu": ("대구 구단 & KBL 선수 순위", ["한국가스공사"], "선수단 · 순위"),
+        }
+
+    title, teams, action_txt = region_map.get(rk, ("KBL 구단 둘러보기", ["SK", "DB", "LG"], "바로가기"))
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(_download_image_cached, [get_team_logo(t) for t in teams]))
+
+    img, draw = _new_banner_canvas(title, width, height, title_size=23)
+    font_name = _load_font(22, bold=True)
+    font_sub = _load_font(16, bold=False)
+
+    n = len(teams)
+    slot_w = width // n
+    for i, t in enumerate(teams):
+        cx = slot_w * i + slot_w // 2
+        cy = 185 if n > 1 else 190
+        r = 72 if n > 1 else 96
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=(220, 225, 235, 255), width=3)
+
+        logo = _download_image_cached(get_team_logo(t))
+        if logo:
+            sz = 118 if n > 1 else 164
+            l_res = logo.resize((sz, sz), Image.Resampling.LANCZOS)
+            img.paste(l_res, (cx - sz // 2, cy - sz // 2), l_res if l_res.mode == "RGBA" else None)
+
+        draw.text((cx, 298 if n > 1 else 322), t, font=font_name, fill=(22, 24, 29, 255), anchor="mm")
+        draw.text((cx, 336 if n > 1 else 360), action_txt, font=font_sub, fill=(24, 119, 242, 255), anchor="mm")
+
+    return _save_banner_png(img, banner_path)
+
+
+def render_game_recap_banner_png(
+    home: str,
+    away: str,
+    home_score: int = 0,
+    away_score: int = 0,
+    width: int = 800,
+    height: int = 400,
+) -> bytes:
+    """Render compact 2:1 (800x400) match recap scoreboard banner with both team emblems."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    h_clean = home.strip() or "HOME"
+    a_clean = away.strip() or "AWAY"
+    sig_str = f"recap_v1:{h_clean}:{a_clean}:{home_score}:{away_score}"
+    sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:12]
+    banner_path = _BANNER_DIR / f"banner_recap_{sig}.png"
+    if banner_path.exists():
+        try:
+            return banner_path.read_bytes()
+        except Exception:
+            pass
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(_download_image_cached, [get_team_logo(h_clean), get_team_logo(a_clean)]))
+
+    img, draw = _new_banner_canvas(f"{h_clean} vs {a_clean}  |  경기 요약 리캡", width, height, title_size=23)
+
+    home_won = home_score >= away_score
+    sides = [
+        (165, h_clean, home_won),
+        (635, a_clean, not home_won),
+    ]
+    for cx, t_name, is_winner in sides:
+        cy, r = 190, 78
+        border_col = (37, 99, 235, 255) if is_winner else (218, 224, 234, 255)
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=border_col, width=4 if is_winner else 2)
+        logo = _download_image_cached(get_team_logo(t_name))
+        if logo:
+            l_res = logo.resize((126, 126), Image.Resampling.LANCZOS)
+            img.paste(l_res, (cx - 63, cy - 63), l_res if l_res.mode == "RGBA" else None)
+
+        draw.text((cx, 300), t_name, font=_load_font(22, bold=True), fill=(22, 24, 29, 255), anchor="mm")
+        if is_winner:
+            draw.rounded_rectangle((cx - 42, 326, cx + 42, 356), radius=15, fill=(37, 99, 235, 255))
+            draw.text((cx, 341), "WIN", font=_load_font(16, bold=True), fill=(255, 255, 255, 255), anchor="mm")
+        else:
+            draw.text((cx, 341), "FULL TIME", font=_load_font(15, bold=False), fill=(120, 128, 142, 255), anchor="mm")
+
+    # Center final scoreboard
+    draw.rounded_rectangle((285, 138, 515, 258), radius=18, fill=(255, 255, 255, 255), outline=(218, 224, 234, 255), width=2)
+    draw.text((400, 166), "FINAL SCORE", font=_load_font(15, bold=True), fill=(100, 110, 128, 255), anchor="mm")
+    draw.text((400, 214), f"{home_score} : {away_score}", font=_load_font(44, bold=True), fill=(17, 24, 39, 255), anchor="mm")
+    winner_name = h_clean if home_won else a_clean
+    diff = abs(home_score - away_score)
+    draw.text((400, 316), f"{winner_name} {diff}점 차 승리", font=_load_font(20, bold=True), fill=(37, 99, 235, 255), anchor="mm")
+
+    return _save_banner_png(img, banner_path)

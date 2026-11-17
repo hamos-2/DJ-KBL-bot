@@ -731,5 +731,77 @@ class TestProBasketballBotFeatures:
         assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
         assert len(png_bytes) > 5000
 
+    def test_ui_2_1_banner_improvements(self) -> None:
+        """All fixed UI cards must use crisp 2:1 (800x400) banners without square logo cropping."""
+        from apps.kakao.builder import (
+            build_game_summary_response,
+            build_single_player_response,
+            build_team_news_menu_response,
+            build_team_players_menu_response,
+            build_team_players_response,
+            build_user_points_response,
+        )
+        from services.content.lineup_board import (
+            render_game_recap_banner_png,
+            render_region_menu_banner_png,
+            render_single_player_banner_png,
+            render_user_points_banner_png,
+        )
+
+        # 1. Single player card -> /banner/player/
+        p_resp = build_single_player_response(
+            {"name": "자밀 워니", "team": "SK", "pos": "C", "no": "34", "pts": 19.1, "reb": 9.6, "ast": 6.4}
+        )
+        p_thumb = p_resp.template.outputs[0]["basicCard"]["thumbnail"]
+        assert "/banner/player/" in p_thumb["imageUrl"]
+        assert p_thumb["width"] == 800 and p_thumb["height"] == 400
+
+        # 2. User points card -> /banner/points/ + concise 3-line description
+        pts_resp = build_user_points_response(70, favorite_team="SK")
+        pts_card = pts_resp.template.outputs[0]["basicCard"]
+        assert "/banner/points/" in pts_card["thumbnail"]["imageUrl"]
+        assert pts_card["thumbnail"]["width"] == 800 and pts_card["thumbnail"]["height"] == 400
+        assert len(pts_card["description"].splitlines()) <= 4
+
+        # 3. Team players Best 5 carousel -> /banner/team/{team}/1.png & 2.png
+        tp_resp = build_team_players_response(
+            "SK",
+            [{"name": "자밀 워니", "pos": "C", "no": "34", "pts": 19.1, "reb": 9.6, "ast": 6.4}],
+            fav_players=[],
+        )
+        for card in tp_resp.template.outputs[1]["carousel"]["items"]:
+            assert "/banner/team/" in card["thumbnail"]["imageUrl"]
+            assert card["thumbnail"]["width"] == 800 and card["thumbnail"]["height"] == 400
+
+        # 4. Team news & players regional menus -> multi-club 2:1 banners
+        for menu_resp, m_type in [
+            (build_team_news_menu_response(), "news"),
+            (build_team_players_menu_response(), "players"),
+        ]:
+            for card in menu_resp.template.outputs[0]["carousel"]["items"]:
+                assert f"/banner/menu/{m_type}/" in card["thumbnail"]["imageUrl"]
+                assert card["thumbnail"]["width"] == 800 and card["thumbnail"]["height"] == 400
+
+        # 5. Game summary -> compact itemCard (no square thumbnail) + 2:1 recap commentary card
+        sum_resp = build_game_summary_response(
+            [{"game_id": "1", "home_team": "SK", "away_team": "현대모비스", "home_score": 92, "away_score": 76, "status": "FINAL"}],
+            favorite_team="SK",
+        )
+        assert "thumbnail" not in sum_resp.template.outputs[0]["itemCard"]
+        c_thumb = sum_resp.template.outputs[1]["basicCard"]["thumbnail"]
+        assert "/banner/recap/" in c_thumb["imageUrl"]
+        assert c_thumb["width"] == 800 and c_thumb["height"] == 400
+
+        # 6. All 4 PNG renderers produce valid PNG headers
+        for png in [
+            render_single_player_banner_png("자밀 워니", "SK", "C", "34", 19.1, 9.6, 6.4),
+            render_user_points_banner_png("SK", 70, "SK 주전#3808"),
+            render_region_menu_banner_png("news", "capital"),
+            render_region_menu_banner_png("players", "capital"),
+            render_game_recap_banner_png("SK", "현대모비스", 92, 76),
+        ]:
+            assert png.startswith(b"\x89PNG\r\n\x1a\n")
+            assert len(png) > 3000
+
 
 
