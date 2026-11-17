@@ -793,7 +793,7 @@ def resolve_kbl_highlight_video_url(
     home_team: str,
     away_team: str,
     start_time: str | None = None,
-    timeout: float = 1.8,
+    timeout: float = 3.5,
 ) -> tuple[str, str | None]:
     """
     Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
