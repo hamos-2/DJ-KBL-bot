@@ -492,18 +492,10 @@ class GameService:
                     item for item in all_news
                     if team in item.get("title", "") or team in item.get("description", "")
                 ]
-                if len(team_news) >= 3:
+                if len(team_news) >= 10:
                     team_news = _sort_news_by_team_relevance(team_news, team)
-                    # Append remaining league news after team news so pagination ('🔄 새로운 뉴스')
-                    # always has Page 2+ of fresh KBL articles instead of getting stuck on Page 1.
-                    seen_urls = {it.get("url") or it.get("title") for it in team_news}
-                    other_news = [
-                        it for it in all_news
-                        if (it.get("url") or it.get("title")) not in seen_urls
-                    ]
-                    combined_news = (team_news + other_news)[:25]
-                    await client.set(cache_key, json.dumps(combined_news), ex=600)
-                    return combined_news
+                    await client.set(cache_key, json.dumps(team_news), ex=600)
+                    return team_news
         except Exception:
             pass
 
@@ -515,7 +507,15 @@ class GameService:
             items = parse_daum_news_html("", recent, team=team)
 
         if items and team:
-            items = _sort_news_by_team_relevance(items, team)
+            # Keep only articles mentioning the selected team when team-specific news is requested
+            strict_team_items = [
+                it for it in items
+                if team in it.get("title", "") or team in it.get("description", "")
+            ]
+            if strict_team_items:
+                items = _sort_news_by_team_relevance(strict_team_items, team)
+            else:
+                items = _sort_news_by_team_relevance(items, team)
 
         if items:
             try:
