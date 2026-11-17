@@ -1500,9 +1500,13 @@ def build_news_response(
     else:
         slice_items = news_items[:5]
         header = f"{favorite_team} 관련 뉴스" if favorite_team else "KBL 프로농구 최신 뉴스"
-        next_msg = f"#{favorite_team} 새로운 뉴스 2" if favorite_team else "새로운 뉴스 2"
-        toggle_btn = _msg_btn("🔄 새로운 뉴스", next_msg)
-        qr_news = QuickReply(label="🔄 새로운 뉴스", messageText=next_msg)
+        if total_pages > 1:
+            next_msg = f"#{favorite_team} 새로운 뉴스 2" if favorite_team else "새로운 뉴스 2"
+            toggle_btn = _msg_btn("🔄 새로운 뉴스", next_msg)
+            qr_news = QuickReply(label="🔄 새로운 뉴스", messageText=next_msg)
+        else:
+            toggle_btn = _msg_btn("📰 KBL 전체 뉴스", "KBL 전체 뉴스")
+            qr_news = QuickReply(label="📰 KBL 전체 뉴스", messageText="KBL 전체 뉴스")
 
     items: list[dict[str, Any]] = []
     for item in slice_items:

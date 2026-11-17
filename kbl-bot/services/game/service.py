@@ -494,8 +494,16 @@ class GameService:
                 ]
                 if len(team_news) >= 3:
                     team_news = _sort_news_by_team_relevance(team_news, team)
-                    await client.set(cache_key, json.dumps(team_news), ex=600)
-                    return team_news
+                    # Append remaining league news after team news so pagination ('🔄 새로운 뉴스')
+                    # always has Page 2+ of fresh KBL articles instead of getting stuck on Page 1.
+                    seen_urls = {it.get("url") or it.get("title") for it in team_news}
+                    other_news = [
+                        it for it in all_news
+                        if (it.get("url") or it.get("title")) not in seen_urls
+                    ]
+                    combined_news = (team_news + other_news)[:25]
+                    await client.set(cache_key, json.dumps(combined_news), ex=600)
+                    return combined_news
         except Exception:
             pass
 
