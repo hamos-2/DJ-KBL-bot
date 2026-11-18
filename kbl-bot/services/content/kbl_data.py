@@ -990,15 +990,16 @@ def build_highlights_from_games(
             except Exception:
                 pass
         raw_arena = str(g.get("arena") or TEAM_INFO.get(h, {}).get("arena") or "")
-        s_arena = re.sub(r"(체육관|아레나|실내체육관|학생체육관|스튜디오)$", "", raw_arena).strip()
         if "잠실학생" in raw_arena:
             s_arena = "잠실학생"
         elif "잠실실내" in raw_arena:
             s_arena = "잠실실내"
-        elif s_arena:
-            s_arena = s_arena.split()[0]
+        elif "부산" in raw_arena or "사직" in raw_arena:
+            s_arena = "부산사직"
+        else:
+            s_arena = raw_arena[:2] if raw_arena else ""
 
-        if channel and yt_thumb:
+        if status != "LIVE" and channel and yt_thumb:
             meta = " ".join(p for p in (mm_dd_dot, s_arena) if p)
             arena_desc = f"▶️ {channel} · {meta}" if meta else f"▶️ {channel}"
         else:
