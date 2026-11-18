@@ -40,15 +40,14 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
     QuickReply(label="📋 라인업", messageText="라인업"),
     QuickReply(label="⭐ 관심선수", messageText="관심선수"),
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="📰 최신 뉴스", messageText="뉴스"),
     QuickReply(label="🎬 주요장면", messageText="주요장면"),
     QuickReply(label="🏆 팀순위", messageText="팀순위"),
     QuickReply(label="⚙️ 설정", messageText="설정"),
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
 ]
 
 FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
     QuickReply(label="🏀 10개 구단 선수", messageText="구단별 선수"),
     QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
@@ -58,6 +57,7 @@ FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
     QuickReply(label="🏅 선수순위", messageText="선수순위"),
     QuickReply(label="🗑️ 관심선수 초기화", messageText="관심선수 초기화"),
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
 ]
 
 _DEFAULT_QUICK_REPLIES: list[QuickReply] = MAIN_MENU_QUICK_REPLIES
@@ -1113,7 +1113,6 @@ def _build_witty_kbl_commentary(
 
 
 SUMMARY_QUICK_REPLIES: list[QuickReply] = [
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
     QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
     QuickReply(label="💬 DB 요약", messageText="DB 요약"),
@@ -1123,6 +1122,7 @@ SUMMARY_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="💬 KCC 요약", messageText="KCC 요약"),
     QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
     QuickReply(label="🏆 팀순위", messageText="팀순위"),
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
 ]
 
 
@@ -1730,7 +1730,6 @@ def build_news_response(
         ],
     )
     custom_qr = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         qr_news,
         QuickReply(label="🏀 다른팀 뉴스", messageText="다른팀 뉴스"),
         QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
@@ -1738,17 +1737,18 @@ def build_news_response(
     all_teams_order = ["SK", "KT", "DB", "LG", "소노", "KCC", "현대모비스", "정관장", "한국가스공사", "삼성"]
     other_teams = [t for t in all_teams_order if t != favorite_team]
     for ot in other_teams:
-        if len(custom_qr) >= 10:
+        if len(custom_qr) >= 9:
             break
         alias_label = "모비스" if ot == "현대모비스" else ("가스공사" if ot == "한국가스공사" else ot)
         custom_qr.append(QuickReply(label=f"📰 {alias_label} 뉴스", messageText=f"{alias_label} 뉴스"))
 
-    while len(custom_qr) < 10:
+    while len(custom_qr) < 9:
         for qr in MAIN_MENU_QUICK_REPLIES:
-            if qr.label not in [q.label for q in custom_qr]:
+            if qr.label != "🏠 홈으로" and qr.label not in [q.label for q in custom_qr]:
                 custom_qr.append(qr)
-                if len(custom_qr) >= 10:
+                if len(custom_qr) >= 9:
                     break
+    custom_qr.append(QuickReply(label="🏠 홈으로", messageText="처음으로"))
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -1814,7 +1814,6 @@ def build_team_news_menu_response(
         ],
     )
     menu_qrs = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
         QuickReply(label="📰 SK 뉴스", messageText="SK 뉴스"),
         QuickReply(label="📰 KT 뉴스", messageText="KT 뉴스"),
@@ -1824,6 +1823,7 @@ def build_team_news_menu_response(
         QuickReply(label="📰 KCC 뉴스", messageText="KCC 뉴스"),
         QuickReply(label="📰 모비스 뉴스", messageText="모비스 뉴스"),
         QuickReply(label="📰 가스공사 뉴스", messageText="가스공사 뉴스"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -2297,7 +2297,6 @@ def build_team_players_menu_response(
         ],
     )
     quick_replies = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
         QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
         QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
@@ -2307,6 +2306,7 @@ def build_team_players_menu_response(
         QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
         QuickReply(label="🏀 정관장 선수", messageText="정관장 선수"),
         QuickReply(label="🏀 가스공사 선수", messageText="한국가스공사 선수"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -2576,13 +2576,13 @@ def build_cheering_response(
         )
 
     cheer_quick_replies = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="📊 내 예측 결과", messageText="예측결과"),
         QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="📋 라인업", messageText="라인업"),
         QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
 
     return KakaoSkillResponse(
@@ -2662,7 +2662,6 @@ def build_user_points_response(
     )
 
     point_quick_replies = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
         QuickReply(label="🏆 승부예측 랭킹", messageText="승부예측 랭킹"),
         QuickReply(label="📊 예측결과", messageText="예측결과"),
@@ -2670,6 +2669,7 @@ def build_user_points_response(
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="🏅 선수순위", messageText="선수순위"),
         QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
 
     return KakaoSkillResponse(
@@ -2770,12 +2770,12 @@ def build_prediction_results_response(
     Displays user's prediction history, win/miss outcome, hit points (+50P), and total record.
     """
     quick_replies = [
-        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🗳️ 오늘 승부예측", messageText="승부예측"),
         QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
         QuickReply(label="🏆 팀순위", messageText="팀순위"),
         QuickReply(label="⚙️ 알림설정", messageText="알림설정"),
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
     ]
 
     tier_name, badge, _ = get_point_tier(user_points)
