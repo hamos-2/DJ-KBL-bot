@@ -73,15 +73,15 @@ def test_lineup_dynamic_quick_replies(sample_three_games):
     labels = [qr.label for qr in resp.template.quickReplies]
 
     # Verify match jump buttons exist
-    assert "📋 SK vs DB" in labels
-    assert "📋 LG vs KT" in labels
-    assert "📋 정관장 vs 소노" in labels
+    assert "SK vs DB" in labels
+    assert "LG vs KT" in labels
+    assert "정관장 vs 소노" in labels
 
     # Verify essential utility buttons
-    assert "🔴 실시간 점수" in labels
-    assert "🗳️ 승부예측" in labels
-    assert "🏀 오늘 경기" in labels
-    assert "🏆 팀순위" in labels
+    assert "실시간 점수" in labels
+    assert "승부예측" in labels
+    assert "오늘 경기" in labels
+    assert "팀순위" in labels
 
     # Maximum 10 buttons
     assert len(resp.template.quickReplies) <= 10
@@ -100,9 +100,9 @@ def test_single_team_lineup_returns_single_card(sample_three_games):
     assert "KCC" not in items[0]["title"]
 
     labels = [qr.label for qr in resp.template.quickReplies]
-    assert "⭐ 정관장 선수단" in labels
-    assert "📅 정관장 일정" in labels
-    assert "📋 오늘 라인업" in labels
+    assert "정관장 선수단" in labels
+    assert "정관장 일정" in labels
+    assert "오늘 라인업" in labels
 
 
 def test_game_lineup_memory_ttl_cache():

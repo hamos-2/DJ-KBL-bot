@@ -89,8 +89,8 @@ async def test_welcome_onboarding_shows_10_teams_carousel_if_no_fav_team(dummy_u
         cards = carousel_out["carousel"]["items"]
         assert len(cards) >= 4
         btn_labels = [b["label"] for card in cards for b in card["buttons"]]
-        assert "❤️ 원주 DB" in btn_labels
-        assert "❤️ 서울 SK" in btn_labels
+        assert "원주 DB" in btn_labels
+        assert "서울 SK" in btn_labels
 
 
 @pytest.mark.asyncio
@@ -135,7 +135,7 @@ async def test_game_summary_recap_feature_parity(dummy_user):
         assert len(t_resp.template.outputs) == 2
         c_card = t_resp.template.outputs[1]["basicCard"]
         assert "촌철살인 한줄평" in c_card["title"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in c_card["buttons"])
+        assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in c_card["buttons"])
 
 
 @pytest.mark.asyncio
@@ -219,7 +219,7 @@ async def test_live_score_quarter_boxscore():
     assert card is not None
     assert "daumcdn.net" in card.get("imageTitle", {}).get("imageUrl", "")
     card_btn_labels = [b["label"] for b in card["buttons"]]
-    assert "📺 다음 톡중계 보기" in card_btn_labels
+    assert "다음 톡중계 보기" in card_btn_labels
 
 
 @pytest.mark.asyncio
@@ -255,8 +255,8 @@ async def test_today_games_includes_native_list_card_with_daum_logos():
     assert len(list_card["items"]) == 2
     assert "daumcdn.net" in list_card["items"][0]["imageUrl"]
     btn_labels = [b["label"] for b in list_card["buttons"]]
-    assert "🔴 실시간 점수" in btn_labels
-    assert "🗳️ 오늘 승부예측" in btn_labels
+    assert "실시간 점수" in btn_labels
+    assert "오늘 승부예측" in btn_labels
 
 
 @pytest.mark.asyncio

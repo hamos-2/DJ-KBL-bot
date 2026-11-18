@@ -215,8 +215,8 @@ class TestProBasketballBotFeatures:
         from apps.kakao.builder import MAIN_MENU_QUICK_REPLIES
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
-            "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정", "🏠 홈으로",
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
+            "최신 뉴스", "주요장면", "팀순위", "설정", "홈으로",
         ]
         assert labels == expected
 
@@ -259,14 +259,14 @@ class TestProBasketballBotFeatures:
         set_main = build_settings_response("KT", ["허훈"], {"lineup": True, "game_start": True, "game_end": False, "clutch": False})
         carousel_items = set_main.template.outputs[0]["carousel"]["items"]
         btn_labels = [b["label"] for card in carousel_items for b in card["buttons"]]
-        assert "❤️ 응원팀 변경" in btn_labels
+        assert "응원팀 변경" in btn_labels
         assert "시작알림 OFF" in btn_labels
         assert "종료알림 ON" in btn_labels
         assert "클러치알림 ON" in btn_labels
         qr_labels = [q.label for q in set_main.template.quickReplies]
         assert qr_labels == [
-            "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정", "🏠 홈으로",
+            "오늘 경기", "실시간 점수", "승부예측", "라인업", "관심선수",
+            "최신 뉴스", "주요장면", "팀순위", "설정", "홈으로",
         ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
@@ -540,7 +540,7 @@ class TestProBasketballBotFeatures:
         )
         assert len(fav_resp.template.quickReplies) == 10
         fav_qr_labels = [qr.label for qr in fav_resp.template.quickReplies]
-        assert "⭐ 내 관심선수" in fav_qr_labels
+        assert "내 관심선수" in fav_qr_labels
         assert any("선수" in l for l in fav_qr_labels)
 
         # Check carousel cards (including team roster shortcuts)
@@ -632,12 +632,12 @@ class TestProBasketballBotFeatures:
             build_user_points_response,
         )
 
-        # 1. User points card -> [📤 내 적중률 자랑하기]
+        # 1. User points card -> [내 적중률 자랑하기]
         pts_resp = build_user_points_response(150, favorite_team="KT")
         pts_btns = pts_resp.template.outputs[0]["basicCard"]["buttons"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 내 적중률 자랑하기" for b in pts_btns)
+        assert any(b.get("action") == "share" and b.get("label") == "내 적중률 자랑하기" for b in pts_btns)
 
-        # 2. Prediction results card -> [📤 내 적중률 자랑하기]
+        # 2. Prediction results card -> [내 적중률 자랑하기]
         pred_resp = build_prediction_results_response(
             results=[{
                 "game_id": "80109231",
@@ -655,22 +655,22 @@ class TestProBasketballBotFeatures:
         )
         pred_cards = pred_resp.template.outputs[0]["carousel"]["items"]
         for c in pred_cards:
-            assert any(b.get("action") == "share" and b.get("label") == "📤 내 적중률 자랑하기" for b in c["buttons"])
+            assert any(b.get("action") == "share" and b.get("label") == "내 적중률 자랑하기" for b in c["buttons"])
 
-        # 3. Single player card -> [📤 선수 스탯 공유하기]
+        # 3. Single player card -> [선수 스탯 공유하기]
         player_resp = build_single_player_response(
             {"name": "이선 알바노", "team": "DB", "pos": "G", "no": "3", "pts": 15.8, "reb": 2.9, "ast": 6.4},
             is_favorite=True,
         )
         player_btns = player_resp.template.outputs[0]["basicCard"]["buttons"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 선수 스탯 공유하기" for b in player_btns)
+        assert any(b.get("action") == "share" and b.get("label") == "선수 스탯 공유하기" for b in player_btns)
 
-        # 4. Lineup card -> [📤 라인업 공유하기]
+        # 4. Lineup card -> [라인업 공유하기]
         lineup_resp = build_lineup_response([], favorite_team="DB", target_team="DB")
         lineup_cards = lineup_resp.template.outputs[0]["carousel"]["items"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 라인업 공유하기" for b in lineup_cards[0]["buttons"])
+        assert any(b.get("action") == "share" and b.get("label") == "라인업 공유하기" for b in lineup_cards[0]["buttons"])
 
-        # 5. Game summary & witty commentary card -> [📤 한줄평 공유하기]
+        # 5. Game summary & witty commentary card -> [한줄평 공유하기]
         from apps.kakao.builder import build_game_summary_response
         sample_games = [
             {
@@ -686,10 +686,10 @@ class TestProBasketballBotFeatures:
         item_card = summary_win.template.outputs[0]["itemCard"]
         commentary_card = summary_win.template.outputs[1]["basicCard"]
         assert "정관장 경기 요약" in item_card["head"]["title"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in item_card["buttons"])
+        assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in item_card["buttons"])
         assert "촌철살인 한줄평" in commentary_card["title"]
         assert "정관장 시점 촌철살인 한줄평" in commentary_card["description"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in commentary_card["buttons"])
+        assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in commentary_card["buttons"])
 
         # Losing team perspective ("가스공사 요약")
         summary_lose = build_game_summary_response(sample_games, target_team="한국가스공사")
@@ -702,7 +702,7 @@ class TestProBasketballBotFeatures:
         fb_commentary = summary_fallback.template.outputs[1]["basicCard"]
         assert "DB 경기 요약" in fb_item["head"]["title"]
         assert "DB 촌철살인 한줄평" in fb_commentary["title"]
-        assert any(b.get("action") == "share" and b.get("label") == "📤 한줄평 공유하기" for b in fb_commentary["buttons"])
+        assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in fb_commentary["buttons"])
 
         # 6. Lineup 2-column visual board image (matching Daum ?tab=lineup)
         from services.content.lineup_board import (
@@ -853,8 +853,8 @@ class TestProBasketballBotFeatures:
             assert "장문호" in after_c1["description"]
             assert "최부경" in after_c1["description"]
             assert "신규용병테스트" in after_c2["description"]
-            assert after_c1["buttons"][0]["label"] == "➖ 장문호 해제"
-            assert after_c2["buttons"][1]["label"] == "➕ 신규용병테스트 등록"
+            assert after_c1["buttons"][0]["label"] == "장문호 해제"
+            assert after_c2["buttons"][1]["label"] == "신규용병테스트 등록"
             for card in (after_c1, after_c2):
                 for btn in card["buttons"]:
                     assert _u16_len(btn["label"]) <= 14
@@ -869,7 +869,7 @@ class TestProBasketballBotFeatures:
                 [], [], favorite_team="SK", notice=None, base_url="https://example.com"
             )
             after_fav_card1 = after_fav.template.outputs[1]["carousel"]["items"][0]
-            assert after_fav_card1["buttons"][0]["label"] == "➕ 장문호 등록"
+            assert after_fav_card1["buttons"][0]["label"] == "장문호 등록"
             assert after_fav_card1["thumbnail"]["imageUrl"] != before_fav_u1
             assert "?v=s_" in after_fav_card1["thumbnail"]["imageUrl"]
 
@@ -1032,7 +1032,7 @@ class TestProBasketballBotFeatures:
             build_prediction_results_response([], {"hits": 0, "misses": 0, "pending": 0, "total": 0, "hit_rate": 0}, 100),
         ]:
             assert len(resp_obj.template.quickReplies) <= 10
-            assert resp_obj.template.quickReplies[-1].label == "🏠 홈으로"
+            assert resp_obj.template.quickReplies[-1].label == "홈으로"
             assert resp_obj.template.quickReplies[-1].messageText == "처음으로"
 
 

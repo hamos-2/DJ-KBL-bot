@@ -1,8 +1,9 @@
 """Pydantic v2 schemas for Kakao OpenBuilder Skill request/response."""
 
+import re
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -58,11 +59,18 @@ class SimpleTextOutput(BaseModel):
 
 
 class QuickReply(BaseModel):
-    """Kakao quick-reply button."""
+    """Kakao quick-reply button (clean text without decorative leading emojis)."""
 
     action: str = Field(default="message")
     label: str
     messageText: str
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _strip_leading_emoji(cls, v: Any) -> str:
+        s = str(v or "").strip()
+        cleaned = re.sub(r"^[^\w가-힣#()\[\]]+", "", s).strip()
+        return cleaned or s
 
 
 class KakaoTemplate(BaseModel):

@@ -33,31 +33,31 @@ _DEFAULT_PUBLIC_BASE_URL = os.environ.get(
     "https://activity-lexmark-insert-styles.trycloudflare.com",
 )
 
-# Bottom navigation QuickReplies: Optimized for user flow (Matching 프로야구봇 _HhRnC structure with clear visual icons)
+# Bottom navigation QuickReplies: Clean text without leading emoji clutter
 MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
-    QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
-    QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
-    QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
-    QuickReply(label="📋 라인업", messageText="라인업"),
-    QuickReply(label="⭐ 관심선수", messageText="관심선수"),
-    QuickReply(label="📰 최신 뉴스", messageText="뉴스"),
-    QuickReply(label="🎬 주요장면", messageText="주요장면"),
-    QuickReply(label="🏆 팀순위", messageText="팀순위"),
-    QuickReply(label="⚙️ 설정", messageText="설정"),
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
+    QuickReply(label="오늘 경기", messageText="오늘 경기"),
+    QuickReply(label="실시간 점수", messageText="실시간 점수"),
+    QuickReply(label="승부예측", messageText="승부예측"),
+    QuickReply(label="라인업", messageText="라인업"),
+    QuickReply(label="관심선수", messageText="관심선수"),
+    QuickReply(label="최신 뉴스", messageText="뉴스"),
+    QuickReply(label="주요장면", messageText="주요장면"),
+    QuickReply(label="팀순위", messageText="팀순위"),
+    QuickReply(label="설정", messageText="설정"),
+    QuickReply(label="홈으로", messageText="처음으로"),
 ]
 
 FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
-    QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
-    QuickReply(label="🏀 10개 구단 선수", messageText="구단별 선수"),
-    QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
-    QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
-    QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
-    QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
-    QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
-    QuickReply(label="🏅 선수순위", messageText="선수순위"),
-    QuickReply(label="🗑️ 관심선수 초기화", messageText="관심선수 초기화"),
-    QuickReply(label="🏠 홈으로", messageText="처음으로"),
+    QuickReply(label="내 관심선수", messageText="관심선수"),
+    QuickReply(label="10개 구단 선수", messageText="구단별 선수"),
+    QuickReply(label="SK 선수", messageText="SK 선수"),
+    QuickReply(label="KT 선수", messageText="KT 선수"),
+    QuickReply(label="DB 선수", messageText="DB 선수"),
+    QuickReply(label="KCC 선수", messageText="KCC 선수"),
+    QuickReply(label="LG 선수", messageText="LG 선수"),
+    QuickReply(label="선수순위", messageText="선수순위"),
+    QuickReply(label="관심선수 초기화", messageText="관심선수 초기화"),
+    QuickReply(label="홈으로", messageText="처음으로"),
 ]
 
 _DEFAULT_QUICK_REPLIES: list[QuickReply] = MAIN_MENU_QUICK_REPLIES
@@ -114,11 +114,18 @@ def _u16_truncate(text: str, max_u16: int, suffix: str = "") -> str:
     return f"{res}{suffix}" if suffix else res
 
 
+def _clean_btn_label(label: str) -> str:
+    """Strip leading decorative emojis/symbols from button labels for clean UI."""
+    s = str(label or "").strip()
+    cleaned = re.sub(r"^[^\w가-힣#()\[\]]+", "", s).strip()
+    return cleaned or s
+
+
 def _msg_btn(label: str, message_text: str) -> dict[str, str]:
     """Build an in-card message button dict for Kakao textCard/basicCard."""
     return {
         "action": "message",
-        "label": _u16_truncate(label, 14),
+        "label": _u16_truncate(_clean_btn_label(label), 14),
         "messageText": message_text,
     }
 
@@ -127,7 +134,7 @@ def _link_btn(label: str, url: str) -> dict[str, str]:
     """Build an in-card webLink button dict for Kakao textCard/basicCard."""
     return {
         "action": "webLink",
-        "label": _u16_truncate(label, 14),
+        "label": _u16_truncate(_clean_btn_label(label), 14),
         "webLinkUrl": url,
     }
 
@@ -136,7 +143,7 @@ def _share_btn(label: str) -> dict[str, str]:
     """Build an in-card KakaoTalk viral share button dict (action: 'share') for basicCard/listCard."""
     return {
         "action": "share",
-        "label": _u16_truncate(label, 14),
+        "label": _u16_truncate(_clean_btn_label(label), 14),
     }
 
 
@@ -1744,11 +1751,11 @@ def build_news_response(
 
     while len(custom_qr) < 9:
         for qr in MAIN_MENU_QUICK_REPLIES:
-            if qr.label != "🏠 홈으로" and qr.label not in [q.label for q in custom_qr]:
+            if qr.label != "홈으로" and qr.label not in [q.label for q in custom_qr]:
                 custom_qr.append(qr)
                 if len(custom_qr) >= 9:
                     break
-    custom_qr.append(QuickReply(label="🏠 홈으로", messageText="처음으로"))
+    custom_qr.append(QuickReply(label="홈으로", messageText="처음으로"))
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
