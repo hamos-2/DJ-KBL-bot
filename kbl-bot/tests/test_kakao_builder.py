@@ -976,7 +976,7 @@ class TestProBasketballBotFeatures:
             )
             outputs = welcome_resp.template.outputs
             assert len(outputs) == 2
-            assert "또 오셨군요, 반가워요! 우리 팀 서울 SK 나이츠 소식을 준비했어요." in outputs[0]["simpleText"]["text"]
+            assert "또 오셨군요, 반가워요!\n우리 팀 서울 SK 나이츠 소식을 준비했어요." in outputs[0]["simpleText"]["text"]
             cards = outputs[1]["carousel"]["items"]
             assert len(cards) == 3
             assert "현재 1위 (8승 2패 · 3연승)" in cards[0]["description"]
