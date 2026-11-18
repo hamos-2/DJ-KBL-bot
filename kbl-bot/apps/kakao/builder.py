@@ -391,9 +391,9 @@ def build_home_menu_response(
     news_banner_url = f"{b_url}/integrations/kakao/skills/banner/home/news/{favorite_team}.png?v=home_v3_800x400"
 
     fav_p_str = (
-        f"\n• ⭐ 관심선수: {', '.join(fav_players[:2])}"
+        f"\n• 관심선수: {', '.join(fav_players[:2])}"
         if fav_players
-        else "\n• ⭐ 관심선수: 미등록 (아래 버튼으로 등록)"
+        else "\n• 관심선수: 미등록 (아래 버튼으로 등록)"
     )
 
     if team_game:
@@ -415,7 +415,7 @@ def build_home_menu_response(
             clock_str = f" {clock}" if clock else ""
             card_title = f"🔴 [LIVE] {home} {h_s} : {a_s} {away}"
             card_desc = (
-                f"🏀 내 응원팀 {full_team} 실시간 경기 중!\n"
+                f"• 경기 현황: {full_team} 실시간 경기 중\n"
                 f"• 현재 상황: {period_str}{clock_str}{arena_str}\n"
                 f"• 매치업: {home} vs {away}"
                 f"{fav_p_str}"
@@ -429,12 +429,12 @@ def build_home_menu_response(
             h_s = h_score if h_score is not None else 0
             a_s = a_score if a_score is not None else 0
             won = (favorite_team == home and h_s > a_s) or (favorite_team == away and a_s > h_s)
-            result_tag = "🎉 승리!" if won else "🏁 경기 종료"
+            result_tag = "승리" if won else "경기 종료"
             card_title = f"✅ [{result_tag}] {home} {h_s} : {a_s} {away}"
             card_desc = (
-                f"🏀 내 응원팀 {full_team} 경기 종료\n"
+                f"• 경기 현황: {full_team} 경기 종료\n"
                 f"• 최종 결과: {home} {h_s} : {a_s} {away}{arena_str}\n"
-                f"하이라이트 영상과 경기 요약을 확인하세요!"
+                f"• 하이라이트 영상과 경기 요약을 확인하세요."
                 f"{fav_p_str}"
             )
             buttons = [
@@ -448,7 +448,7 @@ def build_home_menu_response(
             vs_type = "홈경기" if favorite_team == home else "원정경기"
             card_title = f"📅 [경기 안내] {home} vs {away}"
             card_desc = (
-                f"🏀 내 응원팀 {full_team} {vs_type}\n"
+                f"• 경기 구분: {full_team} {vs_type}\n"
                 f"• 경기 시간: {dt_str}{arena_str}\n"
                 f"• 매치업: {home} vs {away}\n"
                 f"※ 경기 시작 20분 전 확정 라인업이 공개됩니다."
@@ -473,7 +473,7 @@ def build_home_menu_response(
         game_card = _basic_card(
             title=f"🏀 {full_team}",
             description=(
-                f"내 응원팀 설정 완료! ❤️\n"
+                f"내 응원팀 설정이 완료되었습니다.\n"
                 f"하단 버튼을 눌러 오늘 경기와 일정을 확인하세요."
                 f"{fav_p_str}"
             ),
@@ -525,7 +525,7 @@ def build_home_menu_response(
     hot_player_card = _basic_card(
         title=f"🔥 화제의 선수: {hp_name} (#{hp_no})",
         description=(
-            f"{hp.get('badge', '🔥 팀 내 핵심 에이스')}\n"
+            f"{hp.get('badge', '[팀 내 핵심 에이스]')}\n"
             f"• 소속/포지션: {full_team} ({hp_pos})\n"
             f"• {hp.get('game_stat_line', f'시즌 평균: {hp_pts}점 · {hp_reb}리바 · {hp_ast}어시')}\n"
             f"• 시즌 평균: {hp_pts}점 | {hp_reb}리바 | {hp_ast}어시"
@@ -676,14 +676,14 @@ def build_lineup_response(
                 f"{s.get('pos', '')} {s.get('name', '')} #{s.get('no', '')}".strip() for s in t_starters
             )
             desc = (
-                f"🏀 2026-2027 {full_name}\n"
-                f"👨‍💼 감독: {t_coach} 감독\n"
+                f"[{full_name} (2026-2027)]\n"
+                f"• 감독: {t_coach} 감독\n"
                 f"────────────────────\n"
-                f"⭐ [베스트 5 선발]\n{s_lines}\n"
+                f"[베스트 5 선발]\n{s_lines}\n"
                 f"────────────────────\n"
-                f"🌎 외인: {t_foreign}\n"
-                f"🌏 아시아쿼터: {t_aq}\n"
-                f"🔄 식스맨: {t_bench}"
+                f"• 외인: {t_foreign}\n"
+                f"• 아시아쿼터: {t_aq}\n"
+                f"• 식스맨: {t_bench}"
             )
             cards.append(
                 _basic_card(
@@ -808,28 +808,28 @@ def build_lineup_response(
                 pass
 
         if is_confirmed:
-            status_badge = "✅ [공식 확정 선발 라인업]"
+            status_badge = "[공식 확정 선발 라인업]"
             title_tag = "[확정]"
             card_desc = (
                 f"{status_badge}\n\n"
-                f"🏠 [홈팀] {home}{h_coach_str}\n"
+                f"[홈팀] {home}{h_coach_str}\n"
                 f"────────────────────\n"
                 f"{h_players_lines}\n\n"
-                f"✈️ [원정] {away}{a_coach_str}\n"
+                f"[원정] {away}{a_coach_str}\n"
                 f"────────────────────\n"
                 f"{a_players_lines}\n\n"
                 f"※ KBL 공식 제출 확정 베스트 5"
             )
         else:
-            status_badge = "⏳ [공식 라인업 발표 준비 중]"
+            status_badge = "[공식 라인업 발표 준비 중]"
             title_tag = "[준비중]"
             card_desc = (
                 f"{status_badge}\n"
                 f"※ 경기 시작 20~30분 전 공식 발표\n\n"
-                f"🏠 [홈팀 예상] {home}{h_coach_str}\n"
+                f"[홈팀 예상] {home}{h_coach_str}\n"
                 f"────────────────────\n"
                 f"{h_players_lines}\n\n"
-                f"✈️ [원정 예상] {away}{a_coach_str}\n"
+                f"[원정 예상] {away}{a_coach_str}\n"
                 f"────────────────────\n"
                 f"{a_players_lines}"
             )
@@ -1021,7 +1021,7 @@ def resolve_team_hot_player(
                 "reb": float(prof.get("reb") or mvp["reb"]),
                 "ast": float(prof.get("ast") or mvp["ast"]),
                 "source": "boxscore_mvp",
-                "badge": f"🔥 직전 {opp}전 팀 내 최고 수훈선수",
+                "badge": f"[직전 {opp}전 팀 내 최고 수훈선수]",
                 "game_stat_line": f"직전 경기 활약: {mvp['pts']}득점 · {mvp['reb']}리바 · {mvp['ast']}어시",
             }
 
@@ -1044,7 +1044,7 @@ def resolve_team_hot_player(
         "reb": float(ace.get("reb") or 5.0),
         "ast": float(ace.get("ast") or 4.0),
         "source": "season_ace",
-        "badge": "🔥 시즌 평균 공헌도 팀 내 1위 에이스",
+        "badge": "[시즌 평균 공헌도 팀 내 1위 에이스]",
         "game_stat_line": f"시즌 평균 활약: {ace['pts']}득점 · {ace['reb']}리바 · {ace['ast']}어시",
     }
 
@@ -1081,12 +1081,12 @@ def _build_witty_kbl_commentary(
         summary_30 = f"{mvp['name']} 위닝샷! {diff}점차 극장승"[:30]
         if focus_team == loser:
             full_msg = (
-                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"[{loser} 시점 촌철살인 한줄평]\n"
                 f"\"심장 부여잡은 4쿼터 막판 원포제션 승부! {l_star}의 분전에도 마지막 클러치 포제션 야투 한 방이 림을 외면하며 {winner}에 {diff}점 차로 뼈아픈 석패를 당했습니다. {l_coach} 감독의 다음 경기 리벤지 매치 플랜이 절실합니다!\""
             )
         else:
             full_msg = (
-                f"🔥 [{winner} 시점 촌철살인 한줄평]\n"
+                f"[{winner} 시점 촌철살인 한줄평]\n"
                 f"\"이게 바로 KBL 클러치 농구! 4쿼터 종료 직전 숨 막히는 승부처에서 {w_coach} 감독의 작전타임 승부수와 에이스 {mvp['name']}({m_pts}점 {m_ast}어시)의 강심장 클러치 득점이 터지며 {loser} 상대로 짜릿한 {diff}점 차 극장승을 완성했습니다!\""
             )
     elif diff <= 10:
@@ -1094,12 +1094,12 @@ def _build_witty_kbl_commentary(
         summary_30 = f"{mvp['name']} 맹활약! 승부처 완벽 제압"[:30]
         if focus_team == loser:
             full_msg = (
-                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"[{loser} 시점 촌철살인 한줄평]\n"
                 f"\"쫓아갈 만하면 터진 상대의 찬물 외곽포! {loser}({l_coach} 감독)는 {l_star}를 앞세워 추격전을 벌였으나, 3·4쿼터 승부처 턴오버와 {mvp['name']} 수비 제어 실패가 겹치며 {diff}점 차로 아쉬운 패배를 기록했습니다.\""
             )
         else:
             full_msg = (
-                f"⚡ [{winner} 시점 촌철살인 한줄평]\n"
+                f"[{winner} 시점 촌철살인 한줄평]\n"
                 f"\"3·4쿼터 약속의 땅을 지배한 {winner}! {w_coach} 감독의 탄탄한 로테이션과 {mvp['name']}({m_pts}점 {m_reb}리바 {m_ast}어시)의 내외곽 폭격으로 {loser}의 추격 의지를 꺾고 {diff}점 차 기분 좋은 승리를 챙겼습니다!\""
             )
     else:
@@ -1107,12 +1107,12 @@ def _build_witty_kbl_commentary(
         summary_30 = f"{winner} 화력 대폭발! {diff}점차 완승"[:30]
         if focus_team == loser:
             full_msg = (
-                f"💦 [{loser} 시점 촌철살인 한줄평]\n"
+                f"[{loser} 시점 촌철살인 한줄평]\n"
                 f"\"공수 밸런스가 급격히 흔들린 하루! {loser}({l_coach} 감독)는 초반부터 {winner}의 트랜지션과 {mvp['name']}의 화력에 주도권을 내주며 {diff}점 차 완패를 당했습니다. 분위기 쇄신이 시급합니다!\""
             )
         else:
             full_msg = (
-                f"🚀 [{winner} 시점 촌철살인 한줄평]\n"
+                f"[{winner} 시점 촌철살인 한줄평]\n"
                 f"\"코트를 폭격한 {winner}의 무자비한 화력쇼! {w_coach} 감독표 에너지 농구와 {mvp['name']}({m_pts}점 {m_reb}리바)의 원맨쇼가 폭발하며 일찌감치 가비지 타임을 선언, {loser}를 {diff}점 차로 완벽히 제압했습니다!\""
             )
 
@@ -1178,7 +1178,7 @@ def build_game_summary_response(
         ace = team_stars[0] if team_stars else {"name": f"{target_team} 에이스", "pts": 18.5, "reb": 5.2, "ast": 4.8}
 
         one_liner = (
-            f"🔥 [{target_team} 촌철살인 전력 한줄평]\n"
+            f"[{target_team} 촌철살인 전력 한줄평]\n"
             f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}(평균 {ace['pts']}점 {ace['ast']}어시)과 "
             f"외국인 원투펀치({foreigns}), 아시아쿼터({asian_q})의 공수 시너지가 터지면 어느 팀도 막기 힘든 다크호스입니다!\""
         )
@@ -1327,8 +1327,8 @@ def build_game_summary_response(
         "basicCard": _basic_card(
             title=f"💬 {home} vs {away} 촌철살인 한줄평",
             description=(
-                f"🏀 최종 스코어: {home} {hs} : {as_} {away}\n"
-                f"⭐ 수훈선수: {mvp['name']} ({mvp['pts']}점·{mvp['reb']}리바·{mvp['ast']}어시)\n\n"
+                f"• 최종 스코어: {home} {hs} : {as_} {away}\n"
+                f"• 수훈선수: {mvp['name']} ({mvp['pts']}점·{mvp['reb']}리바·{mvp['ast']}어시)\n\n"
                 f"{full_commentary}"
             ),
             thumbnail_url=recap_banner_url,
@@ -1440,10 +1440,10 @@ def build_today_games_response(
             title = f"🔴 {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{time_str}{arena_str} | {g.get('period', '?')}Q 진행중"
         elif status == "FINAL":
-            title = f"✅ {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
+            title = f"{home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{time_str}{arena_str} | 최종 종료"
         else:
-            title = f"📅 {home} vs {away}"
+            title = f"{home} vs {away}"
             desc = f"{time_str}{arena_str} | 경기 예정"
 
         logo_team = away if (favorite_team and home != favorite_team and away == favorite_team) else home
@@ -1503,10 +1503,10 @@ def build_my_schedule_response(
             title = f"🔴 {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{dt_str} [{arena}] | 진행중"
         elif status == "FINAL":
-            title = f"✅ {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
+            title = f"{home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{dt_str} [{arena}] | 경기 종료"
         else:
-            title = f"📅 {home} vs {away}"
+            title = f"{home} vs {away}"
             desc = f"{dt_str} [{arena}] | 경기 예정"
 
         logo_team = favorite_team if (favorite_team and favorite_team in (home, away)) else home
@@ -1559,10 +1559,10 @@ def build_kbl_schedule_response(games: list[dict[str, Any]]) -> KakaoSkillRespon
             title = f"🔴 {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{dt_str} [{arena}] | 진행중"
         elif status == "FINAL":
-            title = f"✅ {home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
+            title = f"{home} {g.get('home_score', 0)}:{g.get('away_score', 0)} {away}"
             desc = f"{dt_str} [{arena}] | 종료"
         else:
-            title = f"📅 {home} vs {away}"
+            title = f"{home} vs {away}"
             desc = f"{dt_str} [{arena}] | 예정"
 
         items.append({
@@ -1877,8 +1877,8 @@ def build_highlights_response(
             url = tving_vclip_url
         else:
             url = raw_url
-        arena = str(item.get("arena") or "📺 TVING / KBL TV 공식 영상")
-        desc = arena if arena.startswith(("▶️", "🔍", "📺", "🎬", "🏀")) else f"▶️ {arena}"
+        arena = str(item.get("arena") or "TVING / KBL TV 공식 영상")
+        desc = re.sub(r"^[^\w가-힣#()\[\]]+", "", arena).strip() or arena
         items.append({
             "title": title,
             "description": desc,
@@ -2221,7 +2221,7 @@ def build_team_players_response(
     card1 = _basic_card(
         title=f"⭐ [{team}] Best 5 등록 (1/2)",
         description=(
-            f"⭐️ {full} ({t_coach} 감독)\n"
+            f"• 구단/감독: {full} ({t_coach} 감독)\n"
             f"• 주전 (1~3): {', '.join(starter_names[:3])}\n"
             f"• 외국인 용병: {t_foreign}\n"
             f"• 아시아쿼터: {t_aq}"
@@ -2239,7 +2239,7 @@ def build_team_players_response(
         card2 = _basic_card(
             title=f"⭐ [{team}] Best 5 등록 (2/2)",
             description=(
-                f"⭐️ {full} ({t_coach} 감독)\n"
+                f"• 구단/감독: {full} ({t_coach} 감독)\n"
                 f"• 주전 (4~5): {', '.join(starter_names[3:5])}\n"
                 f"• 식스맨/벤치: {t_bench}"
             )[:300],
@@ -2938,7 +2938,7 @@ def build_settings_response(
             )
         )
 
-    on_off = lambda v: "🔔 ON" if v else "🔕 OFF"  # noqa: E731
+    on_off = lambda v: "ON" if v else "OFF"  # noqa: E731
     full_team = (
         TEAM_INFO.get(favorite_team, {}).get("full_name", favorite_team)
         if favorite_team
@@ -2952,16 +2952,16 @@ def build_settings_response(
     clutch_on = notif_settings.get("clutch", True)
     pred_on = notif_settings.get("prediction", True)
 
-    header_prefix = f"✅ {notice}\n\n" if notice else ""
+    header_prefix = f"[{notice}]\n\n" if notice else ""
     summary_desc = (
         f"{header_prefix}"
         f"• 내 응원팀: {full_team}\n"
         f"• 관심선수: {players_str}\n"
-        f"• 📋 선발 라인업 알림 : {on_off(lineup_on)}\n"
-        f"• ⏰ 경기 시작 10분 전 : {on_off(start_on)}\n"
-        f"• 🏁 경기 종료 및 결과 : {on_off(end_on)}\n"
-        f"• ⚡ 4Q 클러치 접전    : {on_off(clutch_on)}\n"
-        f"• 🗳️ 경기 승부예측 알림: {on_off(pred_on)}"
+        f"• 선발 라인업 알림 : {on_off(lineup_on)}\n"
+        f"• 경기 시작 10분 전 : {on_off(start_on)}\n"
+        f"• 경기 종료 및 결과 : {on_off(end_on)}\n"
+        f"• 4Q 클러치 접전    : {on_off(clutch_on)}\n"
+        f"• 경기 승부예측 알림: {on_off(pred_on)}"
     )
 
     import urllib.parse

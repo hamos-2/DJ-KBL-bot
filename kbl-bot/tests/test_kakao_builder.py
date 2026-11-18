@@ -923,7 +923,6 @@ class TestProBasketballBotFeatures:
             assert len(hl_team) >= 2
             assert hl_team[0]["title"] == "[하이라이트] SK vs 모비스 영상 (SK 92:76 모비스)"
             assert len(hl_team[0]["title"]) <= 35
-            assert hl_team[0]["arena"].startswith(("▶️ ", "🔍 "))
             assert "11.16 잠실학생" in hl_team[0]["arena"] or "실시간 중계" in hl_team[0]["arena"]
 
             # Simulate slow YouTube timeout on uncached game -> instant search fallback
@@ -937,7 +936,7 @@ class TestProBasketballBotFeatures:
             with patch("services.game.service.asyncio.wait_for", side_effect=_raise_timeout):
                 hl_fallback = await svc.get_latest_highlights(MagicMock(), team="SK")
                 assert len(hl_fallback) >= 2
-                assert hl_fallback[0]["arena"] == "🔍 실시간 중계 · 하이라이트 검색"
+                assert hl_fallback[0]["arena"] == "실시간 중계 · 하이라이트 검색"
 
     def test_welcome_entry_briefing_and_hot_player_criteria(self) -> None:
         """Initial chatroom entry (is_welcome_entry=True) must show greeting + 3-card briefing (Status, Hot Player, Highlights)."""

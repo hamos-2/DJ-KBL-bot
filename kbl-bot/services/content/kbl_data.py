@@ -1001,9 +1001,9 @@ def build_highlights_from_games(
 
         if status != "LIVE" and channel and yt_thumb:
             meta = " ".join(p for p in (mm_dd_dot, s_arena) if p)
-            arena_desc = f"▶️ {channel} · {meta}" if meta else f"▶️ {channel}"
+            arena_desc = f"{channel} · {meta}" if meta else f"{channel}"
         else:
-            arena_desc = "🔍 실시간 중계 · 하이라이트 검색"
+            arena_desc = "실시간 중계 · 하이라이트 검색"
 
         items.append(
             {
@@ -1019,24 +1019,24 @@ def build_highlights_from_games(
         q_team = urllib.parse.quote(f"2026-27 KCC 프로농구 {team} 하이라이트 TVING")
         items.append(
             {
-                "title": f"🎬 {full} 최신 공식 하이라이트 영상",
+                "title": f"{full} 최신 공식 하이라이트 영상",
                 "url": f"https://www.youtube.com/results?search_query={q_team}",
-                "arena": "📺 TVING SPORTS / 구단 공식 영상관",
+                "arena": "TVING SPORTS / 구단 공식 영상관",
                 "imageUrl": get_team_logo(team),
             }
         )
     else:
         items.append(
             {
-                "title": "🎬 TVING SPORTS 프로농구 공식 하이라이트 모음",
+                "title": "TVING SPORTS 프로농구 공식 하이라이트 모음",
                 "url": "https://www.youtube.com/@tvingsports/search?query=2026-27+KCC+%ED%94%84%EB%A1%9C%EB%86%8D%EA%B5%AC+%ED%95%98%EC%9D%B4%EB%9D%BC%EC%9D%B4%ED%8A%B8",
-                "arena": "📺 TVING SPORTS 공식 유튜브",
+                "arena": "TVING SPORTS 공식 유튜브",
                 "imageUrl": DEFAULT_SPORTS_LOGO,
             }
         )
         items.append(
             {
-                "title": "🏀 KBL 공식 홈페이지 하이라이트 영상관",
+                "title": "KBL 공식 홈페이지 하이라이트 영상관",
                 "url": "https://www.kbl.or.kr/media/highlight",
                 "arena": "KBL 공식 연맹 미디어",
             }
@@ -1044,7 +1044,7 @@ def build_highlights_from_games(
 
     items.append(
         {
-            "title": "📺 KBL TV 공식 유튜브 채널 (주요장면/인터뷰)",
+            "title": "KBL TV 공식 유튜브 채널 (주요장면/인터뷰)",
             "url": "https://www.youtube.com/@onkbl/videos",
             "arena": "YouTube KBL 공식 채널",
         }
