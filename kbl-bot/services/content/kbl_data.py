@@ -925,6 +925,26 @@ def build_highlights_from_games(
                 )
             )
 
+    short_map = {"현대모비스": "모비스", "한국가스공사": "가스공사"}
+    ultra_map = {"현대모비스": "모비스", "한국가스공사": "가스"}
+
+    def _fmt_hl_title(tag: str, t1: str, t2: str, h: str, hs: Any, as_: Any, a: str) -> str:
+        c1 = f"[{tag}] {t1} vs {t2} 영상 ({h} {hs}:{as_} {a})"
+        if len(c1) <= 35:
+            return c1
+        s1, s2 = short_map.get(t1, t1), short_map.get(t2, t2)
+        sh, sa = short_map.get(h, h), short_map.get(a, a)
+        for cand in (
+            f"[{tag}] {s1} vs {s2} 영상 ({sh} {hs}:{as_} {sa})",
+            f"[{tag}] {s1}vs{s2} 영상 ({sh} {hs}:{as_} {sa})",
+        ):
+            if len(cand) <= 35:
+                return cand
+        u1, u2 = ultra_map.get(t1, s1), ultra_map.get(t2, s2)
+        uh, ua = ultra_map.get(h, sh), ultra_map.get(a, sa)
+        c3 = f"[{tag}] {u1}vs{u2} 영상 ({uh} {hs}:{as_} {ua})"
+        return c3 if len(c3) <= 35 else f"[{tag}] {s1} vs {s2} ({sh} {hs}:{as_} {sa})"[:35]
+
     for g, (video_url, yt_thumb) in zip(target_games, resolved_videos):
         status = g.get("status")
         h = g.get("home_team", "?")
@@ -933,11 +953,12 @@ def build_highlights_from_games(
         as_ = g.get("away_score", 0)
 
         if team and team in (h, a):
+            opp = a if h == team else h
             tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
-            title = f"[{tag}] {h} {hs}:{as_} {a} 명장면"
+            title = _fmt_hl_title(tag, team, opp, h, hs, as_, a)
         else:
             tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
-            title = f"[{tag}] {h} {hs}:{as_} {a} 하이라이트"
+            title = _fmt_hl_title(tag, h, a, h, hs, as_, a)
 
         items.append(
             {

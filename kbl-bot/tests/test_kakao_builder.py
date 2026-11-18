@@ -921,7 +921,8 @@ class TestProBasketballBotFeatures:
         with patch("services.game.service.get_redis", side_effect=RuntimeError("redis miss")):
             hl_team = await svc.get_latest_highlights(MagicMock(), team="SK")
             assert len(hl_team) >= 2
-            assert any("SK" in it.get("title", "") for it in hl_team)
+            assert hl_team[0]["title"] == "[하이라이트] SK vs 모비스 영상 (SK 92:76 모비스)"
+            assert len(hl_team[0]["title"]) <= 35
 
             # Simulate slow YouTube timeout -> instant allow_network=False fallback
             def _raise_timeout(coro: object, **_: object) -> object:
