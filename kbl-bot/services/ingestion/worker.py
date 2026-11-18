@@ -193,7 +193,9 @@ class IngestionWorker:
                 key=lambda x: str(x.get("start_time") or ""),
                 reverse=True,
             )
-            await save_highlights_cache(build_highlights_from_games(recent_finished))
+            await save_highlights_cache(
+                await asyncio.to_thread(build_highlights_from_games, recent_finished)
+            )
             get_news_fn = getattr(self._provider, "get_news", None)
             if callable(get_news_fn):
                 news_items = await get_news_fn(recent_games=recent_finished)

@@ -898,5 +898,40 @@ class TestProBasketballBotFeatures:
         finally:
             kbl_data.TEAM_LINEUPS["SK"]["starters"] = orig_starters
 
+    async def test_game_service_get_latest_highlights_cache_miss_and_timeout_fallback(self) -> None:
+        """GameService.get_latest_highlights must succeed on cold cache (with team filter) without NameError or timeout."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from services.game.service import GameService
+
+        svc = GameService(provider=MagicMock())
+        sample_recent = [
+            {
+                "game_id": "80109255",
+                "home_team": "SK",
+                "away_team": "현대모비스",
+                "home_score": 92,
+                "away_score": 76,
+                "status": "FINAL",
+                "start_time": "2026-11-16T05:00:00Z",
+            }
+        ]
+        svc.get_recent_results = AsyncMock(return_value=sample_recent)  # type: ignore[method-assign]
+
+        # Simulate cold Redis cache so line 556 (asyncio.to_thread) executes
+        with patch("services.game.service.get_redis", side_effect=RuntimeError("redis miss")):
+            hl_team = await svc.get_latest_highlights(MagicMock(), team="SK")
+            assert len(hl_team) >= 2
+            assert any("SK" in it.get("title", "") for it in hl_team)
+
+            # Simulate slow YouTube timeout -> instant allow_network=False fallback
+            def _raise_timeout(coro: object, **_: object) -> object:
+                getattr(coro, "close", lambda: None)()
+                raise TimeoutError
+
+            with patch("services.game.service.asyncio.wait_for", side_effect=_raise_timeout):
+                hl_fallback = await svc.get_latest_highlights(MagicMock(), team="SK")
+                assert len(hl_fallback) >= 2
+                assert any("SK" in it.get("title", "") for it in hl_fallback)
+
 
 

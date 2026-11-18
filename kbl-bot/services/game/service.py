@@ -1,5 +1,6 @@
 """Game domain service — strictly separates Read Path (DB/Redis) from Worker Ingestion."""
 
+import asyncio
 import json
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -553,7 +554,13 @@ class GameService:
             pass
 
         recent = await self.get_recent_results(db, team=team, limit=6)
-        items = await asyncio.to_thread(build_highlights_from_games, recent, team=team)
+        try:
+            items = await asyncio.wait_for(
+                asyncio.to_thread(build_highlights_from_games, recent, team=team),
+                timeout=3.2,
+            )
+        except TimeoutError:
+            items = build_highlights_from_games(recent, team=team, allow_network=False)
 
         if items:
             try:

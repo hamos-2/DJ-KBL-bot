@@ -794,6 +794,7 @@ def resolve_kbl_highlight_video_url(
     away_team: str,
     start_time: str | None = None,
     timeout: float = 3.5,
+    allow_network: bool = True,
 ) -> tuple[str, str | None]:
     """
     Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
@@ -827,7 +828,7 @@ def resolve_kbl_highlight_video_url(
     fallback_q = urllib.parse.quote(f"2026-27 KCC 프로농구 {h} vs {a} 하이라이트")
     fallback_url = f"https://www.youtube.com/results?search_query={fallback_q}"
 
-    if not h or not a or h == "?" or a == "?":
+    if not allow_network or not h or not a or h == "?" or a == "?":
         return fallback_url, None
 
     try:
@@ -890,6 +891,7 @@ def build_highlights_from_games(
     recent_games: list[dict[str, Any]],
     raw_html: str = "",
     team: str | None = None,
+    allow_network: bool = True,
 ) -> list[dict[str, Any]]:
     """
     Build high-reliability KBL highlight video links from official channels.
@@ -917,6 +919,7 @@ def build_highlights_from_games(
                         g.get("home_team", "?"),
                         g.get("away_team", "?"),
                         g.get("start_time"),
+                        allow_network=allow_network,
                     ),
                     target_games,
                 )
