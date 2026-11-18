@@ -939,5 +939,64 @@ class TestProBasketballBotFeatures:
                 assert len(hl_fallback) >= 2
                 assert hl_fallback[0]["arena"] == "🔍 실시간 중계 · 하이라이트 검색"
 
+    def test_welcome_entry_briefing_and_hot_player_criteria(self) -> None:
+        """Initial chatroom entry (is_welcome_entry=True) must show greeting + 3-card briefing (Status, Hot Player, Highlights)."""
+        from apps.kakao.builder import (
+            _GAME_MVP_CACHE,
+            build_home_menu_response,
+            resolve_team_hot_player,
+        )
+
+        last_g = {
+            "game_id": "80109999",
+            "home_team": "SK",
+            "away_team": "현대모비스",
+            "home_score": 92,
+            "away_score": 76,
+            "status": "FINAL",
+        }
+        standing = {"team": "SK", "rank": 1, "wins": 8, "losses": 2, "streak": "3연승"}
+
+        # 1. Priority 1: Boxscore top performer from last game
+        _GAME_MVP_CACHE["80109999:SK"] = {"name": "안영준", "pts": 26, "reb": 8, "ast": 5}
+        try:
+            hp1 = resolve_team_hot_player("SK", last_g, fetch_boxscore=False)
+            assert hp1["source"] == "boxscore_mvp"
+            assert hp1["name"] == "안영준"
+            assert "직전 현대모비스전 팀 내 최고 수훈선수" in hp1["badge"]
+            assert "26득점" in hp1["game_stat_line"]
+
+            welcome_resp = build_home_menu_response(
+                favorite_team="SK",
+                fav_players=["안영준"],
+                is_welcome_entry=True,
+                team_standing=standing,
+                last_game=last_g,
+                hot_player=hp1,
+            )
+            outputs = welcome_resp.template.outputs
+            assert len(outputs) == 2
+            assert "또 오셨군요, 반가워요! 우리 팀 서울 SK 나이츠 소식을 준비했어요." in outputs[0]["simpleText"]["text"]
+            cards = outputs[1]["carousel"]["items"]
+            assert len(cards) == 3
+            assert "현재 1위 (8승 2패 · 3연승)" in cards[0]["description"]
+            assert "🔥 화제의 선수: 안영준" in cards[1]["title"]
+            assert "/banner/player/" in cards[1]["thumbnail"]["imageUrl"]
+            assert "주요장면" in cards[2]["title"]
+            assert "[하이라이트] SK vs 현대모비스 (SK 92:76 현대모비스)" in cards[2]["description"]
+        finally:
+            _GAME_MVP_CACHE.pop("80109999:SK", None)
+
+        # 2. Priority 2 fallback: Season composite contribution (pts + 0.7*reb + 0.8*ast) #1 ace
+        hp2 = resolve_team_hot_player("SK", last_game=None, fetch_boxscore=False)
+        assert hp2["source"] == "season_ace"
+        assert hp2["name"] == "자밀 워니"
+        assert "시즌 평균 공헌도 팀 내 1위 에이스" in hp2["badge"]
+
+        # 3. Mid-chat home navigation (is_welcome_entry=False) omits greeting bubble
+        normal_home = build_home_menu_response(favorite_team="SK")
+        assert len(normal_home.template.outputs) == 1
+        assert "carousel" in normal_home.template.outputs[0]
+
 
 

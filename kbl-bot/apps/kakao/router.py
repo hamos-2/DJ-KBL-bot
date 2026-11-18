@@ -183,7 +183,11 @@ async def _dispatch_command(
         "하이",
     ):
         prefs = await get_user_preferences(user_hmac)
+        is_welcome_entry = u_compact.lower() in ("웰컴", "웰컴블록", "welcome", "welcome_event")
         team_game = None
+        team_standing = None
+        last_game = None
+        hot_player = None
         if fav_team:
             try:
                 today_games = await game_service.get_today_games(db)
@@ -198,8 +202,36 @@ async def _dispatch_command(
             except Exception as exc:
                 logger.warning("Failed to lookup team game for home menu", error=str(exc))
 
+            if is_welcome_entry:
+                from apps.kakao.builder import resolve_team_hot_player
+                try:
+                    standings = await game_service.get_team_standings(db)
+                    team_standing = next((s for s in standings if s.get("team") == fav_team), None)
+                except Exception:
+                    pass
+                try:
+                    recent_res = await game_service.get_recent_results(db, team=fav_team, limit=1)
+                    if recent_res:
+                        last_game = recent_res[0]
+                except Exception:
+                    pass
+                try:
+                    hot_player = await asyncio.wait_for(
+                        asyncio.to_thread(resolve_team_hot_player, fav_team, last_game, True),
+                        timeout=1.5,
+                    )
+                except Exception:
+                    hot_player = resolve_team_hot_player(fav_team, last_game, fetch_boxscore=False)
+
         return build_home_menu_response(
-            fav_team, prefs.get("favorite_players", []), team_game=team_game, base_url=base_url
+            fav_team,
+            prefs.get("favorite_players", []),
+            team_game=team_game,
+            base_url=base_url,
+            is_welcome_entry=is_welcome_entry,
+            team_standing=team_standing,
+            last_game=last_game,
+            hot_player=hot_player,
         )
 
     # 0.5 Channel Notices & Announcements (공지 / 소식 / 채널소개 / 이벤트)
@@ -1583,6 +1615,9 @@ async def match_search(
         str(payload.action.params.get("query") or "")
         or payload.user_request.utterance
     ).strip()
+    block_name = str(payload.user_request.block.get("name") or "")
+    if "웰컴" in block_name or payload.user_request.block.get("id") == "6ae5fa740100875ffb65fcb0":
+        raw_query = "웰컴"
 
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
