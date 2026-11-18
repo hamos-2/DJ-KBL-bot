@@ -933,12 +933,11 @@ def build_highlights_from_games(
         as_ = g.get("away_score", 0)
 
         if team and team in (h, a):
-            opp = a if h == team else h
             tag = "하이라이트" if status == "FINAL" else "실시간 LIVE"
-            title = f"[{tag}] {team} vs {opp} 명장면 영상 ({h} {hs}:{as_} {a})"
+            title = f"[{tag}] {h} {hs}:{as_} {a} 명장면"
         else:
             tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
-            title = f"[{tag}] {h} {hs} : {as_} {a} 하이라이트"
+            title = f"[{tag}] {h} {hs}:{as_} {a} 하이라이트"
 
         items.append(
             {

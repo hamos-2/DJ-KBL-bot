@@ -1687,14 +1687,16 @@ def build_highlights_response(
 
     if favorite_team:
         full_name = TEAM_INFO.get(favorite_team, {}).get("full_name", f"{favorite_team} 농구단")
-        header = f"🎬 [{full_name}] 주요장면 & 하이라이트"
+        header = f"🎬 [{full_name}] 주요장면"
+        if _u16_len(header) > 22:
+            header = f"🎬 [{favorite_team}] 주요장면 & 하이라이트"
         default_img = get_team_logo(favorite_team)
         tving_vclip_url = (
             f"https://www.youtube.com/@tvingsports/search?query="
             f"{urllib.parse.quote(f'2026-27 KCC 프로농구 {favorite_team} 하이라이트')}"
         )
     else:
-        header = "🎬 KBL 프로농구 주요장면 & 하이라이트"
+        header = "🎬 KBL 프로농구 주요장면"
         default_img = DEFAULT_SPORTS_LOGO
         tving_vclip_url = (
             "https://www.youtube.com/@tvingsports/search?query="
