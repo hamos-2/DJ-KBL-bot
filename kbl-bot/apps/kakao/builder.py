@@ -368,7 +368,7 @@ def build_home_menu_response(
                 0,
                 {
                     "simpleText": {
-                        "text": "🏀 반가워요! 응원하는 KBL 구단을 선택하시면 우리 팀 맞춤 소식을 준비해 드릴게요."
+                        "text": "👋 반가워요! 응원하는 KBL 구단을 선택하시면 맞춤 소식을 준비해 드릴게요."
                     }
                 },
             )
@@ -582,7 +582,7 @@ def build_home_menu_response(
 
         greeting_bubble = {
             "simpleText": {
-                "text": f"🏀 또 오셨군요, 반가워요!\n우리 팀 {full_team} 소식을 준비했어요."
+                "text": f"👋 또 오셨군요, 반가워요! 우리 팀 {full_team} 소식을 준비했어요."
             }
         }
         return KakaoSkillResponse(

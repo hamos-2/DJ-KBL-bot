@@ -976,7 +976,10 @@ class TestProBasketballBotFeatures:
             )
             outputs = welcome_resp.template.outputs
             assert len(outputs) == 2
-            assert "또 오셨군요, 반가워요!\n우리 팀 서울 SK 나이츠 소식을 준비했어요." in outputs[0]["simpleText"]["text"]
+            assert (
+                outputs[0]["simpleText"]["text"]
+                == "👋 또 오셨군요, 반가워요! 우리 팀 서울 SK 나이츠 소식을 준비했어요."
+            )
             cards = outputs[1]["carousel"]["items"]
             assert len(cards) == 3
             assert "현재 1위 (8승 2패 · 3연승)" in cards[0]["description"]
@@ -997,6 +1000,13 @@ class TestProBasketballBotFeatures:
         normal_home = build_home_menu_response(favorite_team="SK")
         assert len(normal_home.template.outputs) == 1
         assert "carousel" in normal_home.template.outputs[0]
+
+        # 4. Onboarding welcome entry (no favorite_team yet)
+        onboard_welcome = build_home_menu_response(favorite_team=None, is_welcome_entry=True)
+        assert (
+            onboard_welcome.template.outputs[0]["simpleText"]["text"]
+            == "👋 반가워요! 응원하는 KBL 구단을 선택하시면 맞춤 소식을 준비해 드릴게요."
+        )
 
 
 
