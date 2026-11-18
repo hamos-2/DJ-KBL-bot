@@ -216,7 +216,7 @@ class TestProBasketballBotFeatures:
         labels = [q.label for q in MAIN_MENU_QUICK_REPLIES]
         expected = [
             "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📅 일정", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
+            "🏠 홈으로", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
         ]
         assert labels == expected
 
@@ -266,7 +266,7 @@ class TestProBasketballBotFeatures:
         qr_labels = [q.label for q in set_main.template.quickReplies]
         assert qr_labels == [
             "🏀 오늘 경기", "🔴 실시간 점수", "🗳️ 승부예측", "📋 라인업", "⭐ 관심선수",
-            "📅 일정", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
+            "🏠 홈으로", "📰 최신 뉴스", "🎬 주요장면", "🏆 팀순위", "⚙️ 설정",
         ]
 
         set_resp = build_settings_response("KT", ["허훈"], {"game_start": True}, submode="team_select")
@@ -528,7 +528,7 @@ class TestProBasketballBotFeatures:
         )
         assert len(carousel_items) >= 2
         home_card = carousel_items[0]
-        news_card = carousel_items[1]
+        news_card = carousel_items[-1]
         btn_labels = [btn["label"] for btn in home_card["buttons"]]
         assert any("관심선수" in l for l in btn_labels)
         news_btn_labels = [btn["label"] for btn in news_card["buttons"]]
@@ -996,10 +996,10 @@ class TestProBasketballBotFeatures:
         assert hp2["name"] == "자밀 워니"
         assert "시즌 평균 공헌도 팀 내 1위 에이스" in hp2["badge"]
 
-        # 3. Mid-chat home navigation (is_welcome_entry=False) omits greeting bubble
+        # 3. Mid-chat home navigation (is_welcome_entry=False) omits greeting bubble but still renders 3-card dashboard
         normal_home = build_home_menu_response(favorite_team="SK")
         assert len(normal_home.template.outputs) == 1
-        assert "carousel" in normal_home.template.outputs[0]
+        assert len(normal_home.template.outputs[0]["carousel"]["items"]) == 3
 
         # 4. Onboarding welcome entry (no favorite_team yet)
         onboard_welcome = build_home_menu_response(favorite_team=None, is_welcome_entry=True)
@@ -1007,6 +1007,35 @@ class TestProBasketballBotFeatures:
             onboard_welcome.template.outputs[0]["simpleText"]["text"]
             == "👋 반가워요! 응원하는 KBL 구단을 선택하시면 맞춤 소식을 준비해 드릴게요."
         )
+
+        # 5. Every major & sub-menu screen must include '🏠 홈으로' (messageText='처음으로') in quickReplies
+        from apps.kakao.builder import (
+            build_cheering_response,
+            build_favorite_players_response,
+            build_game_summary_response,
+            build_news_response,
+            build_prediction_results_response,
+            build_team_news_menu_response,
+            build_team_players_menu_response,
+            build_today_games_response,
+            build_user_points_response,
+        )
+        for resp_obj in [
+            build_today_games_response([]),
+            build_news_response([{"title": "뉴스", "url": "https://sports.daum.net/basketball"}]),
+            build_team_news_menu_response(),
+            build_favorite_players_response(["자밀 워니"], favorite_team="SK"),
+            build_team_players_menu_response(),
+            build_game_summary_response([last_g], favorite_team="SK"),
+            build_cheering_response([]),
+            build_user_points_response(100, favorite_team="SK"),
+            build_prediction_results_response([], {"hits": 0, "misses": 0, "pending": 0, "total": 0, "hit_rate": 0}, 100),
+        ]:
+            assert len(resp_obj.template.quickReplies) <= 10
+            assert any(
+                q.label == "🏠 홈으로" and q.messageText == "처음으로"
+                for q in resp_obj.template.quickReplies
+            )
 
 
 

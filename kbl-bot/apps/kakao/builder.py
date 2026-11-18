@@ -40,7 +40,7 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
     QuickReply(label="📋 라인업", messageText="라인업"),
     QuickReply(label="⭐ 관심선수", messageText="관심선수"),
-    QuickReply(label="📅 일정", messageText="일정"),
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="📰 최신 뉴스", messageText="뉴스"),
     QuickReply(label="🎬 주요장면", messageText="주요장면"),
     QuickReply(label="🏆 팀순위", messageText="팀순위"),
@@ -48,6 +48,7 @@ MAIN_MENU_QUICK_REPLIES: list[QuickReply] = [
 ]
 
 FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="⭐ 내 관심선수", messageText="관심선수"),
     QuickReply(label="🏀 10개 구단 선수", messageText="구단별 선수"),
     QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
@@ -55,7 +56,6 @@ FAVORITE_PLAYERS_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
     QuickReply(label="🏀 KCC 선수", messageText="KCC 선수"),
     QuickReply(label="🏀 LG 선수", messageText="LG 선수"),
-    QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
     QuickReply(label="🏅 선수순위", messageText="선수순위"),
     QuickReply(label="🗑️ 관심선수 초기화", messageText="관심선수 초기화"),
 ]
@@ -481,130 +481,107 @@ def build_home_menu_response(
             height=400,
         )
 
-    # Card 2: 실시간 KBL & 구단 뉴스 전용 카드 (2:1 비율 800x400 배너)
-    news_card = _basic_card(
-        title="📰 실시간 KBL & 구단 뉴스",
+    # Enrich Card 1 ([구단] 현황) with league rank/record
+    if team_standing:
+        rk = team_standing.get("rank", "?")
+        w = team_standing.get("wins", 0)
+        l = team_standing.get("losses", 0)
+        stk = str(team_standing.get("streak") or "").strip()
+        stk_str = f" · {stk}" if stk and stk != "-" else ""
+        standing_line = f"• 정규리그: 현재 {rk}위 ({w}승 {l}패{stk_str})\n"
+        if not team_game:
+            game_card["title"] = f"🏀 [{favorite_team}] 구단 현황 ({rk}위 · {w}승{l}패)"[:30]
+        game_card["description"] = f"{standing_line}{game_card['description']}"[:400]
+
+    # Card 2: 화제의 선수 (1순위: 직전 경기 최고 수훈선수 -> 2순위: 시즌 공헌도 팀 내 1위 에이스)
+    hp = hot_player or resolve_team_hot_player(favorite_team, last_game, fetch_boxscore=False)
+    hp_name = str(hp.get("name") or f"{favorite_team} 에이스")
+    hp_pos = str(hp.get("pos") or "F")
+    hp_no = str(hp.get("no") or "0")
+    hp_pts = float(hp.get("pts") or 18.0)
+    hp_reb = float(hp.get("reb") or 5.0)
+    hp_ast = float(hp.get("ast") or 4.0)
+    q_hp_name = urllib.parse.quote(hp_name)
+    q_fav_team = urllib.parse.quote(favorite_team)
+    q_hp_pos = urllib.parse.quote(hp_pos)
+    q_hp_no = urllib.parse.quote(hp_no)
+    hp_banner_url = (
+        f"{b_url}/integrations/kakao/skills/banner/player/{q_hp_name}.png"
+        f"?team={q_fav_team}&pos={q_hp_pos}&no={q_hp_no}&pts={hp_pts}&reb={hp_reb}&ast={hp_ast}&v=player_v1"
+    )
+    is_fav_hp = hp_name in (fav_players or [])
+    hp_toggle_btn = (
+        _msg_btn(f"➖ {hp_name} 해제", f"#관심선수 삭제 {hp_name}")
+        if is_fav_hp
+        else _msg_btn(f"➕ {hp_name} 등록", f"#관심선수 {hp_name}")
+    )
+    hot_player_card = _basic_card(
+        title=f"🔥 화제의 선수: {hp_name} (#{hp_no})",
         description=(
-            f"🏀 내 응원팀 {full_team} 주요 소식과 최신 속보를 실시간으로 확인하세요!\n"
-            f"• 10개 구단 최신 소식 및 감독·선수 인터뷰 제공"
+            f"{hp.get('badge', '🔥 팀 내 핵심 에이스')}\n"
+            f"• 소속/포지션: {full_team} ({hp_pos})\n"
+            f"• {hp.get('game_stat_line', f'시즌 평균: {hp_pts}점 · {hp_reb}리바 · {hp_ast}어시')}\n"
+            f"• 시즌 평균: {hp_pts}점 | {hp_reb}리바 | {hp_ast}어시"
         ),
-        thumbnail_url=news_banner_url,
+        thumbnail_url=hp_banner_url,
         buttons=[
-            _msg_btn(f"📰 {favorite_team} 뉴스", f"{favorite_team} 뉴스"),
-            _msg_btn("🏀 10개 구단 뉴스", "구단별 뉴스"),
-            _msg_btn("🎬 주요장면 보기", "주요장면"),
+            _msg_btn(f"📊 {hp_name} 기록", hp_name),
+            hp_toggle_btn,
+            _msg_btn(f"🏀 {favorite_team} 선수단", f"{favorite_team} 선수"),
         ],
         fixed_ratio=False,
         width=800,
         height=400,
     )
 
-    if is_welcome_entry:
-        # Enrich Card 1 ([구단] 현황) with league rank/record when entering chatroom
-        if team_standing:
-            rk = team_standing.get("rank", "?")
-            w = team_standing.get("wins", 0)
-            l = team_standing.get("losses", 0)
-            stk = str(team_standing.get("streak") or "").strip()
-            stk_str = f" · {stk}" if stk and stk != "-" else ""
-            standing_line = f"• 정규리그: 현재 {rk}위 ({w}승 {l}패{stk_str})\n"
-            if not team_game:
-                game_card["title"] = f"🏀 [{favorite_team}] 구단 현황 ({rk}위 · {w}승{l}패)"[:30]
-            game_card["description"] = f"{standing_line}{game_card['description']}"[:400]
+    # Card 3: 주요장면 & 구단 소식
+    hl_line = ""
+    if last_game:
+        lh = last_game.get("home_team", "?")
+        la = last_game.get("away_team", "?")
+        lhs = last_game.get("home_score", 0)
+        las = last_game.get("away_score", 0)
+        opp = la if lh == favorite_team else lh
+        hl_line = f"• 최근 영상: [하이라이트] {favorite_team} vs {opp} ({lh} {lhs}:{las} {la})\n"
 
-        # Card 2: 화제의 선수 (1순위: 직전 경기 최고 수훈선수 -> 2순위: 시즌 공헌도 팀 내 1위 에이스)
-        hp = hot_player or resolve_team_hot_player(favorite_team, last_game, fetch_boxscore=False)
-        hp_name = str(hp.get("name") or f"{favorite_team} 에이스")
-        hp_pos = str(hp.get("pos") or "F")
-        hp_no = str(hp.get("no") or "0")
-        hp_pts = float(hp.get("pts") or 18.0)
-        hp_reb = float(hp.get("reb") or 5.0)
-        hp_ast = float(hp.get("ast") or 4.0)
-        q_hp_name = urllib.parse.quote(hp_name)
-        q_fav_team = urllib.parse.quote(favorite_team)
-        q_hp_pos = urllib.parse.quote(hp_pos)
-        q_hp_no = urllib.parse.quote(hp_no)
-        hp_banner_url = (
-            f"{b_url}/integrations/kakao/skills/banner/player/{q_hp_name}.png"
-            f"?team={q_fav_team}&pos={q_hp_pos}&no={q_hp_no}&pts={hp_pts}&reb={hp_reb}&ast={hp_ast}&v=player_v1"
-        )
-        is_fav_hp = hp_name in (fav_players or [])
-        hp_toggle_btn = (
-            _msg_btn(f"➖ {hp_name} 해제", f"#관심선수 삭제 {hp_name}")
-            if is_fav_hp
-            else _msg_btn(f"➕ {hp_name} 등록", f"#관심선수 {hp_name}")
-        )
-        hot_player_card = _basic_card(
-            title=f"🔥 화제의 선수: {hp_name} (#{hp_no})",
-            description=(
-                f"{hp.get('badge', '🔥 팀 내 핵심 에이스')}\n"
-                f"• 소속/포지션: {full_team} ({hp_pos})\n"
-                f"• {hp.get('game_stat_line', f'시즌 평균: {hp_pts}점 · {hp_reb}리바 · {hp_ast}어시')}\n"
-                f"• 시즌 평균: {hp_pts}점 | {hp_reb}리바 | {hp_ast}어시"
-            ),
-            thumbnail_url=hp_banner_url,
-            buttons=[
-                _msg_btn(f"📊 {hp_name} 기록", hp_name),
-                hp_toggle_btn,
-                _msg_btn(f"🏀 {favorite_team} 선수단", f"{favorite_team} 선수"),
-            ],
-            fixed_ratio=False,
-            width=800,
-            height=400,
-        )
+    highlights_news_card = _basic_card(
+        title=f"🎬 [{favorite_team}] 주요장면 & 구단 소식",
+        description=(
+            f"{hl_line}"
+            f"• {full_team} 공식 하이라이트 영상과 실시간 구단 뉴스를 한눈에 확인하세요!"
+        ),
+        thumbnail_url=news_banner_url,
+        buttons=[
+            _msg_btn("🎬 주요장면 보기", f"{favorite_team} 주요장면"),
+            _msg_btn(f"📰 {favorite_team} 뉴스", f"{favorite_team} 뉴스"),
+            _msg_btn("📋 직전 경기 요약", f"{favorite_team} 요약"),
+        ],
+        fixed_ratio=False,
+        width=800,
+        height=400,
+    )
 
-        # Card 3: 주요장면 & 구단 소식
-        hl_line = ""
-        if last_game:
-            lh = last_game.get("home_team", "?")
-            la = last_game.get("away_team", "?")
-            lhs = last_game.get("home_score", 0)
-            las = last_game.get("away_score", 0)
-            opp = la if lh == favorite_team else lh
-            hl_line = f"• 최근 영상: [하이라이트] {favorite_team} vs {opp} ({lh} {lhs}:{las} {la})\n"
-
-        highlights_news_card = _basic_card(
-            title=f"🎬 [{favorite_team}] 주요장면 & 구단 소식",
-            description=(
-                f"{hl_line}"
-                f"• {full_team} 공식 하이라이트 영상과 실시간 구단 뉴스를 한눈에 확인하세요!"
-            ),
-            thumbnail_url=news_banner_url,
-            buttons=[
-                _msg_btn("🎬 주요장면 보기", f"{favorite_team} 주요장면"),
-                _msg_btn(f"📰 {favorite_team} 뉴스", f"{favorite_team} 뉴스"),
-                _msg_btn("📋 직전 경기 요약", f"{favorite_team} 요약"),
-            ],
-            fixed_ratio=False,
-            width=800,
-            height=400,
-        )
-
-        greeting_bubble = {
-            "simpleText": {
-                "text": f"👋 또 오셨군요, 반가워요! 우리 팀 {full_team} 소식을 준비했어요."
+    home_outputs: list[dict[str, Any]] = [
+        {
+            "carousel": {
+                "type": "basicCard",
+                "items": [game_card, hot_player_card, highlights_news_card],
             }
         }
-        return KakaoSkillResponse(
-            template=KakaoTemplate(
-                outputs=[
-                    greeting_bubble,
-                    {
-                        "carousel": {
-                            "type": "basicCard",
-                            "items": [game_card, hot_player_card, highlights_news_card],
-                        }
-                    },
-                ],
-                quickReplies=MAIN_MENU_QUICK_REPLIES,
-            )
+    ]
+    if is_welcome_entry:
+        home_outputs.insert(
+            0,
+            {
+                "simpleText": {
+                    "text": f"👋 또 오셨군요, 반가워요! 우리 팀 {full_team} 소식을 준비했어요."
+                }
+            },
         )
 
     return KakaoSkillResponse(
         template=KakaoTemplate(
-            outputs=[
-                {"carousel": {"type": "basicCard", "items": [game_card, news_card]}}
-            ],
+            outputs=home_outputs,
             quickReplies=MAIN_MENU_QUICK_REPLIES,
         )
     )
@@ -1136,6 +1113,7 @@ def _build_witty_kbl_commentary(
 
 
 SUMMARY_QUICK_REPLIES: list[QuickReply] = [
+    QuickReply(label="🏠 홈으로", messageText="처음으로"),
     QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
     QuickReply(label="🔴 실시간 점수", messageText="실시간 점수"),
     QuickReply(label="💬 DB 요약", messageText="DB 요약"),
@@ -1143,7 +1121,6 @@ SUMMARY_QUICK_REPLIES: list[QuickReply] = [
     QuickReply(label="💬 정관장 요약", messageText="정관장 요약"),
     QuickReply(label="💬 가스공사 요약", messageText="가스공사 요약"),
     QuickReply(label="💬 KCC 요약", messageText="KCC 요약"),
-    QuickReply(label="💬 LG 요약", messageText="LG 요약"),
     QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
     QuickReply(label="🏆 팀순위", messageText="팀순위"),
 ]
@@ -1753,6 +1730,7 @@ def build_news_response(
         ],
     )
     custom_qr = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         qr_news,
         QuickReply(label="🏀 다른팀 뉴스", messageText="다른팀 뉴스"),
         QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
@@ -1836,6 +1814,7 @@ def build_team_news_menu_response(
         ],
     )
     menu_qrs = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🏀 전체 뉴스", messageText="전체 뉴스"),
         QuickReply(label="📰 SK 뉴스", messageText="SK 뉴스"),
         QuickReply(label="📰 KT 뉴스", messageText="KT 뉴스"),
@@ -1845,7 +1824,6 @@ def build_team_news_menu_response(
         QuickReply(label="📰 KCC 뉴스", messageText="KCC 뉴스"),
         QuickReply(label="📰 모비스 뉴스", messageText="모비스 뉴스"),
         QuickReply(label="📰 가스공사 뉴스", messageText="가스공사 뉴스"),
-        QuickReply(label="📰 정관장 뉴스", messageText="정관장 뉴스"),
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -2319,6 +2297,7 @@ def build_team_players_menu_response(
         ],
     )
     quick_replies = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🏀 SK 선수", messageText="SK 선수"),
         QuickReply(label="🏀 KT 선수", messageText="KT 선수"),
         QuickReply(label="🏀 DB 선수", messageText="DB 선수"),
@@ -2328,7 +2307,6 @@ def build_team_players_menu_response(
         QuickReply(label="🏀 모비스 선수", messageText="현대모비스 선수"),
         QuickReply(label="🏀 정관장 선수", messageText="정관장 선수"),
         QuickReply(label="🏀 가스공사 선수", messageText="한국가스공사 선수"),
-        QuickReply(label="🏀 삼성 선수", messageText="삼성 선수"),
     ]
     return KakaoSkillResponse(
         template=KakaoTemplate(
@@ -2598,6 +2576,7 @@ def build_cheering_response(
         )
 
     cheer_quick_replies = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="📊 내 예측 결과", messageText="예측결과"),
         QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),
@@ -2683,6 +2662,7 @@ def build_user_points_response(
     )
 
     point_quick_replies = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🗳️ 승부예측", messageText="승부예측"),
         QuickReply(label="🏆 승부예측 랭킹", messageText="승부예측 랭킹"),
         QuickReply(label="📊 예측결과", messageText="예측결과"),
@@ -2790,6 +2770,7 @@ def build_prediction_results_response(
     Displays user's prediction history, win/miss outcome, hit points (+50P), and total record.
     """
     quick_replies = [
+        QuickReply(label="🏠 홈으로", messageText="처음으로"),
         QuickReply(label="🗳️ 오늘 승부예측", messageText="승부예측"),
         QuickReply(label="💰 내 포인트 확인", messageText="포인트"),
         QuickReply(label="🏀 오늘 경기", messageText="오늘 경기"),

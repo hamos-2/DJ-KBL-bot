@@ -202,26 +202,25 @@ async def _dispatch_command(
             except Exception as exc:
                 logger.warning("Failed to lookup team game for home menu", error=str(exc))
 
-            if is_welcome_entry:
-                from apps.kakao.builder import resolve_team_hot_player
-                try:
-                    standings = await game_service.get_team_standings(db)
-                    team_standing = next((s for s in standings if s.get("team") == fav_team), None)
-                except Exception:
-                    pass
-                try:
-                    recent_res = await game_service.get_recent_results(db, team=fav_team, limit=1)
-                    if recent_res:
-                        last_game = recent_res[0]
-                except Exception:
-                    pass
-                try:
-                    hot_player = await asyncio.wait_for(
-                        asyncio.to_thread(resolve_team_hot_player, fav_team, last_game, True),
-                        timeout=1.5,
-                    )
-                except Exception:
-                    hot_player = resolve_team_hot_player(fav_team, last_game, fetch_boxscore=False)
+            from apps.kakao.builder import resolve_team_hot_player
+            try:
+                standings = await game_service.get_team_standings(db)
+                team_standing = next((s for s in standings if s.get("team") == fav_team), None)
+            except Exception:
+                pass
+            try:
+                recent_res = await game_service.get_recent_results(db, team=fav_team, limit=1)
+                if recent_res:
+                    last_game = recent_res[0]
+            except Exception:
+                pass
+            try:
+                hot_player = await asyncio.wait_for(
+                    asyncio.to_thread(resolve_team_hot_player, fav_team, last_game, True),
+                    timeout=1.5,
+                )
+            except Exception:
+                hot_player = resolve_team_hot_player(fav_team, last_game, fetch_boxscore=False)
 
         return build_home_menu_response(
             fav_team,

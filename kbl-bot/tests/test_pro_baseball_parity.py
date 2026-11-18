@@ -85,8 +85,8 @@ async def test_welcome_onboarding_shows_10_teams_carousel_if_no_fav_team(dummy_u
     with patch("apps.kakao.router.get_user_preferences", new=AsyncMock(return_value={"favorite_players": []})):
         resp = await _dispatch_command("웰컴", db, game_service, user_service, dummy_user)
         assert resp is not None
-        assert "carousel" in resp.template.outputs[0]
-        cards = resp.template.outputs[0]["carousel"]["items"]
+        carousel_out = next(o for o in resp.template.outputs if "carousel" in o)
+        cards = carousel_out["carousel"]["items"]
         assert len(cards) >= 4
         btn_labels = [b["label"] for card in cards for b in card["buttons"]]
         assert "❤️ 원주 DB" in btn_labels
