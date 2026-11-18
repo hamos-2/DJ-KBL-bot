@@ -769,7 +769,9 @@ def _get_tls_verify() -> str | bool:
 
 
 def _set_highlight_cache(
-    cache_key: str, res: tuple[str, str | None], ttl_sec: float = _HIGHLIGHT_HIT_TTL_SEC
+    cache_key: str,
+    res: tuple[str, str | None, str | None],
+    ttl_sec: float = _HIGHLIGHT_HIT_TTL_SEC,
 ) -> None:
     import time
     if len(_HIGHLIGHT_VIDEO_CACHE) >= _HIGHLIGHT_CACHE_MAX:
@@ -778,14 +780,19 @@ def _set_highlight_cache(
     _HIGHLIGHT_VIDEO_CACHE[cache_key] = (time.monotonic() + ttl_sec, res)
 
 
-def _extract_youtube_videos(html_text: str) -> list[tuple[str, str]]:
-    """Extract (video_id, title) pairs from YouTube search HTML quickly without regex backtracking."""
-    out: list[tuple[str, str]] = []
+def _extract_youtube_videos(html_text: str) -> list[tuple[str, str, str]]:
+    """Extract (video_id, title, channel) triples from YouTube search HTML quickly without regex backtracking."""
+    out: list[tuple[str, str, str]] = []
     for chunk in html_text.split('"videoRenderer":{"videoId":"')[1:15]:
         vid = chunk[:11]
-        m = re.search(r'"title":\{"runs":\[\{"text":"([^"]+)"\}\]', chunk[:1200])
+        m = re.search(r'"title":\{"runs":\[\{"text":"([^"]+)"\}\]', chunk[:1500])
         if m:
-            out.append((vid, m.group(1)))
+            c_m = re.search(
+                r'"(?:ownerText|longBylineText|shortBylineText)":\{"runs":\[\{"text":"([^"]+)"',
+                chunk[:4000],
+            )
+            channel = c_m.group(1).strip() if c_m else "TVING SPORTS"
+            out.append((vid, m.group(1), channel))
     return out
 
 
@@ -795,13 +802,19 @@ def resolve_kbl_highlight_video_url(
     start_time: str | None = None,
     timeout: float = 3.5,
     allow_network: bool = True,
-) -> tuple[str, str | None]:
+    include_channel: bool = False,
+) -> tuple[str, str | None] | tuple[str, str | None, str | None]:
     """
-    Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`)
-    and thumbnail (`https://i.ytimg.com/vi/.../hqdefault.jpg`) for a 2026-27 KBL matchup.
-    Falls back to a season-filtered 2026-27 KCC 프로농구 YouTube search URL if not uploaded yet.
+    Resolve the direct official YouTube highlight video URL (`https://www.youtube.com/watch?v=...`),
+    thumbnail (`https://i.ytimg.com/vi/.../hqdefault.jpg`), and actual uploader channel (`ownerText`)
+    for a 2026-27 KBL matchup. Falls back to a YouTube search URL if not uploaded yet.
     """
     import time
+
+    def _ret(val: tuple[str, str | None, str | None]) -> tuple[str, str | None] | tuple[str, str | None, str | None]:
+        if len(val) == 2:
+            val = (val[0], val[1], "TVING SPORTS" if val[1] else None)
+        return val if include_channel else (val[0], val[1])
 
     h = str(home_team or "").strip()
     a = str(away_team or "").strip()
@@ -822,14 +835,14 @@ def resolve_kbl_highlight_video_url(
     if cached is not None:
         exp_ts, val = cached
         if time.monotonic() < exp_ts:
-            return val
+            return _ret(val)
         _HIGHLIGHT_VIDEO_CACHE.pop(cache_key, None)
 
     fallback_q = urllib.parse.quote(f"2026-27 KCC 프로농구 {h} vs {a} 하이라이트")
     fallback_url = f"https://www.youtube.com/results?search_query={fallback_q}"
 
     if not allow_network or not h or not a or h == "?" or a == "?":
-        return fallback_url, None
+        return _ret((fallback_url, None, None))
 
     try:
         import httpx
@@ -846,12 +859,12 @@ def resolve_kbl_highlight_video_url(
             if resp.status_code == 200:
                 matches = _extract_youtube_videos(resp.text)
                 # 1. Exact date + 2026-27 KCC 프로농구 official TVING highlight
-                for vid, tit in matches:
+                for vid, tit, ch in matches:
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
                         if not mm_dd or (f" {mm_dd} " in tit or f"]{mm_dd}" in tit or f"] {mm_dd}" in tit):
-                            res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                            res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg", ch)
                             _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
-                            return res
+                            return _ret(res)
 
                 # 2. If exact date TVING highlight not uploaded yet, check same-day club highlight (yymmdd first)
                 if yymmdd:
@@ -859,32 +872,37 @@ def resolve_kbl_highlight_video_url(
                     resp2 = client.get(f"https://www.youtube.com/results?search_query={q2}")
                     if resp2.status_code == 200:
                         matches2 = _extract_youtube_videos(resp2.text)
-                        for vid, tit in matches2:
-                            if yymmdd in tit and h in tit and a in tit and not any(
-                                bad in tit for bad in ("분석", "프로토", "전력비교", "예측", "수익", "급등")
+                        for vid, tit, ch in matches2:
+                            bad_kw = ("분석", "프로토", "전력비교", "예측", "수익", "급등", "승부", "픽스", "프리뷰")
+                            if (
+                                (yymmdd in tit or (mm_dd and mm_dd in tit))
+                                and h in tit
+                                and a in tit
+                                and not any(b in tit or b in ch for b in bad_kw)
                             ):
-                                res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                                res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg", ch)
                                 _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
-                                return res
+                                return _ret(res)
 
                 # 3. Most recent 2026-27 head-to-head TVING highlight between these two clubs
-                for vid, tit in matches:
+                for vid, tit, ch in matches:
                     if "2026-27" in tit and "하이라이트" in tit and h in tit and a in tit:
-                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg", ch)
                         _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
-                        return res
+                        return _ret(res)
 
                 # 4. Most recent 2026-27 TVING official highlight featuring either team
-                for vid, tit in matches:
+                for vid, tit, ch in matches:
                     if "2026-27" in tit and "하이라이트" in tit and (h in tit or a in tit):
-                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg")
+                        res = (f"https://www.youtube.com/watch?v={vid}", f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg", ch)
                         _set_highlight_cache(cache_key, res, _HIGHLIGHT_HIT_TTL_SEC)
-                        return res
+                        return _ret(res)
     except Exception:
         pass
 
-    _set_highlight_cache(cache_key, (fallback_url, None), _HIGHLIGHT_MISS_TTL_SEC)
-    return fallback_url, None
+    fallback_res = (fallback_url, None, None)
+    _set_highlight_cache(cache_key, fallback_res, _HIGHLIGHT_MISS_TTL_SEC)
+    return _ret(fallback_res)
 
 
 def build_highlights_from_games(
@@ -910,16 +928,17 @@ def build_highlights_from_games(
         candidate_games = t_games + o_games
 
     target_games = [g for g in candidate_games[:4] if g.get("status") in ("FINAL", "LIVE")]
-    resolved_videos: list[tuple[str, str | None]] = []
+    resolved_videos: list[tuple[str, str | None, str | None]] = []
     if target_games:
         with ThreadPoolExecutor(max_workers=min(len(target_games), 4)) as pool:
             resolved_videos = list(
                 pool.map(
-                    lambda g: resolve_kbl_highlight_video_url(
+                    lambda g: resolve_kbl_highlight_video_url(  # type: ignore[arg-type]
                         g.get("home_team", "?"),
                         g.get("away_team", "?"),
                         g.get("start_time"),
                         allow_network=allow_network,
+                        include_channel=True,
                     ),
                     target_games,
                 )
@@ -945,7 +964,7 @@ def build_highlights_from_games(
         c3 = f"[{tag}] {u1}vs{u2} 영상 ({uh} {hs}:{as_} {ua})"
         return c3 if len(c3) <= 35 else f"[{tag}] {s1} vs {s2} ({sh} {hs}:{as_} {sa})"[:35]
 
-    for g, (video_url, yt_thumb) in zip(target_games, resolved_videos):
+    for g, (video_url, yt_thumb, channel) in zip(target_games, resolved_videos):
         status = g.get("status")
         h = g.get("home_team", "?")
         a = g.get("away_team", "?")
@@ -960,11 +979,36 @@ def build_highlights_from_games(
             tag = "주요장면" if status == "FINAL" else "실시간 LIVE"
             title = _fmt_hl_title(tag, h, a, h, hs, as_, a)
 
+        mm_dd_dot = ""
+        st = g.get("start_time")
+        if st:
+            try:
+                dt = datetime.fromisoformat(str(st).replace("Z", "+00:00")).astimezone(
+                    timezone(timedelta(hours=9))
+                )
+                mm_dd_dot = f"{dt.month:02d}.{dt.day:02d}"
+            except Exception:
+                pass
+        raw_arena = str(g.get("arena") or TEAM_INFO.get(h, {}).get("arena") or "")
+        s_arena = re.sub(r"(체육관|아레나|실내체육관|학생체육관|스튜디오)$", "", raw_arena).strip()
+        if "잠실학생" in raw_arena:
+            s_arena = "잠실학생"
+        elif "잠실실내" in raw_arena:
+            s_arena = "잠실실내"
+        elif s_arena:
+            s_arena = s_arena.split()[0]
+
+        if channel and yt_thumb:
+            meta = " ".join(p for p in (mm_dd_dot, s_arena) if p)
+            arena_desc = f"▶️ {channel} · {meta}" if meta else f"▶️ {channel}"
+        else:
+            arena_desc = "🔍 실시간 중계 · 하이라이트 검색"
+
         items.append(
             {
                 "title": title,
                 "url": video_url,
-                "arena": "📺 TVING / KBL 공식 하이라이트",
+                "arena": arena_desc,
                 "imageUrl": yt_thumb or get_team_logo(h if h in KBL_TEAMS else a),
             }
         )

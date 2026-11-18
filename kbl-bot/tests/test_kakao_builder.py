@@ -923,8 +923,13 @@ class TestProBasketballBotFeatures:
             assert len(hl_team) >= 2
             assert hl_team[0]["title"] == "[하이라이트] SK vs 모비스 영상 (SK 92:76 모비스)"
             assert len(hl_team[0]["title"]) <= 35
+            assert hl_team[0]["arena"].startswith(("▶️ ", "🔍 "))
+            assert "11.16 잠실학생" in hl_team[0]["arena"] or "실시간 중계" in hl_team[0]["arena"]
 
-            # Simulate slow YouTube timeout -> instant allow_network=False fallback
+            # Simulate slow YouTube timeout on uncached game -> instant search fallback
+            from services.content.kbl_data import _HIGHLIGHT_VIDEO_CACHE
+            _HIGHLIGHT_VIDEO_CACHE.clear()
+
             def _raise_timeout(coro: object, **_: object) -> object:
                 getattr(coro, "close", lambda: None)()
                 raise TimeoutError
@@ -932,7 +937,7 @@ class TestProBasketballBotFeatures:
             with patch("services.game.service.asyncio.wait_for", side_effect=_raise_timeout):
                 hl_fallback = await svc.get_latest_highlights(MagicMock(), team="SK")
                 assert len(hl_fallback) >= 2
-                assert any("SK" in it.get("title", "") for it in hl_fallback)
+                assert hl_fallback[0]["arena"] == "🔍 실시간 중계 · 하이라이트 검색"
 
 
 

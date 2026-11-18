@@ -1712,10 +1712,11 @@ def build_highlights_response(
             url = tving_vclip_url
         else:
             url = raw_url
-        arena = item.get("arena") or "📺 TVING / KBL TV 공식 영상"
+        arena = str(item.get("arena") or "📺 TVING / KBL TV 공식 영상")
+        desc = arena if arena.startswith(("▶️", "🔍", "📺", "🎬", "🏀")) else f"▶️ {arena}"
         items.append({
             "title": title,
-            "description": f"▶️ {arena}",
+            "description": desc,
             "imageUrl": item.get("imageUrl") or default_img,
             "link": {"web": url},
         })
