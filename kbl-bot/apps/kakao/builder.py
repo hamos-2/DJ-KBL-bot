@@ -1077,46 +1077,46 @@ def _build_witty_kbl_commentary(
     m_ast = int(round(float(mvp.get("ast") or 0)))
 
     if diff <= 4:
-        turning_short = f"4Q 클러치 {diff}점차 극장승"
-        summary_30 = f"{mvp['name']} 위닝샷! {diff}점차 극장승"[:30]
+        turning_short = f"4Q 클러치 {diff}점차"
+        summary_short = f"아쉬운 {diff}점차 석패" if focus_team == loser else f"막판 {diff}점차 극장승"
         if focus_team == loser:
             full_msg = (
                 f"[{loser} 시점 촌철살인 한줄평]\n"
-                f"\"심장 부여잡은 4쿼터 막판 원포제션 승부! {l_star}의 분전에도 마지막 클러치 포제션 야투 한 방이 림을 외면하며 {winner}에 {diff}점 차로 뼈아픈 석패를 당했습니다. {l_coach} 감독의 다음 경기 리벤지 매치 플랜이 절실합니다!\""
+                f"\"{l_star} 분전에도 막판 슛이 림을 외면하며 {winner}에 {diff}점 차 석패.\""
             )
         else:
             full_msg = (
                 f"[{winner} 시점 촌철살인 한줄평]\n"
-                f"\"이게 바로 KBL 클러치 농구! 4쿼터 종료 직전 숨 막히는 승부처에서 {w_coach} 감독의 작전타임 승부수와 에이스 {mvp['name']}({m_pts}점 {m_ast}어시)의 강심장 클러치 득점이 터지며 {loser} 상대로 짜릿한 {diff}점 차 극장승을 완성했습니다!\""
+                f"\"{w_coach} 승부수와 {mvp['name']}({m_pts}점) 클러치 한 방! {diff}점 차 극장승.\""
             )
     elif diff <= 10:
-        turning_short = f"후반 승부처 제압 ({diff}점차)"
-        summary_30 = f"{mvp['name']} 맹활약! 승부처 완벽 제압"[:30]
+        turning_short = f"후반 승부처 ({diff}점차)"
+        summary_short = f"턴오버 발목 {diff}점차 패" if focus_team == loser else f"승부처 제압 {diff}점차 승"
         if focus_team == loser:
             full_msg = (
                 f"[{loser} 시점 촌철살인 한줄평]\n"
-                f"\"쫓아갈 만하면 터진 상대의 찬물 외곽포! {loser}({l_coach} 감독)는 {l_star}를 앞세워 추격전을 벌였으나, 3·4쿼터 승부처 턴오버와 {mvp['name']} 수비 제어 실패가 겹치며 {diff}점 차로 아쉬운 패배를 기록했습니다.\""
+                f"\"추격 속 턴오버와 {mvp['name']} 수비 실패로 {winner}에 {diff}점 차 패.\""
             )
         else:
             full_msg = (
                 f"[{winner} 시점 촌철살인 한줄평]\n"
-                f"\"3·4쿼터 약속의 땅을 지배한 {winner}! {w_coach} 감독의 탄탄한 로테이션과 {mvp['name']}({m_pts}점 {m_reb}리바 {m_ast}어시)의 내외곽 폭격으로 {loser}의 추격 의지를 꺾고 {diff}점 차 기분 좋은 승리를 챙겼습니다!\""
+                f"\"{w_coach} 로테이션과 {mvp['name']}({m_pts}점·{m_ast}어시) 맹활약으로 {diff}점 차 승리!\""
             )
     else:
-        turning_short = f"공수 압도 {diff}점차 대승"
-        summary_30 = f"{winner} 화력 대폭발! {diff}점차 완승"[:30]
+        turning_short = f"공수 압도 ({diff}점차)"
+        summary_short = f"공수 흔들 {diff}점차 완패" if focus_team == loser else f"{winner} {diff}점차 완승"
         if focus_team == loser:
             full_msg = (
                 f"[{loser} 시점 촌철살인 한줄평]\n"
-                f"\"공수 밸런스가 급격히 흔들린 하루! {loser}({l_coach} 감독)는 초반부터 {winner}의 트랜지션과 {mvp['name']}의 화력에 주도권을 내주며 {diff}점 차 완패를 당했습니다. 분위기 쇄신이 시급합니다!\""
+                f"\"초반부터 {winner} 화력에 주도권을 내주며 {diff}점 차 완패! 반전 시급.\""
             )
         else:
             full_msg = (
                 f"[{winner} 시점 촌철살인 한줄평]\n"
-                f"\"코트를 폭격한 {winner}의 무자비한 화력쇼! {w_coach} 감독표 에너지 농구와 {mvp['name']}({m_pts}점 {m_reb}리바)의 원맨쇼가 폭발하며 일찌감치 가비지 타임을 선언, {loser}를 {diff}점 차로 완벽히 제압했습니다!\""
+                f"\"{mvp['name']}({m_pts}점·{m_reb}리바) 원맨쇼로 {loser}를 {diff}점 차 완파!\""
             )
 
-    return turning_short[:30], summary_30[:30], full_msg
+    return turning_short[:15], summary_short[:15], full_msg
 
 
 SUMMARY_QUICK_REPLIES: list[QuickReply] = [
@@ -1167,8 +1167,12 @@ def build_game_summary_response(
         t_lineup = get_team_lineup(target_team) or {}
         coach = t_lineup.get("head_coach", "감독")
         starters = t_lineup.get("starters", [])
-        starter_names = ", ".join(s["name"] for s in starters[:5]) if starters else "주전 베스트 5"
-        foreigns = ", ".join(t_lineup.get("foreign_players", []))
+        starter_short = (
+            ", ".join(s["name"] for s in starters[:2]) + (" 외" if len(starters) > 2 else "")
+            if starters
+            else "주전 베스트 5"
+        )
+        foreigns = ", ".join(t_lineup.get("foreign_players", [])[:1]) or "외국인 에이스"
         asian_q = t_lineup.get("asian_quota", "")
         team_stars = sorted(
             [p for p in KBL_PLAYERS if p.get("team") == target_team],
@@ -1179,8 +1183,7 @@ def build_game_summary_response(
 
         one_liner = (
             f"[{target_team} 촌철살인 전력 한줄평]\n"
-            f"\"{coach} 감독 체제의 {target_team}! 에이스 {ace['name']}(평균 {ace['pts']}점 {ace['ast']}어시)과 "
-            f"외국인 원투펀치({foreigns}), 아시아쿼터({asian_q})의 공수 시너지가 터지면 어느 팀도 막기 힘든 다크호스입니다!\""
+            f"\"{coach} 감독과 에이스 {ace['name']}({ace['pts']}점) 중심의 화력 시너지가 기대됩니다!\""
         )
         base_url = _DEFAULT_PUBLIC_BASE_URL.rstrip("/")
         q_target = urllib.parse.quote(target_team)
@@ -1193,11 +1196,11 @@ def build_game_summary_response(
                 "imageUrl": get_team_logo(target_team),
             },
             item_list=[
-                {"title": "핵심MVP", "description": f"{ace['name']} (평균 {ace['pts']}점 {ace['ast']}어시)"},
-                {"title": "베스트5", "description": starter_names[:30]},
-                {"title": "외인/AQ", "description": f"{foreigns} / {asian_q}"[:30]},
+                {"title": "핵심MVP", "description": f"{ace['name']} ({ace['pts']}점)"[:15]},
+                {"title": "베스트5", "description": starter_short[:15]},
+                {"title": "외인/AQ", "description": (f"{foreigns}/{asian_q}" if asian_q else foreigns)[:15]},
             ],
-            summary={"title": "한줄평", "description": f"{coach}표 {target_team}, 화력 폭발 예고!"[:30]},
+            summary={"title": "한줄평", "description": f"{target_team} 화력 폭발 예고"[:15]},
             buttons=[
                 _share_btn("📤 한줄평 공유하기"),
                 _msg_btn(f"📋 {target_team} 라인업", f"{target_team} 라인업"),
@@ -1310,11 +1313,11 @@ def build_game_summary_response(
             "imageUrl": get_team_logo(badge_team),
         },
         item_list=[
-            {"title": "경기MVP", "description": f"{mvp['name']} ({mvp['pts']}점 {mvp['reb']}리바)"},
-            {"title": "승리구단", "description": f"{winner} ({diff}점 차 승)"},
-            {"title": "승부처", "description": turning_short},
+            {"title": "경기MVP", "description": f"{mvp['name']} {mvp['pts']}점{mvp['reb']}R"[:15]},
+            {"title": "승리구단", "description": f"{winner} (+{diff}점)"[:15]},
+            {"title": "승부처", "description": turning_short[:15]},
         ],
-        summary={"title": "한줄평", "description": summary_30},
+        summary={"title": "한줄평", "description": summary_30[:15]},
         buttons=[
             _share_btn("📤 한줄평 공유하기"),
             _link_btn("▶️ 공식 하이라이트 영상", vod_url),
@@ -1326,11 +1329,7 @@ def build_game_summary_response(
     commentary_card_output = {
         "basicCard": _basic_card(
             title=f"💬 {home} vs {away} 촌철살인 한줄평",
-            description=(
-                f"• 최종 스코어: {home} {hs} : {as_} {away}\n"
-                f"• 수훈선수: {mvp['name']} ({mvp['pts']}점·{mvp['reb']}리바·{mvp['ast']}어시)\n\n"
-                f"{full_commentary}"
-            ),
+            description=full_commentary,
             thumbnail_url=recap_banner_url,
             fixed_ratio=False,
             width=800,

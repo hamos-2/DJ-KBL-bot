@@ -686,6 +686,8 @@ class TestProBasketballBotFeatures:
         item_card = summary_win.template.outputs[0]["itemCard"]
         commentary_card = summary_win.template.outputs[1]["basicCard"]
         assert "정관장 경기 요약" in item_card["head"]["title"]
+        assert len(item_card["itemListSummary"]["description"]) <= 15
+        assert len(commentary_card["description"]) <= 85
         assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in item_card["buttons"])
         assert "촌철살인 한줄평" in commentary_card["title"]
         assert "정관장 시점 촌철살인 한줄평" in commentary_card["description"]
@@ -695,13 +697,16 @@ class TestProBasketballBotFeatures:
         summary_lose = build_game_summary_response(sample_games, target_team="한국가스공사")
         lose_commentary = summary_lose.template.outputs[1]["basicCard"]
         assert "한국가스공사 시점 촌철살인 한줄평" in lose_commentary["description"]
+        assert len(lose_commentary["description"]) <= 85
 
         # Team without recent finished game in list ("DB 요약")
         summary_fallback = build_game_summary_response(sample_games, target_team="DB")
         fb_item = summary_fallback.template.outputs[0]["itemCard"]
         fb_commentary = summary_fallback.template.outputs[1]["basicCard"]
         assert "DB 경기 요약" in fb_item["head"]["title"]
+        assert len(fb_item["itemListSummary"]["description"]) <= 15
         assert "DB 촌철살인 한줄평" in fb_commentary["title"]
+        assert len(fb_commentary["description"]) <= 85
         assert any(b.get("action") == "share" and b.get("label") == "한줄평 공유하기" for b in fb_commentary["buttons"])
 
         # 6. Lineup 2-column visual board image (matching Daum ?tab=lineup)
