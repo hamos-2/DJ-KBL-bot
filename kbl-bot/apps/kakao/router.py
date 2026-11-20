@@ -61,6 +61,14 @@ from core.cache.redis import (
 from core.config import get_settings
 from core.db.models import User
 from core.db.session import get_db
+from services.user.persistence import (
+    hydrate_preferences_from_db,
+    hydrate_user_points_and_streak_from_db,
+    hydrate_user_vote_from_db,
+    persist_prediction_vote_db,
+    persist_settlement_db,
+    persist_user_preferences_db,
+)
 from core.exceptions import GameNotFoundError, KBLBotError
 from core.logging import get_logger
 from services.content.kbl_data import KBL_PLAYERS, TEAM_LINEUPS, search_kbl_players
@@ -118,6 +126,19 @@ def _verify_skill_secret(x_kakao_skill_secret: str | None) -> bool:
     if not x_kakao_skill_secret:
         return False
     return hmac.compare_digest(expected.encode("utf-8"), x_kakao_skill_secret.encode("utf-8"))
+
+
+def _is_admin_operator(user_hmac: str) -> bool:
+    """
+    Allowlist check for privileged roster mutation commands (`#감독변경`, `#트레이드`, `#로스터동기화`).
+    Fail-closed in production when ADMIN_USER_HMACS is empty so arbitrary chat users cannot mutate state.
+    """
+    settings = get_settings()
+    raw = (settings.admin_user_hmacs or "").strip()
+    if not raw:
+        return settings.app_env.strip().lower() != "production"
+    allowed = {tok.strip() for tok in raw.split(",") if tok.strip()}
+    return user_hmac in allowed
 
 
 def _json_200(response: KakaoSkillResponse) -> JSONResponse:
@@ -258,6 +279,10 @@ async def _dispatch_command(
 
     # 0. In-Season Dynamic Roster & Coach Commands (#감독변경, #트레이드, #로스터동기화, #로스터변경이력)
     if u.startswith("#감독변경") or u.startswith("감독변경"):
+        if not _is_admin_operator(user_hmac):
+            return build_simple_response(
+                "🔒 운영자 권한이 필요한 명령입니다.", quick_replies=MAIN_MENU_QUICK_REPLIES
+            )
         parts = re.sub(r"^#?감독변경\s*", "", u).strip().split()
         if len(parts) >= 2:
             team_arg, new_coach = parts[0], parts[1]
@@ -280,6 +305,10 @@ async def _dispatch_command(
         return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u.startswith("#트레이드") or u.startswith("트레이드"):
+        if not _is_admin_operator(user_hmac):
+            return build_simple_response(
+                "🔒 운영자 권한이 필요한 명령입니다.", quick_replies=MAIN_MENU_QUICK_REPLIES
+            )
         parts = re.sub(r"^#?트레이드\s*", "", u).strip().split()
         if len(parts) >= 2:
             player_arg, new_team_arg = parts[0], parts[1]
@@ -302,6 +331,10 @@ async def _dispatch_command(
         return build_simple_response(msg, quick_replies=MAIN_MENU_QUICK_REPLIES)
 
     if u_compact in ("#로스터동기화", "로스터동기화", "#로스터갱신", "로스터갱신"):
+        if not _is_admin_operator(user_hmac):
+            return build_simple_response(
+                "🔒 운영자 권한이 필요한 명령입니다.", quick_replies=MAIN_MENU_QUICK_REPLIES
+            )
         from services.roster.manager import get_roster_manager
         roster_mgr = get_roster_manager()
         provider = getattr(game_service, "_provider", None)
@@ -445,6 +478,8 @@ async def _dispatch_command(
             state_str = "ON" if notifs["prediction"] else "OFF"
             notice_msg = f"당일 승부예측 알림이 [{state_str}]으로 변경되었습니다."
             await save_user_preferences(user_hmac, prefs)
+        if notice_msg:
+            await persist_user_preferences_db(db, user_hmac, prefs)
         return build_settings_response(
             fav_team,
             prefs.get("favorite_players", []),
@@ -590,6 +625,13 @@ async def _dispatch_command(
                             target_game["home_team"],
                             target_game["away_team"],
                         )
+                        await persist_prediction_vote_db(
+                            db,
+                            user_hmac,
+                            str(target_game["game_id"]),
+                            norm_pick,
+                            int(vote_res.get("user_points", 0)),
+                        )
                         vote_notice = (
                             f"[{norm_pick}] 승리 예측 투표가 완료되었습니다! "
                             f"(내 포인트: {vote_res['user_points']}P)"
@@ -658,6 +700,8 @@ async def _dispatch_command(
 
             user_pick = await get_user_prediction_for_game(user_hmac, gid)
             if not user_pick:
+                user_pick = await hydrate_user_vote_from_db(db, user_hmac, gid)
+            if not user_pick:
                 continue
 
             points_note = ""
@@ -675,12 +719,28 @@ async def _dispatch_command(
                     awarded, cur_pts = await settle_prediction_hit(user_hmac, gid, True, bonus_points=50)
                     user_points = cur_pts
                     if awarded:
+                        try:
+                            stk_val, stk_bonus = await update_user_streak(user_hmac, True)
+                        except Exception:
+                            stk_val, stk_bonus = 0, 0
+                        total_pts = cur_pts + stk_bonus
+                        user_points = total_pts
+                        await persist_settlement_db(
+                            db, user_hmac, gid, True, total_pts, stk_val, 50 + stk_bonus
+                        )
                         points_note = "💰 적중 보너스 +50P 지급 완료!"
                     else:
                         points_note = "💰 적중 보너스 +50P (지급 완료됨)"
                 else:
                     misses += 1
                     outcome_badge = "😢 예측 실패"
+                    try:
+                        cur_pts_miss = await get_user_points(user_hmac)
+                    except Exception:
+                        cur_pts_miss = user_points
+                    await persist_settlement_db(
+                        db, user_hmac, gid, False, cur_pts_miss, 0, 0
+                    )
                 score_text = f"{home} {h_score} : {a_score} {away} ({winner} 승리)"
             elif status == "LIVE":
                 pending += 1
@@ -748,6 +808,10 @@ async def _dispatch_command(
             streak = await get_user_streak(user_hmac)
         except Exception:
             streak = 0
+        if pts == 0:
+            db_pts, db_stk = await hydrate_user_points_and_streak_from_db(db, user_hmac)
+            if db_pts > 0:
+                pts, streak = db_pts, db_stk
         return build_user_points_response(
             pts, favorite_team=fav_team, streak=streak, user_hmac=user_hmac
         )
@@ -785,10 +849,6 @@ async def _dispatch_command(
     ):
         team_filter = fav_team if (fav_team and ("응원팀" in u_compact or "우리팀" in u_compact)) else None
         try:
-            leaderboard = await get_monthly_prediction_leaderboard(team_filter=team_filter)
-        except Exception:
-            leaderboard = []
-        try:
             pts = await get_user_points(user_hmac)
         except Exception:
             pts = 0
@@ -796,6 +856,14 @@ async def _dispatch_command(
             streak = await get_user_streak(user_hmac)
         except Exception:
             streak = 0
+        if pts == 0:
+            db_pts, db_stk = await hydrate_user_points_and_streak_from_db(db, user_hmac)
+            if db_pts > 0:
+                pts, streak = db_pts, db_stk
+        try:
+            leaderboard = await get_monthly_prediction_leaderboard(team_filter=team_filter)
+        except Exception:
+            leaderboard = []
         try:
             user_rank = await get_user_prediction_rank(
                 user_hmac, user_points=pts, team_filter=team_filter
@@ -988,12 +1056,17 @@ async def _dispatch_command(
 
     if is_fav_menu or has_player_prefix or matched_player is not None:
         prefs = await get_user_preferences(user_hmac)
+        if not prefs.get("favorite_players"):
+            hydrated = await hydrate_preferences_from_db(db, user_hmac)
+            if hydrated:
+                prefs = hydrated
         fav_players: list[str] = prefs.get("favorite_players", [])
 
         # Reset all
         if clean_sub in ("초기화", "전체삭제", "비우기"):
             prefs["favorite_players"] = []
             await save_user_preferences(user_hmac, prefs)
+            await persist_user_preferences_db(db, user_hmac, prefs)
             return build_favorite_players_response(
                 [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다.", favorite_team=fav_team, base_url=base_url
             )
@@ -1009,6 +1082,7 @@ async def _dispatch_command(
                     fav_players.remove(exact)
                     prefs["favorite_players"] = fav_players
                     await save_user_preferences(user_hmac, prefs)
+                    await persist_user_preferences_db(db, user_hmac, prefs)
                     notice_msg = f"[{exact}] 선수가 관심선수에서 해제되었습니다."
                 else:
                     notice_msg = f"[{exact}] 선수는 관심선수 목록에 없습니다."
@@ -1021,6 +1095,7 @@ async def _dispatch_command(
                     fav_players.append(exact)
                     prefs["favorite_players"] = fav_players
                     await save_user_preferences(user_hmac, prefs)
+                    await persist_user_preferences_db(db, user_hmac, prefs)
                     notice_msg = f"[{exact}] 선수가 내 관심선수로 등록되었습니다!"
                 else:
                     notice_msg = f"[{exact}] 선수는 이미 관심선수로 등록되어 있습니다."

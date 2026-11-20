@@ -361,6 +361,17 @@ class IngestionWorker:
                     await invalidate_standings_and_rankings_cache()
                 except Exception as exc:
                     logger.warning("Failed to invalidate standings/rankings cache on final transition", error=str(exc))
+                if self._persist_db:
+                    try:
+                        from services.user.persistence import settle_game_predictions_chunked
+
+                        t_settle = asyncio.create_task(
+                            settle_game_predictions_chunked(dict(data), chunk_size=50)
+                        )
+                        self._bg_tasks.add(t_settle)
+                        t_settle.add_done_callback(self._bg_tasks.discard)
+                    except Exception as s_exc:
+                        logger.warning("Failed to schedule FINAL prediction settlement", error=str(s_exc))
             if new_status in (_STATUS_LIVE, _STATUS_FINAL):
                 await self._sync_today_boxscores_if_due(has_live=(new_status == _STATUS_LIVE), force=True)
                 await self._sync_realtime_lineups_if_due(force=True)

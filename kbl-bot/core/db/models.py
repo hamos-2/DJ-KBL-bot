@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -72,6 +73,52 @@ class Game(Base):
     )
     start_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class UserAccountState(Base):
+    """Durable PostgreSQL backing store for user preferences, prediction points, and streak."""
+
+    __tablename__ = "user_account_states"
+
+    user_hmac: Mapped[str] = mapped_column(String(64), primary_key=True)
+    favorite_players_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    notifications_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    prediction_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prediction_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class PredictionVote(Base):
+    """Durable record of user match predictions and settlement status."""
+
+    __tablename__ = "prediction_votes"
+    __table_args__ = (
+        UniqueConstraint("user_hmac", "game_id", name="uq_prediction_vote_user_game"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_hmac: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    game_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    selected_team: Mapped[str] = mapped_column(String(50), nullable=False)
+    settled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    is_hit: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    points_awarded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
