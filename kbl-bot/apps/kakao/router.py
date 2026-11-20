@@ -166,6 +166,7 @@ async def _dispatch_command(
     # 0. Home / Menu / Welcome (including Welcome Block / welcome_event / greeting)
     if u_compact.lower() in (
         "홈",
+        "홈으로",
         "메뉴",
         "처음으로",
         "도움말",
