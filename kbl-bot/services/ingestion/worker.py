@@ -14,6 +14,8 @@ from core.cache.redis import (
     save_news_cache,
     save_player_rankings_cache,
     save_standings_cache,
+    save_team_analytics_cache,
+    save_today_player_boxscores_cache,
 )
 from core.db.session import get_session_factory
 from core.exceptions import ProviderError
@@ -22,6 +24,8 @@ from core.season import get_current_season
 from services.content.kbl_data import (
     build_highlights_from_games,
     compute_standings_from_games,
+    compute_team_streaks_and_h2h,
+    fetch_game_player_boxscores_sync,
     get_default_player_rankings,
     parse_daum_news_html,
 )
@@ -82,6 +86,7 @@ class IngestionWorker:
         self._last_window_sync_at: float = 0.0
         self._last_lineup_sync_at: float = 0.0
         self._last_naver_sync_at: float = 0.0
+        self._last_boxscore_sync_at: float = 0.0
 
     def start(self) -> None:
         """Schedule the worker loop as a background asyncio task."""
@@ -116,6 +121,7 @@ class IngestionWorker:
             try:
                 await self._sync_upcoming_window_if_due()
                 has_live = await self._poll_all_games()
+                await self._sync_today_boxscores_if_due(has_live=has_live)
                 await self._sync_realtime_lineups_if_due()
                 sleep_sec = self._live_interval if has_live else min(self._scheduled_interval, 30)
             except asyncio.CancelledError:
@@ -151,10 +157,21 @@ class IngestionWorker:
                     await save_game_snapshot(str(g["game_id"]), g)
                 await db.commit()
 
+            # Precompute & cache team streaks, L5, and season H2H analytics
+            analytics = compute_team_streaks_and_h2h(games)
+            await save_team_analytics_cache(analytics)
+
             # Sync & cache real-time team standings and player rankings from provider
             try:
                 live_standings = await self._provider.get_standings(get_current_season())
                 if live_standings and len(live_standings) >= 10:
+                    t_meta = analytics.get("teams", {})
+                    for row in live_standings:
+                        t_code = row.get("team", "")
+                        if (not row.get("streak") or row.get("streak") == "-") and t_code in t_meta:
+                            row["streak"] = t_meta[t_code].get("streak", "-")
+                        if t_code in t_meta:
+                            row["l5"] = t_meta[t_code].get("l5", "-")
                     await save_standings_cache(live_standings)
                 else:
                     standings = compute_standings_from_games(games)
@@ -345,7 +362,52 @@ class IngestionWorker:
                 except Exception as exc:
                     logger.warning("Failed to invalidate standings/rankings cache on final transition", error=str(exc))
             if new_status in (_STATUS_LIVE, _STATUS_FINAL):
+                await self._sync_today_boxscores_if_due(has_live=(new_status == _STATUS_LIVE), force=True)
                 await self._sync_realtime_lineups_if_due(force=True)
+
+    async def _sync_today_boxscores_if_due(
+        self, has_live: bool = False, force: bool = False
+    ) -> None:
+        """Pre-cache today's LIVE/FINAL player boxscores in Redis without blocking HTTP handlers."""
+        now_mono = time.monotonic()
+        interval = 20.0 if has_live else 300.0
+        if not force and self._last_boxscore_sync_at > 0.0 and (now_mono - self._last_boxscore_sync_at) < interval:
+            return
+        self._last_boxscore_sync_at = now_mono
+
+        try:
+            games = await self._provider.get_schedule(today_kst())
+        except Exception:
+            return
+
+        active_games = [g for g in games if g.get("status") in (_STATUS_LIVE, _STATUS_FINAL)]
+        if not active_games:
+            return
+
+        merged: dict[str, dict[str, Any]] = {}
+        for g in active_games:
+            gid = str(g.get("game_id") or "")
+            h_team = str(g.get("home_team") or "")
+            a_team = str(g.get("away_team") or "")
+            if not gid or not h_team or not a_team:
+                continue
+            try:
+                box = await asyncio.to_thread(
+                    fetch_game_player_boxscores_sync,
+                    gid,
+                    h_team,
+                    a_team,
+                    str(g.get("status") or "FINAL"),
+                    g.get("period"),
+                    g.get("game_clock"),
+                    2.0,
+                )
+                merged.update(box)
+            except Exception:
+                continue
+
+        if merged:
+            await save_today_player_boxscores_cache(merged)
 
     async def _sync_realtime_lineups_if_due(self, force: bool = False) -> bool:
         """

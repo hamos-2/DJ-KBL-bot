@@ -420,10 +420,20 @@ class GameService:
         if cached:
             return cached
 
+        from core.cache.redis import get_team_analytics_cache
+
         # Try live official standings from provider first
         try:
             provider_standings = await self._provider.get_standings(get_current_season())
             if provider_standings and len(provider_standings) >= 10:
+                analytics = await get_team_analytics_cache()
+                t_meta = (analytics or {}).get("teams", {})
+                for row in provider_standings:
+                    t_code = row.get("team", "")
+                    if (not row.get("streak") or row.get("streak") == "-") and t_code in t_meta:
+                        row["streak"] = t_meta[t_code].get("streak", "-")
+                    if t_code in t_meta:
+                        row["l5"] = t_meta[t_code].get("l5", "-")
                 await save_standings_cache(provider_standings)
                 return provider_standings
         except Exception as exc:

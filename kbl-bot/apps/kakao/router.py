@@ -45,9 +45,12 @@ from apps.kakao.schemas import KakaoSkillPayload, KakaoSkillResponse
 from core.cache.redis import (
     get_game_cheers,
     get_monthly_prediction_leaderboard,
+    get_players_today_boxscores_bulk,
     get_redis,
+    get_team_analytics_cache,
     get_user_points,
     get_user_prediction_for_game,
+    get_user_prediction_rank,
     get_user_preferences,
     get_user_streak,
     save_user_preferences,
@@ -749,7 +752,7 @@ async def _dispatch_command(
             pts, favorite_team=fav_team, streak=streak, user_hmac=user_hmac
         )
 
-    # 2-C. Prediction Leaderboard (승부예측 랭킹 / 예측 랭킹 / 리더보드 / 포인트 랭킹 / 예측왕)
+    # 2-C. Prediction Leaderboard (승부예측 랭킹 / #랭킹 응원팀 / #랭킹 전체)
     if (
         u_compact in (
             "승부예측랭킹",
@@ -764,14 +767,25 @@ async def _dispatch_command(
             "승부예측리더보드",
             "예측리더보드",
             "월간랭킹",
+            "#랭킹전체",
+            "랭킹전체",
+            "전체랭킹",
+            "전체팬랭킹",
+            "월간전체랭킹",
+            "#랭킹응원팀",
+            "랭킹응원팀",
+            "응원팀랭킹",
+            "우리팀랭킹",
+            "우리팀팬랭킹",
         )
         or (
             "랭킹" in u_compact
-            and any(k in u_compact for k in ("예측", "승부", "포인트", "팬", "월간", "명예"))
+            and any(k in u_compact for k in ("예측", "승부", "포인트", "팬", "월간", "명예", "응원팀", "우리팀"))
         )
     ):
+        team_filter = fav_team if (fav_team and ("응원팀" in u_compact or "우리팀" in u_compact)) else None
         try:
-            leaderboard = await get_monthly_prediction_leaderboard()
+            leaderboard = await get_monthly_prediction_leaderboard(team_filter=team_filter)
         except Exception:
             leaderboard = []
         try:
@@ -782,13 +796,20 @@ async def _dispatch_command(
             streak = await get_user_streak(user_hmac)
         except Exception:
             streak = 0
+        try:
+            user_rank = await get_user_prediction_rank(
+                user_hmac, user_points=pts, team_filter=team_filter
+            )
+        except Exception:
+            user_rank = 1
         return build_prediction_leaderboard_response(
             rankings=leaderboard,
             user_points=pts,
-            user_rank=12,
+            user_rank=user_rank,
             streak=streak,
             favorite_team=fav_team,
             user_hmac=user_hmac,
+            team_filter=team_filter,
         )
 
     # 3. Favorite Players & Custom Player Search/Registration
@@ -977,6 +998,9 @@ async def _dispatch_command(
                 [], KBL_PLAYERS[:5], notice="내 관심선수 목록이 초기화되었습니다.", favorite_team=fav_team, base_url=base_url
             )
 
+        target_names = list(dict.fromkeys(([matched_player["name"]] if matched_player else []) + fav_players[:5]))
+        today_box_map = await get_players_today_boxscores_bulk(target_names)
+
         if matched_player is not None:
             exact = matched_player["name"]
 
@@ -989,7 +1013,7 @@ async def _dispatch_command(
                 else:
                     notice_msg = f"[{exact}] 선수는 관심선수 목록에 없습니다."
                 return build_favorite_players_response(
-                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url, today_stats_map=today_box_map
                 )
 
             if is_add or has_player_prefix:
@@ -1001,16 +1025,20 @@ async def _dispatch_command(
                 else:
                     notice_msg = f"[{exact}] 선수는 이미 관심선수로 등록되어 있습니다."
                 return build_favorite_players_response(
-                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url
+                    fav_players, [matched_player], notice=notice_msg, favorite_team=fav_team, base_url=base_url, today_stats_map=today_box_map
                 )
 
             # User simply typed player name (e.g. "허훈", "알바노", "김종규") -> show single player card
             return build_single_player_response(
-                matched_player, is_favorite=(exact in fav_players)
+                matched_player,
+                is_favorite=(exact in fav_players),
+                today_stats=today_box_map.get(exact),
             )
 
         # Default favorite players home view
-        return build_favorite_players_response(fav_players, KBL_PLAYERS[:5], favorite_team=fav_team, base_url=base_url)
+        return build_favorite_players_response(
+            fav_players, KBL_PLAYERS[:5], favorite_team=fav_team, base_url=base_url, today_stats_map=today_box_map
+        )
 
     # 4. Team Standings (팀순위)
     if u_compact in ("팀순위", "순위", "구단순위", "정규리그순위", "kbl순위", "KBL순위"):
@@ -1184,7 +1212,8 @@ async def _dispatch_command(
     parsed = parse_matchup_query(u)
     if parsed is not None:
         games = await game_service.search_matchup(db, parsed.team_a, parsed.team_b)
-        return build_matchup_search_response(parsed, games)
+        analytics = await get_team_analytics_cache()
+        return build_matchup_search_response(parsed, games, analytics=analytics)
 
     # Default behaviour depending on endpoint
     if default_mode == "today":

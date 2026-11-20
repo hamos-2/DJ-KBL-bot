@@ -5,6 +5,7 @@ import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
@@ -366,7 +367,9 @@ async def vote_team_cheer(
     away_votes = int(res[4])
     points = int(res[5])
     try:
-        await client.zadd("kbl:prediction:zset:v1", {user_hmac: points})
+        ym = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m")
+        await client.zadd(_PREDICTION_ZSET_KEY, {user_hmac: points})
+        await client.zadd(f"kbl:prediction:zset:{ym}", {user_hmac: points})
     except Exception:
         pass
 
@@ -530,7 +533,9 @@ async def settle_prediction_hit(
     if was_set:
         new_pts = await client.incrby(points_key, bonus_points)
         try:
-            await client.zadd("kbl:prediction:zset:v1", {user_hmac: int(new_pts)})
+            ym = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m")
+            await client.zadd(_PREDICTION_ZSET_KEY, {user_hmac: int(new_pts)})
+            await client.zadd(f"kbl:prediction:zset:{ym}", {user_hmac: int(new_pts)})
         except Exception:
             pass
         return True, int(new_pts)
@@ -600,19 +605,80 @@ async def update_user_streak(user_hmac: str, is_hit: bool) -> tuple[int, int]:
     if bonus > 0:
         new_pts = await client.incrby(points_key, bonus)
         try:
+            ym = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m")
             await client.zadd(_PREDICTION_ZSET_KEY, {user_hmac: int(new_pts)})
+            await client.zadd(f"kbl:prediction:zset:{ym}", {user_hmac: int(new_pts)})
         except Exception:
             pass
 
     return int(new_streak), bonus
 
 
-async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, Any]]:
+_TODAY_BOXSCORE_KEY = "kbl:players:today_boxscore:v1"
+_TEAM_ANALYTICS_KEY = "kbl:team:analytics:v1"
+
+
+async def save_today_player_boxscores_cache(player_map: dict[str, dict[str, Any]]) -> None:
+    """Persist today's live/final player boxscores in Redis (4h TTL, single lightweight blob)."""
+    if not player_map:
+        return
+    try:
+        client = await get_redis()
+        await client.set(_TODAY_BOXSCORE_KEY, json.dumps(player_map, ensure_ascii=False), ex=4 * 3600)
+    except Exception as exc:
+        logger.warning("Failed to save today player boxscores cache", error=str(exc))
+
+
+async def get_players_today_boxscores_bulk(names: list[str]) -> dict[str, dict[str, Any]]:
+    """Retrieve today's cached game boxscore stats for *names* from Redis in O(1)."""
+    if not names:
+        return {}
+    try:
+        client = await get_redis()
+        raw = await client.get(_TODAY_BOXSCORE_KEY)
+        if not raw:
+            return {}
+        all_stats: dict[str, dict[str, Any]] = json.loads(raw)
+        return {n: all_stats[n] for n in names if n in all_stats}
+    except Exception:
+        return {}
+
+
+async def save_team_analytics_cache(analytics: dict[str, Any]) -> None:
+    """Persist precomputed team streaks, L5, and H2H records in Redis (30m TTL)."""
+    try:
+        client = await get_redis()
+        await client.set(_TEAM_ANALYTICS_KEY, json.dumps(analytics, ensure_ascii=False), ex=1800)
+    except Exception as exc:
+        logger.warning("Failed to save team analytics cache", error=str(exc))
+
+
+async def get_team_analytics_cache() -> dict[str, Any] | None:
+    """Retrieve precomputed team streaks, L5, and H2H records from Redis."""
+    try:
+        client = await get_redis()
+        raw = await client.get(_TEAM_ANALYTICS_KEY)
+        return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
+def _current_kst_ym() -> str:
+    return datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m")
+
+
+async def get_monthly_prediction_leaderboard(
+    limit: int = 10,
+    team_filter: str | None = None,
+    year_month: str | None = None,
+) -> list[dict[str, Any]]:
     """
-    Return monthly top prediction users and points using Option 1 deterministic
-    auto-generated nicknames (`{응원팀} {포인트등급}#{고유4자리}`) merged with real Redis ZSET scores.
+    Return monthly (or team-filtered) top prediction users using real Redis ZSET scores
+    merged with deterministic baseline entries when fewer than *limit* live entries exist.
     """
     client = await get_redis()
+    ym = year_month or _current_kst_ym()
+    zset_monthly_key = f"kbl:prediction:zset:{ym}"
 
     baseline_entries = [
         {"nickname": "SK 레전드#4821", "team": "SK", "points": 850, "streak": 8},
@@ -629,7 +695,10 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
 
     live_entries: list[dict[str, Any]] = []
     try:
-        top_zset = await client.zrevrange(_PREDICTION_ZSET_KEY, 0, limit - 1, withscores=True)
+        scan_limit = max(limit * 4, 40) if team_filter else limit
+        top_zset = await client.zrevrange(zset_monthly_key, 0, scan_limit - 1, withscores=True)
+        if not top_zset:
+            top_zset = await client.zrevrange(_PREDICTION_ZSET_KEY, 0, scan_limit - 1, withscores=True)
         if isinstance(top_zset, list):
             for u_hmac, score in top_zset:
                 pts = int(score or 0)
@@ -642,13 +711,16 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
                         fav_team = json.loads(prefs_raw).get("favorite_team")
                     except Exception:
                         pass
+                team_label = fav_team or "KBL"
+                if team_filter and team_label != team_filter:
+                    continue
                 stk_raw = await client.get(f"{_USER_STREAK_PREFIX}{u_hmac}")
                 stk = int(stk_raw or 0)
                 nick = format_auto_fan_nickname(str(u_hmac), pts, fav_team)
                 live_entries.append(
                     {
                         "nickname": nick,
-                        "team": fav_team or "KBL",
+                        "team": team_label,
                         "points": pts,
                         "streak": stk,
                         "user_hmac": str(u_hmac),
@@ -657,8 +729,13 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
     except Exception:
         pass
 
+    filtered_baselines = (
+        [b for b in baseline_entries if b.get("team") == team_filter]
+        if team_filter
+        else baseline_entries
+    )
     merged_by_nick: dict[str, dict[str, Any]] = {}
-    for entry in baseline_entries + live_entries:
+    for entry in filtered_baselines + live_entries:
         merged_by_nick[entry["nickname"]] = dict(entry)
 
     sorted_board = sorted(
@@ -671,6 +748,26 @@ async def get_monthly_prediction_leaderboard(limit: int = 10) -> list[dict[str, 
         item["rank"] = idx
 
     return sorted_board
+
+
+async def get_user_prediction_rank(
+    user_hmac: str,
+    user_points: int | None = None,
+    team_filter: str | None = None,
+    year_month: str | None = None,
+) -> int:
+    """
+    Compute the user's real merged leaderboard rank via Redis ZREVRANK / score comparison.
+    """
+    pts = user_points if user_points is not None else await get_user_points(user_hmac)
+    board = await get_monthly_prediction_leaderboard(
+        limit=50, team_filter=team_filter, year_month=year_month
+    )
+    for item in board:
+        if item.get("user_hmac") == user_hmac:
+            return int(item.get("rank", 1))
+    higher_count = sum(1 for item in board if int(item.get("points", 0)) > pts)
+    return higher_count + 1
 
 
 # ---------------------------------------------------------------------------

@@ -2068,14 +2068,33 @@ def build_player_rankings_response(
     )
 
 
+def _format_player_today_line(today_stats: dict[str, Any] | None) -> str:
+    """Format a compact one-line summary of today's live/final game stats for a player."""
+    if not today_stats:
+        return ""
+    pts = int(today_stats.get("pts") or 0)
+    reb = int(today_stats.get("reb") or 0)
+    ast = int(today_stats.get("ast") or 0)
+    opp = str(today_stats.get("opp") or "").strip()
+    status = str(today_stats.get("status") or "").upper()
+    period = today_stats.get("period")
+    if status == "LIVE":
+        tag = f"🔴 오늘 {period}Q" if period else "🔴 오늘 LIVE"
+    else:
+        tag = "오늘 경기"
+    opp_str = f" vs {opp}" if opp else ""
+    return f"{tag}{opp_str}: {pts}점 {reb}리바 {ast}어시"
+
+
 def build_single_player_response(
     player: dict[str, Any],
     is_favorite: bool = False,
     notice: str | None = None,
+    today_stats: dict[str, Any] | None = None,
 ) -> KakaoSkillResponse:
     """
     Build detailed player profile card with 1-click favorite toggle button.
-    Returns pure basicCard with verified team logo.
+    Returns pure basicCard with verified team logo and optional today's live/final boxscore.
     """
     name = player["name"]
     team = player.get("team", "")
@@ -2089,7 +2108,9 @@ def build_single_player_response(
     stl = player.get("stl", 0.0)
 
     fav_badge = "⭐ 관심선수 등록됨\n" if is_favorite else ""
-    notice_str = f"✅ {notice}\n" if notice else ""
+    notice_str = f"{notice}\n" if notice else ""
+    today_line = _format_player_today_line(today_stats)
+    today_bullet = f"• {today_line}\n" if today_line else ""
 
     from services.content.lineup_board import get_player_photo_url
 
@@ -2116,6 +2137,7 @@ def build_single_player_response(
             title=f"⭐ {name} ({team} #{no})",
             description=(
                 f"{notice_str}{fav_badge}"
+                f"{today_bullet}"
                 f"• 포지션: {pos} ({full_team})\n"
                 f"• 시즌 평균: {pts}점 | {reb}리바 | {ast}어시\n"
                 f"• 세부 기록: 3점슛 {tpm}개 | 스틸 {stl}개"
@@ -2329,6 +2351,7 @@ def build_favorite_players_response(
     notice: str | None = None,
     favorite_team: str | None = None,
     base_url: str | None = None,
+    today_stats_map: dict[str, dict[str, Any]] | None = None,
 ) -> KakaoSkillResponse:
     """
     Build response for '관심선수'.
@@ -2342,16 +2365,19 @@ def build_favorite_players_response(
 
     b_url = (base_url or _DEFAULT_PUBLIC_BASE_URL).rstrip("/")
     fallback_logo = get_team_logo(favorite_team or "SK")
+    today_map = today_stats_map or {}
     items = []
     if fav_players:
         for name in fav_players[:5]:
             p_photo = get_player_photo_url(name)
             p_info = next((p for p in KBL_PLAYERS if p["name"] == name), None)
+            today_str = _format_player_today_line(today_map.get(name))
             if p_info:
                 p_team = p_info["team"]
+                desc = today_str if today_str else f"평균 {p_info['pts']}점 | {p_info['reb']}리바 | {p_info['ast']}어시"
                 items.append({
                     "title": f"⭐ {p_info['name']} ({p_team} #{p_info['no']})",
-                    "description": f"시즌 평균: {p_info['pts']}점 | {p_info['reb']}리바 | {p_info['ast']}어시",
+                    "description": desc,
                     "imageUrl": p_photo or get_team_logo(p_team),
                     "link": {"web": "https://sports.daum.net/record/kbl/person"},
                 })
@@ -2370,7 +2396,7 @@ def build_favorite_players_response(
                         break
                 items.append({
                     "title": f"⭐ {name}" + (f" ({found_team})" if found_team else ""),
-                    "description": "내 등록 관심선수",
+                    "description": today_str if today_str else "내 등록 관심선수",
                     "imageUrl": p_photo or (get_team_logo(found_team) if found_team else fallback_logo),
                 })
     else:
@@ -2690,15 +2716,16 @@ def build_user_points_response(
 def build_prediction_leaderboard_response(
     rankings: list[dict[str, Any]],
     user_points: int,
-    user_rank: int = 12,
+    user_rank: int = 1,
     streak: int = 0,
     favorite_team: str | None = None,
     user_hmac: str | None = None,
+    team_filter: str | None = None,
 ) -> KakaoSkillResponse:
     """
     Build pure listCard response for '승부예측 랭킹' / '리더보드'.
-    Displays monthly top users with Option 1 auto-generated nicknames (`{응원팀} {등급}#{고유4자리}`),
-    streaks, and current user's live ranking status.
+    Displays monthly or club-specific top users with real computed ZSET rank (`user_rank`),
+    streaks, and quick toggles between overall and favorite-team leaderboards.
     """
     from core.cache.redis import format_auto_fan_nickname
 
@@ -2715,8 +2742,8 @@ def build_prediction_leaderboard_response(
         team = str(r.get("team", ""))
         pts = int(r.get("points", 0))
         stk = int(r.get("streak", 0))
-        stk_str = f" ({stk}연승🔥)" if stk >= 3 else ""
-        me_tag = " 👈나" if (my_nick and nick == my_nick) else ""
+        stk_str = f" ({stk}연승)" if stk >= 3 else ""
+        me_tag = " (나)" if (my_nick and nick == my_nick) else ""
         if "#" in nick:
             item_title = f"{rank}위 {nick}{me_tag}"[:35]
         else:
@@ -2729,15 +2756,25 @@ def build_prediction_leaderboard_response(
         })
 
     if my_nick and not any(r.get("nickname") == my_nick for r in rankings[:5]):
-        streak_msg = f" ({streak}연승🔥)" if streak > 0 else ""
+        streak_msg = f" ({streak}연승)" if streak > 0 else ""
         items.append({
             "title": f"나의 닉네임: {my_nick}"[:35],
-            "description": f"보유 {user_points:,}P{streak_msg}"[:30],
+            "description": f"{user_rank}위 · 보유 {user_points:,}P{streak_msg}"[:30],
             "imageUrl": get_team_logo(favorite_team) if favorite_team else DEFAULT_SPORTS_LOGO,
             "link": {"web": "https://sports.daum.net/record/kbl"},
         })
-    fav_str = f" [{favorite_team} 팬]" if favorite_team else ""
-    header_title = f"🏆 KBL 승부예측 월간 랭킹{fav_str}"[:35].strip()
+    now_month = datetime.now(_KST).month
+    if team_filter:
+        header_title = f"🏆 {now_month}월 [{team_filter}] 팬 랭킹"[:35].strip()
+        switch_btn = _msg_btn("전체 팬 랭킹", "#랭킹 전체")
+    else:
+        fav_str = f" [{favorite_team}]" if favorite_team else ""
+        header_title = f"🏆 {now_month}월 KBL 승부예측 랭킹{fav_str}"[:35].strip()
+        switch_btn = (
+            _msg_btn(f"{favorite_team} 팬 랭킹", "#랭킹 응원팀")
+            if favorite_team
+            else _msg_btn("내 포인트 확인", "내 포인트")
+        )
 
     card = _list_card(
         header_title=header_title,
@@ -2747,8 +2784,8 @@ def build_prediction_leaderboard_response(
             "imageUrl": DEFAULT_SPORTS_LOGO,
         }],
         buttons=[
-            _msg_btn("🗳️ 오늘 승부예측", "승부예측"),
-            _msg_btn("💰 내 포인트 확인", "내 포인트"),
+            _msg_btn("오늘 승부예측", "승부예측"),
+            switch_btn,
         ],
     )
     return KakaoSkillResponse(
@@ -3046,15 +3083,32 @@ def build_settings_response(
 def build_matchup_search_response(
     query: MatchupQuery,
     games: list[dict[str, Any]],
+    analytics: dict[str, Any] | None = None,
 ) -> KakaoSkillResponse:
     """
     Build a Kakao Skill response for a Daum Sports team/matchup search (e.g. ``#KT vs LG``).
-    Returns pure listCard with verified team logos and action buttons.
+    Returns pure listCard with verified team logos, season H2H/L5 summary, and action buttons.
     """
+    h2h_suffix = ""
+    if analytics:
+        if query.is_head_to_head and query.team_a and query.team_b:
+            pair_key = ":".join(sorted([query.team_a, query.team_b]))
+            rec = (analytics.get("h2h") or {}).get(pair_key) or {}
+            wa = int(rec.get(query.team_a, 0))
+            wb = int(rec.get(query.team_b, 0))
+            if wa or wb:
+                h2h_suffix = f" ({wa}승{wb}패)"
+        elif query.team_a:
+            t_meta = (analytics.get("teams") or {}).get(query.team_a) or {}
+            l5 = t_meta.get("l5")
+            st = t_meta.get("streak")
+            if st and st != "-":
+                h2h_suffix = f" ({st} · 최근5G {l5})" if l5 and l5 != "-" else f" ({st})"
+
     header = (
-        f"🔍 [{query.team_a} vs {query.team_b}] 맞대결"
+        f"🔍 [{query.team_a} vs {query.team_b}] 맞대결{h2h_suffix}"
         if query.is_head_to_head
-        else f"🔍 [{query.team_a}] 경기 일정"
+        else f"🔍 [{query.team_a}] 경기 일정{h2h_suffix}"
     )
 
     items = []

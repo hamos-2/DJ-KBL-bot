@@ -503,6 +503,126 @@ def compute_standings_from_games(games: list[dict[str, Any]]) -> list[dict[str, 
     return standings
 
 
+def compute_team_streaks_and_h2h(games: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Compute per-team current streak, recent 5 games (L5), and pairwise head-to-head
+    records from finished canonical games.
+    """
+    history_map: dict[str, list[str]] = {t: [] for t in KBL_TEAMS}
+    h2h: dict[str, dict[str, int]] = {}
+
+    sorted_games = sorted(games, key=lambda g: str(g.get("start_time") or ""))
+    for g in sorted_games:
+        if g.get("status") != "FINAL":
+            continue
+        h = g.get("home_team")
+        a = g.get("away_team")
+        hs = g.get("home_score")
+        as_ = g.get("away_score")
+        if not h or not a or hs is None or as_ is None:
+            continue
+        pair_key = ":".join(sorted([h, a]))
+        rec = h2h.setdefault(pair_key, {h: 0, a: 0})
+        if hs > as_:
+            history_map.setdefault(h, []).append("W")
+            history_map.setdefault(a, []).append("L")
+            rec[h] = rec.get(h, 0) + 1
+        elif as_ > hs:
+            history_map.setdefault(a, []).append("W")
+            history_map.setdefault(h, []).append("L")
+            rec[a] = rec.get(a, 0) + 1
+
+    teams_out: dict[str, dict[str, str]] = {}
+    for team, hist in history_map.items():
+        streak = "-"
+        l5 = "-"
+        if hist:
+            last = hist[-1]
+            cnt = 0
+            for r in reversed(hist):
+                if r == last:
+                    cnt += 1
+                else:
+                    break
+            streak = f"{cnt}연승" if last == "W" else f"{cnt}연패"
+            recent5 = hist[-5:]
+            w5 = sum(1 for r in recent5 if r == "W")
+            l5_cnt = len(recent5) - w5
+            l5 = f"{w5}승{l5_cnt}패"
+        teams_out[team] = {"streak": streak, "l5": l5}
+
+    return {"teams": teams_out, "h2h": h2h}
+
+
+def fetch_game_player_boxscores_sync(
+    game_id: str,
+    home_team: str,
+    away_team: str,
+    status: str = "FINAL",
+    period: Any = None,
+    game_clock: str | None = None,
+    timeout: float = 2.0,
+) -> dict[str, dict[str, Any]]:
+    """
+    Fetch individual player boxscores for a LIVE/FINAL game from Daum Hermes API.
+    Returns mapping of ``player_name -> stats dict``.
+    """
+    gid = str(game_id or "").strip()
+    if not gid.isdigit() or len(gid) < 6:
+        return {}
+    try:
+        resp = httpx.get(
+            "https://sports.daum.net/api/hermes/game/get.json",
+            params={"gameId": gid, "detail": "liveData"},
+            headers={"Referer": "https://sports.daum.net/", "User-Agent": "Mozilla/5.0"},
+            timeout=timeout,
+            verify=_get_tls_verify(),
+        )
+        if resp.status_code != 200:
+            return {}
+        data = resp.json() or {}
+    except Exception:
+        return {}
+
+    out: dict[str, dict[str, Any]] = {}
+    for side, team_code, opp_code in (("home", home_team, away_team), ("away", away_team, home_team)):
+        persons = {p.get("personId"): p for p in (data.get(f"{side}Person") or [])}
+        stats = data.get(f"{side}PersonStat") or []
+        for st in stats:
+            p_info = persons.get(st.get("personId")) or {}
+            name = str(p_info.get("nameKo") or p_info.get("name") or "").strip()
+            if not name:
+                continue
+            pts = int(st.get("pts") or 0)
+            reb = int(st.get("reb") or 0)
+            ast = int(st.get("ast") or 0)
+            tpm = int(st.get("tpm") or st.get("fg3m") or 0)
+            stl = int(st.get("stl") or 0)
+            blk = int(st.get("blk") or 0)
+            fgm = int(st.get("fgm") or 0)
+            fga = int(st.get("fga") or 0)
+            mins = str(st.get("min") or st.get("playTime") or "").strip()
+            out[name] = {
+                "name": name,
+                "game_id": gid,
+                "team": team_code,
+                "opp": opp_code,
+                "status": status,
+                "period": period,
+                "game_clock": game_clock or "",
+                "pts": pts,
+                "reb": reb,
+                "ast": ast,
+                "tpm": tpm,
+                "stl": stl,
+                "blk": blk,
+                "fgm": fgm,
+                "fga": fga,
+                "min": mins,
+            }
+    return out
+
+
 def parse_daum_news_html(
     raw_html: str,
     recent_games: list[dict[str, Any]] | None = None,
