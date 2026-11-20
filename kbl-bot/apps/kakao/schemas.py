@@ -35,6 +35,7 @@ class KakaoAction(BaseModel):
 class KakaoSkillPayload(BaseModel):
     """Top-level Kakao OpenBuilder Skill request payload."""
 
+    intent: dict[str, Any] = Field(default_factory=dict, description="Triggered OpenBuilder block/intent metadata")
     user_request: KakaoUserRequest = Field(..., alias="userRequest")
     action: KakaoAction
     contexts: list[dict[str, Any]] = Field(default_factory=list)

@@ -1034,5 +1034,49 @@ class TestProBasketballBotFeatures:
             assert resp_obj.template.quickReplies[-1].label == "홈으로"
             assert resp_obj.template.quickReplies[-1].messageText == "처음으로"
 
+    async def test_today_games_and_match_search_welcome_intent_detection(self) -> None:
+        """Both top-level `intent` and `userRequest.block` must trigger Welcome greeting even with empty utterance."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from apps.kakao.router import _is_welcome_block_request, today_games
+        from apps.kakao.schemas import KakaoAction, KakaoSkillPayload, KakaoUser, KakaoUserRequest
+        import json
+
+        # 1. intent-only welcome_event (utterance="", block={})
+        payload_intent = KakaoSkillPayload(
+            intent={"id": "6ae5fa740100875ffb65fcb0", "name": "웰컴 블록"},
+            userRequest=KakaoUserRequest(utterance="", block={}, user=KakaoUser(id="mobile_u1")),
+            action=KakaoAction(name="오늘경기조회", params={}),
+        )
+        assert _is_welcome_block_request(payload_intent, "") is True
+
+        mock_db = AsyncMock()
+        mock_gs = MagicMock()
+        mock_gs.get_today_games = AsyncMock(return_value=[])
+        mock_gs.get_kbl_schedule = AsyncMock(return_value=[])
+        mock_gs.get_team_standings = AsyncMock(return_value=[])
+        mock_gs.get_recent_results = AsyncMock(return_value=[])
+
+        mock_user = MagicMock()
+        mock_user.kakao_user_key_hmac = "hm1"
+        mock_user.favorite_team = None
+        mock_us = MagicMock()
+        mock_us.get_or_create = AsyncMock(return_value=(mock_user, True))
+
+        with patch("apps.kakao.router._verify_skill_secret", return_value=True), patch(
+            "apps.kakao.router.get_user_preferences", new=AsyncMock(return_value={"favorite_players": []})
+        ):
+            r_new = await today_games(payload_intent, mock_db, mock_gs, mock_us)
+            b_new = json.loads(r_new.body.decode())
+            assert b_new["template"]["outputs"][0]["simpleText"]["text"] == (
+                "👋 반가워요! 응원하는 KBL 구단을 선택하시면 맞춤 소식을 준비해 드릴게요."
+            )
+
+            mock_user.favorite_team = "SK"
+            r_sk = await today_games(payload_intent, mock_db, mock_gs, mock_us)
+            b_sk = json.loads(r_sk.body.decode())
+            assert b_sk["template"]["outputs"][0]["simpleText"]["text"] == (
+                "👋 또 오셨군요, 반가워요! 우리 팀 서울 SK 나이츠 소식을 준비했어요."
+            )
+
 
 

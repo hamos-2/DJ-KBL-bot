@@ -1547,6 +1547,29 @@ async def get_game_recap_banner(
     )
 
 
+_WELCOME_BLOCK_IDS = {"6ae5fa740100875ffb65fcb0"}
+
+
+def _is_welcome_block_request(payload: KakaoSkillPayload, raw_utterance: str) -> bool:
+    """Detect Welcome Block / welcome_event across both `userRequest.block` and top-level `intent`."""
+    req_block = payload.user_request.block or {}
+    intent = payload.intent or {}
+    block_id = str(req_block.get("id") or "")
+    intent_id = str(intent.get("id") or "")
+    block_name = str(req_block.get("name") or "")
+    intent_name = str(intent.get("name") or "")
+    u_low = raw_utterance.strip().lower()
+    return (
+        block_id in _WELCOME_BLOCK_IDS
+        or intent_id in _WELCOME_BLOCK_IDS
+        or "웰컴" in block_name
+        or "웰컴" in intent_name
+        or "welcome" in block_name.lower()
+        or "welcome" in intent_name.lower()
+        or u_low in ("웰컴", "웰컴블록", "welcome", "welcome_event")
+    )
+
+
 @router.post("/today-games")
 async def today_games(
     payload: KakaoSkillPayload,
@@ -1566,9 +1589,17 @@ async def today_games(
 
     kakao_user_key = payload.user_request.user.id
     utterance = payload.user_request.utterance.strip()
-    block_name = str(payload.user_request.block.get("name") or "")
-    if "웰컴" in block_name or payload.user_request.block.get("id") == "6ae5fa740100875ffb65fcb0":
+    is_welcome = _is_welcome_block_request(payload, utterance)
+    if is_welcome:
         utterance = "웰컴"
+    logger.info(
+        "Skill request received",
+        endpoint="/today-games",
+        block_name=str((payload.user_request.block or {}).get("name") or ""),
+        intent_name=str((payload.intent or {}).get("name") or ""),
+        is_welcome=is_welcome,
+        utterance_len=len(payload.user_request.utterance.strip()),
+    )
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
         resp = await _dispatch_command(
@@ -1614,9 +1645,17 @@ async def match_search(
         str(payload.action.params.get("query") or "")
         or payload.user_request.utterance
     ).strip()
-    block_name = str(payload.user_request.block.get("name") or "")
-    if "웰컴" in block_name or payload.user_request.block.get("id") == "6ae5fa740100875ffb65fcb0":
+    is_welcome = _is_welcome_block_request(payload, raw_query)
+    if is_welcome:
         raw_query = "웰컴"
+    logger.info(
+        "Skill request received",
+        endpoint="/match-search",
+        block_name=str((payload.user_request.block or {}).get("name") or ""),
+        intent_name=str((payload.intent or {}).get("name") or ""),
+        is_welcome=is_welcome,
+        utterance_len=len(payload.user_request.utterance.strip()),
+    )
 
     try:
         user, _ = await user_service.get_or_create(db, kakao_user_key)
