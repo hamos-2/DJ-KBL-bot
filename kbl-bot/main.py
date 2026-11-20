@@ -58,6 +58,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "Starting KBL Bot",
         env=settings.app_env,
         provider_mode=settings.provider_mode,
+        skill_secret_enabled=bool(settings.kakao_skill_secret),
+        named_tunnel_configured=bool(settings.cloudflare_tunnel_token),
+        admin_allowlist_configured=bool(settings.admin_user_hmacs.strip()),
     )
 
     # 1. Validate secrets

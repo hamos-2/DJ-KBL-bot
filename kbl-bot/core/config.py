@@ -41,8 +41,11 @@ class Settings(BaseSettings):
     # Optional Season override (default None -> automatically determined by current date)
     current_season: str | None = Field(default=None)
 
-    # Kakao
+    # Kakao & Public Endpoint / Admin
     kakao_skill_secret: str = Field(default="")
+    public_base_url: str = Field(default="https://activity-lexmark-insert-styles.trycloudflare.com")
+    admin_user_hmacs: str = Field(default="")
+    cloudflare_tunnel_token: str = Field(default="")
 
     @field_validator("master_encryption_key", "hmac_secret_key", mode="before")
     @classmethod

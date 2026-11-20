@@ -1,6 +1,7 @@
 """User domain service — registration, HMAC lookup, encrypt/decrypt."""
 
 import uuid
+from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import Optional
 
@@ -19,6 +20,8 @@ logger = get_logger("service.user")
 class UserService:
     """Handles user registration and secure lookup by KakaoTalk user key."""
 
+    _USER_CACHE_MAX = 1000
+
     def __init__(self, crypto: CryptoService) -> None:
         """
         Initialise UserService.
@@ -27,7 +30,15 @@ class UserService:
             crypto: Configured CryptoService instance.
         """
         self._crypto = crypto
-        self._user_cache: dict[str, User] = {}
+        self._user_cache: OrderedDict[str, User] = OrderedDict()
+
+    def _cache_put(self, key_hmac: str, user: User) -> None:
+        """Insert or promote *user* in the bounded LRU cache (OCI 952 MiB safe)."""
+        if key_hmac in self._user_cache:
+            self._user_cache.move_to_end(key_hmac)
+        self._user_cache[key_hmac] = user
+        while len(self._user_cache) > self._USER_CACHE_MAX:
+            self._user_cache.popitem(last=False)
 
     async def get_or_create(
         self,
@@ -57,6 +68,7 @@ class UserService:
             try:
                 if cached_user not in db:
                     cached_user = await db.merge(cached_user)
+                self._user_cache.move_to_end(key_hmac)
                 return cached_user, False
             except Exception:
                 self._user_cache.pop(key_hmac, None)
@@ -67,9 +79,7 @@ class UserService:
 
         if user is not None:
             logger.debug("Existing user found", hmac_prefix=key_hmac[:8])
-            if len(self._user_cache) >= 5000:
-                self._user_cache.clear()
-            self._user_cache[key_hmac] = user
+            self._cache_put(key_hmac, user)
             return user, False
 
         encrypted_key = self._crypto.encrypt(kakao_user_key, aad=key_hmac)
@@ -98,9 +108,7 @@ class UserService:
         created = bool(insert_res.rowcount and insert_res.rowcount > 0)
         if created:
             logger.info("New user created", hmac_prefix=key_hmac[:8])
-        if len(self._user_cache) >= 5000:
-            self._user_cache.clear()
-        self._user_cache[key_hmac] = user
+        self._cache_put(key_hmac, user)
         return user, created
 
     async def get_by_kakao_key(self, db: AsyncSession, kakao_user_key: str) -> User:

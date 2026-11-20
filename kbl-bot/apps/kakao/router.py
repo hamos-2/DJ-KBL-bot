@@ -130,6 +130,7 @@ _DEFAULT_PUBLIC_BASE_URL = os.environ.get(
 
 def _resolve_public_base_url(request: Request | None = None) -> str:
     """Resolve externally reachable HTTPS base URL for Kakao image assets."""
+    configured = (get_settings().public_base_url or "").strip().rstrip("/")
     if request is not None:
         host = (
             request.headers.get("x-forwarded-host")
@@ -138,7 +139,7 @@ def _resolve_public_base_url(request: Request | None = None) -> str:
         ).strip()
         if host and not host.startswith(("127.0.0.1", "localhost", "0.0.0.0")):
             return f"https://{host}"
-    return _DEFAULT_PUBLIC_BASE_URL
+    return configured or _DEFAULT_PUBLIC_BASE_URL
 
 
 async def _dispatch_command(

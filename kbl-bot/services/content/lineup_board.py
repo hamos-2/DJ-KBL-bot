@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from functools import lru_cache
 import hashlib
 import io
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -271,18 +274,34 @@ def set_cached_game_lineup(
     _GAME_LINEUP_CACHE[gid] = _LineupCacheEntry(data, ttl=ttl)
     _MEMORY_GAME_LINEUP_CACHE[gid] = data
 
-# In-memory rendered PNG image LRU cache (eliminates disk I/O on hot hits)
-_BOARD_IMAGE_MEMORY_CACHE: dict[str, bytes] = {}
+# In-memory rendered PNG image LRU cache (eliminates disk I/O while bounding RAM on 952 MiB OCI)
+_BOARD_IMAGE_MEMORY_CACHE: OrderedDict[str, bytes] = OrderedDict()
 _MAX_BOARD_IMAGE_CACHE_SIZE = 40
+_MAX_BOARD_IMAGE_CACHE_BYTES = 16 * 1024 * 1024  # 16 MiB strict RAM budget
+_RENDER_SEMAPHORE = threading.Semaphore(2)
+
 
 def get_cached_board_image(sig: str) -> bytes | None:
-    return _BOARD_IMAGE_MEMORY_CACHE.get(sig)
+    data = _BOARD_IMAGE_MEMORY_CACHE.get(sig)
+    if data is not None:
+        _BOARD_IMAGE_MEMORY_CACHE.move_to_end(sig)
+    return data
+
 
 def set_cached_board_image(sig: str, img_bytes: bytes) -> None:
-    if len(_BOARD_IMAGE_MEMORY_CACHE) >= _MAX_BOARD_IMAGE_CACHE_SIZE:
-        first_k = next(iter(_BOARD_IMAGE_MEMORY_CACHE))
-        _BOARD_IMAGE_MEMORY_CACHE.pop(first_k, None)
+    if sig in _BOARD_IMAGE_MEMORY_CACHE:
+        _BOARD_IMAGE_MEMORY_CACHE.move_to_end(sig)
     _BOARD_IMAGE_MEMORY_CACHE[sig] = img_bytes
+    total_bytes = sum(len(v) for v in _BOARD_IMAGE_MEMORY_CACHE.values())
+    while (
+        len(_BOARD_IMAGE_MEMORY_CACHE) > _MAX_BOARD_IMAGE_CACHE_SIZE
+        or total_bytes > _MAX_BOARD_IMAGE_CACHE_BYTES
+    ):
+        if len(_BOARD_IMAGE_MEMORY_CACHE) <= 1 and total_bytes > _MAX_BOARD_IMAGE_CACHE_BYTES:
+            _BOARD_IMAGE_MEMORY_CACHE.clear()
+            break
+        _, evicted = _BOARD_IMAGE_MEMORY_CACHE.popitem(last=False)
+        total_bytes -= len(evicted)
 
 
 def invalidate_lineup_caches(game_id: str | None = None) -> None:
@@ -414,6 +433,7 @@ def fetch_daum_match_lineup_sync(
     return (home_team, away_team, h_list, a_list, False)
 
 
+@lru_cache(maxsize=64)
 def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     """Load Korean font across Linux container (/app/assets/fonts) and macOS."""
     candidates = (
@@ -455,7 +475,8 @@ def _download_image_cached(url: str | None) -> Image.Image | None:
     cache_path = _AVATAR_DIR / f"{key}.png"
     if cache_path.exists():
         try:
-            return Image.open(cache_path).convert("RGBA")
+            with Image.open(cache_path) as im:
+                return im.convert("RGBA")
         except Exception:
             pass
 
@@ -468,7 +489,8 @@ def _download_image_cached(url: str | None) -> Image.Image | None:
                 timeout=4.5,
             )
             if resp.status_code == 200 and len(resp.content) > 100:
-                img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                with Image.open(io.BytesIO(resp.content)) as im:
+                    img = im.convert("RGBA")
                 img.save(cache_path, format="PNG")
                 return img
         except Exception:
@@ -544,7 +566,7 @@ def render_lineup_board_png(
         u = p.get("imageUrl") or get_player_photo_url(str(p.get("name") or ""))
         if u:
             urls_to_fetch.append(u)
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
     width, height = 800, 800
@@ -671,7 +693,7 @@ def render_single_team_lineup_board_png(
         u = p.get("imageUrl") or get_player_photo_url(str(p.get("name") or ""))
         if u:
             urls_to_fetch.append(u)
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
     width, height = 800, 800
@@ -882,7 +904,7 @@ def render_player_category_banner_png(
         t_u = get_team_logo(team)
         if t_u:
             urls_to_fetch.append(t_u)
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
     img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
@@ -957,7 +979,7 @@ def render_team_starters_banner_png(
         p_u = get_player_photo_url(name)
         if p_u:
             urls_to_fetch.append(p_u)
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
     img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
@@ -1018,7 +1040,7 @@ def render_all_teams_banner_png(width: int = 800, height: int = 400) -> bytes:
 
     teams = ["SK", "KT", "삼성", "DB", "정관장", "소노", "LG", "KCC", "현대모비스", "한국가스공사"]
     urls_to_fetch = [get_team_logo(t) for t in teams]
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(_download_image_cached, urls_to_fetch))
 
     img = Image.new("RGBA", (width, height), (248, 249, 251, 255))
@@ -1394,10 +1416,11 @@ def _new_banner_canvas(
 
 
 def _save_banner_png(img: Image.Image, banner_path: Path) -> bytes:
-    """Encode banner image as optimized RGB PNG and best-effort cache on disk."""
-    out_buf = io.BytesIO()
-    img.convert("RGB").save(out_buf, format="PNG", optimize=True)
-    png_bytes = out_buf.getvalue()
+    """Encode banner image as optimized RGB PNG and best-effort cache on disk under a 2-render semaphore."""
+    with _RENDER_SEMAPHORE:
+        out_buf = io.BytesIO()
+        img.convert("RGB").save(out_buf, format="PNG", optimize=True)
+        png_bytes = out_buf.getvalue()
     try:
         banner_path.write_bytes(png_bytes)
     except Exception:
